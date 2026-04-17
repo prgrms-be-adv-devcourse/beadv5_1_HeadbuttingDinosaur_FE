@@ -9,6 +9,7 @@ import { getWalletBalance, getWalletTransactions, startWalletCharge, withdrawWal
 import { getRefunds } from '../api/refunds.api'
 import { updateProfile, changePassword, withdrawUser } from '../api/auth.api'
 import { refundByWallet } from '../api/refunds.api'
+import { POSITION_OPTIONS } from '../constants/profile'
 import type {
   TicketItem, OrderItem, WalletTransactionItem, RefundItem,
   UpdateProfileRequest,
@@ -523,15 +524,7 @@ function SettingsTab({ user, toast, refresh, navigate }: { user: any; toast: any
           <div className="form-group">
             <label className="form-label">포지션</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[
-                { value: 'BACKEND', label: '백엔드' },
-                { value: 'FRONTEND', label: '프론트엔드' },
-                { value: 'FULLSTACK', label: '풀스택' },
-                { value: 'DEVOPS', label: '데브옵스' },
-                { value: 'AI_ML', label: 'AI/ML' },
-                { value: 'MOBILE', label: '모바일' },
-                { value: 'OTHER', label: '기타' },
-              ].map(pos => (
+              {POSITION_OPTIONS.map(pos => (
                   <button
                       key={pos.value}
                       type="button"

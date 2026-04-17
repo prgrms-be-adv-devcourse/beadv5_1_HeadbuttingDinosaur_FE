@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createProfile, getTechStacks } from '../api/auth.api'
+import { extractTechStacks } from '../api/techStacks'
+import { POSITION_LABELS, POSITION_OPTIONS } from '../constants/profile'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 
 interface TechStackItem {
   techStackId: number
   name: string
-}
-
-const POSITIONS = ['BACKEND', 'FRONTEND', 'FULLSTACK', 'DEVOPS', 'AI_ML', 'MOBILE', 'OTHER']
-const POSITION_LABELS: Record<string, string> = {
-  BACKEND: '백엔드', FRONTEND: '프론트엔드', FULLSTACK: '풀스택',
-  DEVOPS: 'DevOps/인프라', AI_ML: 'AI/ML', MOBILE: '모바일', OTHER: '기타',
 }
 
 export default function SocialProfileSetup() {
@@ -32,14 +28,15 @@ export default function SocialProfileSetup() {
       return
     }
     getTechStacks()
-      .then(res => setTechStacks(res.data.data.techStacks))
-      .catch(() => {
-        const fallbacks = ['Java','Spring Boot','Kotlin','JavaScript','TypeScript','React','Vue.js',
-          'Node.js','Python','FastAPI','Go','Rust','Docker','Kubernetes','AWS','MySQL','PostgreSQL',
-          'Redis','Kafka','ElasticSearch']
-        setTechStacks(fallbacks.map((name, i) => ({ techStackId: i + 1, name })))
+      .then(res => {
+        const stacks = extractTechStacks(res.data)
+        if (stacks.length === 0) throw new Error('NO_TECH_STACKS')
+        setTechStacks(stacks)
       })
-  }, [navigate])
+      .catch(() => {
+        toast('기술 스택 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'error')
+      })
+  }, [navigate, toast])
 
   // 이미 로그인 완료된 사용자(프로필 있음)는 홈으로
   useEffect(() => {
@@ -158,20 +155,20 @@ export default function SocialProfileSetup() {
                 포지션 <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                {POSITIONS.map(pos => (
+                {POSITION_OPTIONS.map(({ value }) => (
                   <button
-                    key={pos}
+                    key={value}
                     type="button"
-                    onClick={() => { setForm(p => ({ ...p, position: pos })); setErrors(prev => ({ ...prev, position: '' })) }}
+                    onClick={() => { setForm(p => ({ ...p, position: value })); setErrors(prev => ({ ...prev, position: '' })) }}
                     style={{
                       padding: '8px 10px', borderRadius: 'var(--r-md)', fontSize: 13,
-                      border: `1px solid ${form.position === pos ? 'var(--brand)' : 'var(--border)'}`,
-                      background: form.position === pos ? 'var(--brand-light)' : 'var(--surface)',
-                      color: form.position === pos ? 'var(--brand)' : 'var(--text-2)',
+                      border: `1px solid ${form.position === value ? 'var(--brand)' : 'var(--border)'}`,
+                      background: form.position === value ? 'var(--brand-light)' : 'var(--surface)',
+                      color: form.position === value ? 'var(--brand)' : 'var(--text-2)',
                       cursor: 'pointer', transition: 'all 0.12s', textAlign: 'left',
                     }}
                   >
-                    {POSITION_LABELS[pos] ?? pos}
+                    {POSITION_LABELS[value] ?? value}
                   </button>
                 ))}
               </div>

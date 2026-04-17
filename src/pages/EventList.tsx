@@ -5,6 +5,7 @@ import {
   filterEvents,
 } from "../api/events.api";
 import { getTechStacks } from "../api/auth.api";
+import { extractTechStacks } from "../api/techStacks";
 import type { EventItem } from "../api/types";
 import EventCard from "../components/EventCard";
 import Pagination from "../components/Pagination";
@@ -30,7 +31,7 @@ export default function EventList() {
   >([]);
 
   useEffect(() => {
-    getTechStacks().then((res) => setTechStacks(res.data.techStacks));
+    getTechStacks().then((res) => setTechStacks(extractTechStacks(res.data)));
   }, []);
 
   const debouncedKeyword = useDebounce(keyword, 350);
