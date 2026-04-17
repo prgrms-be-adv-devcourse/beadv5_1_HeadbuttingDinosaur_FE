@@ -7,9 +7,11 @@ import TicketDetailModal from '../components/TicketDetailModal'
 import { getOrders, cancelOrder } from '../api/orders.api'
 import { getWalletBalance, getWalletTransactions, startWalletCharge, withdrawWallet } from '../api/wallet.api'
 import { getRefunds } from '../api/refunds.api'
-import { updateProfile, changePassword, withdrawUser } from '../api/auth.api'
+import { getTechStacks, updateProfile, changePassword, withdrawUser } from '../api/auth.api'
 import { refundByWallet } from '../api/refunds.api'
+import { extractTechStacks } from '../api/techStacks'
 import { POSITION_OPTIONS } from '../constants/profile'
+
 import type {
   TicketItem, OrderItem, WalletTransactionItem, RefundItem,
   UpdateProfileRequest,
@@ -474,15 +476,46 @@ function SettingsTab({ user, toast, refresh, navigate }: { user: any; toast: any
     nickname: user?.nickname ?? '',
     position: user?.position ?? '',
   })
+  const [techStackOptions, setTechStackOptions] = useState<{ techStackId: number; name: string }[]>([])
+  const [selectedStackIds, setSelectedStackIds] = useState<number[]>(
+    () => (user?.techStacks ?? [])
+      .map((stack: any) => Number(stack?.techStackId))
+      .filter((id: number) => Number.isFinite(id)),
+  )
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPw, setSavingPw] = useState(false)
+
+  useEffect(() => {
+    getTechStacks()
+      .then((res) => setTechStackOptions(extractTechStacks(res.data)))
+      .catch(() => toast('기술 스택 목록 로드 실패', 'error'))
+  }, [toast])
+
+  useEffect(() => {
+    setSelectedStackIds(
+      (user?.techStacks ?? [])
+        .map((stack: any) => Number(stack?.techStackId))
+        .filter((id: number) => Number.isFinite(id)),
+    )
+  }, [user])
+
+  const toggleStack = (techStackId: number) => {
+    setSelectedStackIds((prev) =>
+      prev.includes(techStackId)
+        ? prev.filter((id) => id !== techStackId)
+        : [...prev, techStackId],
+    )
+  }
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingProfile(true)
     try {
-      await updateProfile(profile)
+      await updateProfile({
+        ...profile,
+        techStackIds: selectedStackIds,
+      })
       await refresh()
       toast('프로필이 수정되었습니다', 'success')
     } catch { toast('수정 실패', 'error') }
@@ -540,6 +573,32 @@ function SettingsTab({ user, toast, refresh, navigate }: { user: any; toast: any
                   >{pos.label}</button>
               ))}
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">기술 스택</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {techStackOptions.map((stack) => (
+                <button
+                  key={stack.techStackId}
+                  type="button"
+                  className="tag"
+                  onClick={() => toggleStack(stack.techStackId)}
+                  style={{
+                    cursor: 'pointer',
+                    background: selectedStackIds.includes(stack.techStackId) ? 'var(--brand-light)' : 'var(--surface-2)',
+                    color: selectedStackIds.includes(stack.techStackId) ? 'var(--brand)' : 'var(--text-2)',
+                    border: `1px solid ${selectedStackIds.includes(stack.techStackId) ? 'var(--brand-muted)' : 'var(--border)'}`,
+                  }}
+                >
+                  {stack.name}
+                </button>
+              ))}
+            </div>
+            {selectedStackIds.length > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                {selectedStackIds.length}개 선택됨
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
