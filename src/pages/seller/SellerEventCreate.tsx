@@ -6,6 +6,7 @@ import {
   updateSellerEvent,
 } from "../../api/events.api";
 import { getTechStacks } from "../../api/auth.api";
+import { extractTechStacks } from "../../api/techStacks";
 import { useToast } from "../../contexts/ToastContext";
 
 const CATEGORIES = [
@@ -394,7 +395,7 @@ export default function SellerEventCreate() {
   >([]);
 
   useEffect(() => {
-    getTechStacks().then((res) => setTechStackOptions(res.data.techStacks));
+    getTechStacks().then((res) => setTechStackOptions(extractTechStacks(res.data)));
   }, []);
 
   const handleSubmit = async (form: EventForm) => {
@@ -453,7 +454,7 @@ export function SellerEventEdit() {
   >([]);
 
   useEffect(() => {
-    getTechStacks().then((res) => setTechStackOptions(res.data.techStacks));
+    getTechStacks().then((res) => setTechStackOptions(extractTechStacks(res.data)));
   }, []);
 
   useEffect(() => {
@@ -485,7 +486,9 @@ export function SellerEventEdit() {
       title: form.title,
       description: form.description,
       category: form.category,
-      techStackIds: form.techStacks.map(s => TECH_STACK_MAP[s]).filter(Boolean),
+      techStackIds: form.techStacks
+        .map((s) => techStackOptions.find((t) => t.name === s)?.techStackId)
+        .filter((id): id is number => id !== undefined),
       price: parseInt(form.price) || 0,
       totalQuantity: parseInt(form.totalQuantity),
       maxQuantity: parseInt(form.maxQuantityPerUser) || 1,

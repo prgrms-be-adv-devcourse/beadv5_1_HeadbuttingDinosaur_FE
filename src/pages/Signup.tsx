@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signup, createProfile, getTechStacks, reissueToken } from '../api/auth.api'
+import { extractTechStacks } from '../api/techStacks'
+import { POSITION_LABELS, POSITION_OPTIONS } from '../constants/profile'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 
@@ -9,12 +11,6 @@ const GOOGLE_OAUTH_URL = import.meta.env.VITE_GOOGLE_OAUTH_URL ?? 'http://localh
 interface TechStackItem {
   techStackId: number
   name: string
-}
-
-const POSITIONS = ['BACKEND', 'FRONTEND', 'FULLSTACK', 'DEVOPS', 'AI_ML', 'MOBILE', 'OTHER']
-const POSITION_LABELS: Record<string, string> = {
-  BACKEND: '백엔드', FRONTEND: '프론트엔드', FULLSTACK: '풀스택',
-  DEVOPS: 'DevOps/인프라', AI_ML: 'AI/ML', MOBILE: '모바일', OTHER: '기타',
 }
 
 export default function Signup() {
@@ -37,13 +33,16 @@ export default function Signup() {
   const [signupResult, setSignupResult] = useState<{ accessToken: string; refreshToken: string } | null>(null)
 
   useEffect(() => {
-    getTechStacks().then(res => {
-      setTechStacks(res.data.data.techStacks)
-    }).catch(() => {
-      const fallbacks = ['Java','Spring Boot','Kotlin','JavaScript','TypeScript','React','Vue.js','Node.js','Python','FastAPI','Go','Rust','Docker','Kubernetes','AWS','MySQL','PostgreSQL','Redis','Kafka','ElasticSearch']
-      setTechStacks(fallbacks.map((name, i) => ({ techStackId: i + 1, name })))
-    })
-  }, [])
+    getTechStacks()
+      .then(res => {
+        const stacks = extractTechStacks(res.data)
+        if (stacks.length === 0) throw new Error('NO_TECH_STACKS')
+        setTechStacks(stacks)
+      })
+      .catch(() => {
+        toast('기술 스택 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'error')
+      })
+  }, [toast])
 
   // ─── Step 1 검증 ───
   const validateStep1 = () => {
@@ -257,17 +256,17 @@ export default function Signup() {
               <div className="form-group">
                 <label className="form-label">포지션 <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                  {POSITIONS.map(pos => (
-                    <button key={pos} type="button"
-                      onClick={() => { setStep2(p => ({ ...p, position: pos })); setErrors({}) }}
+                  {POSITION_OPTIONS.map(({ value }) => (
+                    <button key={value} type="button"
+                      onClick={() => { setStep2(p => ({ ...p, position: value })); setErrors({}) }}
                       style={{
                         padding: '8px 10px', borderRadius: 'var(--r-md)', fontSize: 13,
-                        border: `1px solid ${step2.position === pos ? 'var(--brand)' : 'var(--border)'}`,
-                        background: step2.position === pos ? 'var(--brand-light)' : 'var(--surface)',
-                        color: step2.position === pos ? 'var(--brand)' : 'var(--text-2)',
+                        border: `1px solid ${step2.position === value ? 'var(--brand)' : 'var(--border)'}`,
+                        background: step2.position === value ? 'var(--brand-light)' : 'var(--surface)',
+                        color: step2.position === value ? 'var(--brand)' : 'var(--text-2)',
                         cursor: 'pointer', transition: 'all 0.12s', textAlign: 'left',
                       }}
-                    >{POSITION_LABELS[pos] ?? pos}</button>
+                    >{POSITION_LABELS[value] ?? value}</button>
                   ))}
                 </div>
                 {errors.position && <span className="form-error">{errors.position}</span>}
