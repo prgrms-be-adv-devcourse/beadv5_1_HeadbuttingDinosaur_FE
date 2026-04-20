@@ -447,14 +447,17 @@ export interface TicketDetailResponse {
 // ── Payments ─────────────────────────────────────────────────────────────────
 export interface PaymentRequest {
   orderId: string;
-  paymentMethod: "PG" | "WALLET";
+  paymentMethod: "PG" | "WALLET" | "WALLET_PG";
+  walletAmount?: number | null;
 }
 export interface PaymentResponse {
   paymentId: string;
   orderId: string;
-  paymentMethod: string;
+  paymentMethod: "PG" | "WALLET" | "WALLET_PG";
   amount: number;
   status: string;
+  walletAmount?: number;
+  pgAmount?: number;
   tossPaymentUrl?: string;
 }
 
@@ -467,10 +470,17 @@ export interface PaymentConfirmRequest {
 export interface PaymentConfirmResponse {
   paymentId: string;
   orderId: string;
-  paymentMethod: "PG" | "WALLET";
+  paymentMethod: "PG" | "WALLET" | "WALLET_PG";
   status: string;
   amount: number;
   approvedAt: string;
+}
+
+export interface PaymentFailRequest {
+  paymentId: string;
+  orderId: string;
+  code?: string;
+  message?: string;
 }
 
 // ── Wallet ───────────────────────────────────────────────────────────────────

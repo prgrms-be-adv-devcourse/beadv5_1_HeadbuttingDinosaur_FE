@@ -41,8 +41,8 @@ export default function PaymentSuccess() {
             state: {
               paymentId: paymentContext.paymentId,
               orderId: paymentContext.orderId,
-              amount: Number(amount),
-              method: 'PG',
+              amount: paymentContext.totalAmount ?? Number(amount),
+              method: paymentContext.method ?? 'PG',
             },
             replace: true,
           })
