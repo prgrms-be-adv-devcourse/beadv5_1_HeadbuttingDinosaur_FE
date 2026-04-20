@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { readyPayment, confirmPayment } from '../api/payments.api'
 import { getWalletBalance } from '../api/wallet.api'
@@ -22,6 +22,7 @@ export default function Payment() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [walletAmountInput, setWalletAmountInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const totalAmount = state?.totalAmount ?? 0
 
   useEffect(() => {
     getWalletBalance().then(res => {
@@ -29,18 +30,16 @@ export default function Payment() {
     }).catch(() => {})
   }, [])
 
-  if (!state) { navigate('/'); return null }
-
   const parsedWalletAmount = Number(walletAmountInput || 0)
-  const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < state.totalAmount
-  const walletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount >= state.totalAmount)
+  const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < totalAmount
+  const walletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount >= totalAmount)
   const walletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
 
-  const payLabel = useMemo(() => {
-    if (method !== 'WALLET_PG') return `${state.totalAmount.toLocaleString()}원 결제하기`
-    const pgAmount = Math.max(state.totalAmount - parsedWalletAmount, 0)
-    return `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${pgAmount.toLocaleString()}원 결제`
-  }, [method, parsedWalletAmount, state.totalAmount])
+  const payLabel = method !== 'WALLET_PG'
+    ? `${totalAmount.toLocaleString()}원 결제하기`
+    : `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원 결제`
+
+  if (!state) { navigate('/'); return null }
 
   const handlePay = async () => {
     setLoading(true)

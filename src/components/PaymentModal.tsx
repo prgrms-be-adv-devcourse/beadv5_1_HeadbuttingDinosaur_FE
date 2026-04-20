@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { readyPayment, confirmPayment } from '../api/payments.api'
 import { getWalletBalance } from '../api/wallet.api'
 import { useToast } from '../contexts/ToastContext'
@@ -40,8 +40,6 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  if (!open) return null
-
   const parsedWalletAmount = Number(walletAmountInput || 0)
   const isWalletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount >= totalAmount)
   const isWalletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
@@ -49,11 +47,11 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   const walletPgDisabled = method === 'WALLET_PG' && (isWalletPgInvalidRange || isWalletPgInsufficient)
   const payDisabled = loading || walletInsufficient || walletPgDisabled
 
-  const payLabel = useMemo(() => {
-    if (method !== 'WALLET_PG') return `${totalAmount.toLocaleString()}원 결제`
-    const pgAmount = Math.max(totalAmount - parsedWalletAmount, 0)
-    return `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${pgAmount.toLocaleString()}원`
-  }, [method, parsedWalletAmount, totalAmount])
+  const payLabel = method !== 'WALLET_PG'
+    ? `${totalAmount.toLocaleString()}원 결제`
+    : `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원`
+
+  if (!open) return null
 
   const handlePay = async () => {
     setLoading(true)
