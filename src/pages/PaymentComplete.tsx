@@ -9,7 +9,12 @@ export default function PaymentComplete() {
 
   if (!state) { navigate('/'); return null }
 
-  const methodLabel = state.method === 'WALLET' ? '예치금' : '카드/계좌이체'
+  const methodLabel =
+    state.method === 'WALLET'
+      ? '예치금'
+      : state.method === 'WALLET_PG'
+      ? '복합 결제 (예치금 + 카드)'
+      : '카드/계좌이체'
 
   return (
     <div style={{

@@ -1,5 +1,6 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import { failPayment } from '../api/payments.api'
 
 export default function PaymentFail() {
   const [searchParams] = useSearchParams()
@@ -9,8 +10,20 @@ export default function PaymentFail() {
   const message = searchParams.get('message') || '결제 처리 중 문제가 발생했습니다.'
 
   useEffect(() => {
+    const ctx = sessionStorage.getItem('payment_context')
+    const paymentContext = ctx ? JSON.parse(ctx) : null
+
+    if (paymentContext?.paymentId && paymentContext?.orderId) {
+      failPayment({
+        paymentId: paymentContext.paymentId,
+        orderId: paymentContext.orderId,
+        code,
+        message,
+      }).catch(() => {})
+    }
+
     sessionStorage.removeItem('payment_context')
-  }, [])
+  }, [code, message])
 
   return (
     <div style={{
