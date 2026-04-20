@@ -467,6 +467,7 @@ export interface PaymentConfirmRequest {
 export interface PaymentConfirmResponse {
   paymentId: string;
   orderId: string;
+  paymentMethod: "PG" | "WALLET";
   status: string;
   amount: number;
   approvedAt: string;
@@ -490,11 +491,11 @@ export interface WalletChargeConfirmRequest {
   amount: number;
 }
 export interface WalletChargeConfirmResponse {
-  userId: string;
+  transactionId: string;
   amount: number;
   balance: number;
   status: string;
-  completedAt: string;
+  approvedAt: string;
 }
 
 export interface WalletBalanceResponse {
@@ -517,9 +518,8 @@ export interface WalletTransactionItem {
   createdAt: string;
 }
 export interface WalletTransactionListResponse {
-  content: WalletTransactionItem[];
-  page: number;
-  size: number;
+  items: WalletTransactionItem[];
+  currentPage: number;
   totalElements: number;
   totalPages: number;
 }
@@ -530,54 +530,65 @@ export interface WalletWithdrawRequest {
 export interface WalletWithdrawResponse {
   walletId: string;
   transactionId: string;
-  transactionKey: string;
-  type: string;
-  amount: number;
-  balanceAfter: number;
+  withdrawnAmount: number;
+  balance: number;
+  status: "SUCCESS" | "FAILED";
   requestedAt: string;
 }
 
 // ── Refunds ──────────────────────────────────────────────────────────────────
-export interface WalletRefundRequest {
-  orderId: string;
-}
-export interface WalletRefundResponse {
-  refundId: string;
-  orderId: string;
-  paymentId: string;
-  paymentMethod: string;
-  refundStatus: string;
+export interface RefundInfoResponse {
+  ticketId: string;
+  eventTitle: string;
+  eventDate: string;
+  originalAmount: number;
   refundAmount: number;
   refundRate: number;
-  walletTransactionType: string;
-  walletBalanceAfter: number;
-  requestedAt: string;
-  completedAt: string;
+  dDay: number;
+  refundable: boolean;
+  paymentMethod: "PG" | "WALLET";
 }
 
-export interface PgRefundRequest {
-  orderId: string;
+export interface TicketRefundRequest {
+  reason: string;
 }
-export interface PgRefundResponse {
-  refundId: string;
+export interface TicketRefundResponse {
+  ticketId: string;
   orderId: string;
-  paymentId: string;
-  refundStatus: string;
+  paymentAmount: number;
   refundAmount: number;
-  requestedAt: string;
+  refundRate: number;
+  paymentMethod: "PG" | "WALLET";
+  refundStatus: "REQUESTED" | "APPROVED" | "REJECTED" | "COMPLETED" | "FAILED";
+  refundedAt?: string;
+}
+
+export interface OrderRefundRequest {
+  reason: string;
+}
+export interface OrderRefundResponse {
+  refundId: string;
+  orderRefundId: string;
+  orderId: string;
+  ticketCount: number;
+  refundAmount: number;
+  refundRate: number;
+  paymentMethod: "PG" | "WALLET";
+  status: "REQUESTED" | "APPROVED" | "REJECTED" | "COMPLETED" | "FAILED";
 }
 
 export interface RefundItem {
   refundId: string;
   orderId: string;
-  refundStatus: string;
+  paymentId: string;
   refundAmount: number;
+  refundRate: number;
+  status: "REQUESTED" | "APPROVED" | "REJECTED" | "COMPLETED" | "FAILED";
   requestedAt: string;
+  completedAt?: string;
 }
 export interface RefundListResponse {
   content: RefundItem[];
-  page: number;
-  size: number;
   totalElements: number;
   totalPages: number;
 }
@@ -586,8 +597,8 @@ export interface RefundDetailResponse {
   refundId: string;
   orderId: string;
   paymentId: string;
-  paymentMethod: string;
-  refundStatus: string;
+  paymentMethod: "PG" | "WALLET";
+  status: "REQUESTED" | "APPROVED" | "REJECTED" | "COMPLETED" | "FAILED";
   refundAmount: number;
   refundRate: number;
   requestedAt: string;
