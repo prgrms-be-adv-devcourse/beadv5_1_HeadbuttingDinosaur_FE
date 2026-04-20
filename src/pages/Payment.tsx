@@ -64,12 +64,12 @@ export default function Payment() {
       } else {
         const pgAmount = payment.pgAmount ?? Math.max(state.totalAmount - (payment.walletAmount ?? 0), 0)
 
-        if (pgAmount <= 0) {
+        if (method === 'WALLET_PG' && pgAmount <= 0) {
           await confirmPayment({
             paymentId: payment.paymentId,
             paymentKey: 'WALLET',
             orderId: state.orderId,
-            amount: 0,
+            amount: payment.amount ?? state.totalAmount,
           })
           navigate('/payment/complete', { state: { paymentId: payment.paymentId, orderId: state.orderId, amount: state.totalAmount, method: 'WALLET_PG' } })
           return

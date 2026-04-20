@@ -81,12 +81,12 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
 
       const pgAmount = payment.pgAmount ?? Math.max(totalAmount - (payment.walletAmount ?? 0), 0)
 
-      if (pgAmount <= 0) {
+      if (method === 'WALLET_PG' && pgAmount <= 0) {
         await confirmPayment({
           paymentId: payment.paymentId,
           paymentKey: 'WALLET',
           orderId,
-          amount: 0,
+          amount: payment.amount ?? totalAmount,
         })
         toast('결제가 완료되었습니다!', 'success')
         onSuccess()
