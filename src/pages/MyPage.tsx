@@ -8,7 +8,7 @@ import { getOrders, cancelOrder } from '../api/orders.api'
 import { getWalletBalance, getWalletTransactions, startWalletCharge, withdrawWallet } from '../api/wallet.api'
 import { getRefunds } from '../api/refunds.api'
 import { getTechStacks, updateProfile, changePassword, withdrawUser } from '../api/auth.api'
-import { refundByWallet } from '../api/refunds.api'
+import { getRefundInfo, refundTicketByPg, refundOrder } from '../api/refunds.api'
 import { extractTechStacks } from '../api/techStacks'
 import { POSITION_OPTIONS } from '../constants/profile'
 
@@ -115,6 +115,7 @@ function TicketsTab({ toast }: { toast: any }) {
   const [tickets, setTickets] = useState<TicketItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [processingTicketId, setProcessingTicketId] = useState<number | null>(null)
 
   useEffect(() => {
     getTickets({ page: 0, size: 20 })
@@ -127,6 +128,26 @@ function TicketsTab({ toast }: { toast: any }) {
   if (tickets.length === 0) return (
     <EmptyState icon="🎫" title="보유한 티켓이 없습니다" desc="이벤트를 구매하면 여기에 표시됩니다" />
   )
+
+  const handleTicketRefund = async (ticketId: number) => {
+    setProcessingTicketId(ticketId)
+    try {
+      const info = await getRefundInfo(String(ticketId))
+      if (!info.data.data.refundable) {
+        toast('현재 환불 가능한 티켓이 아닙니다', 'error')
+        return
+      }
+      const confirmed = confirm(`[${info.data.data.eventTitle}] 티켓을 ${info.data.data.refundRate}% (${info.data.data.refundAmount.toLocaleString()}원) 환불할까요?`)
+      if (!confirmed) return
+      const reason = prompt('환불 사유를 입력해주세요.', '단순 변심') || '단순 변심'
+      await refundTicketByPg(String(ticketId), { reason })
+      toast('티켓 환불이 완료되었습니다', 'success')
+    } catch {
+      toast('티켓 환불 실패', 'error')
+    } finally {
+      setProcessingTicketId(null)
+    }
+  }
 
   return (
     <>
@@ -153,6 +174,19 @@ function TicketsTab({ toast }: { toast: any }) {
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
                 #{ticket.ticketId}
               </div>
+              {ticket.status === 'VALID' && (
+                <button
+                  className="btn btn-danger btn-sm"
+                  style={{ marginTop: 10 }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleTicketRefund(ticket.ticketId)
+                  }}
+                  disabled={processingTicketId === ticket.ticketId}
+                >
+                  {processingTicketId === ticket.ticketId ? '환불 처리중...' : '티켓 환불'}
+                </button>
+              )}
             </div>
           )
         })}
@@ -184,10 +218,11 @@ function OrdersTab({ toast }: { toast: any }) {
   }
 
   const handleRefund = async (orderId: string) => {
-    if (!confirm('환불을 요청할까요?')) return
+    if (!confirm('주문 전체를 환불 요청할까요?')) return
     try {
-      await refundByWallet({ orderId })
-      toast('환불 요청이 완료되었습니다', 'success')
+      const reason = prompt('환불 사유를 입력해주세요.', '일정 변경') || '일정 변경'
+      await refundOrder(orderId, { reason })
+      toast('주문 전체 환불 요청이 완료되었습니다', 'success')
       fetchOrders()
     } catch { toast('환불 요청 실패', 'error') }
   }
@@ -219,7 +254,7 @@ function OrdersTab({ toast }: { toast: any }) {
                   <button className="btn btn-ghost btn-sm" onClick={() => handleCancel(order.orderId)}>주문 취소</button>
                 )}
                 {canRefund && (
-                  <button className="btn btn-danger btn-sm" onClick={() => handleRefund(order.orderId)}>환불 요청</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => handleRefund(order.orderId)}>주문 전체 환불</button>
                 )}
               </div>
             )}
@@ -433,7 +468,7 @@ function RefundsTab({ toast }: { toast: any }) {
   }
 
   useEffect(() => {
-    getRefunds().then(r => setRefunds(r.data.content)).catch(() => toast('로드 실패', 'error')).finally(() => setLoading(false))
+    getRefunds({ page: 0, size: 20 }).then(r => setRefunds(r.data.content)).catch(() => toast('로드 실패', 'error')).finally(() => setLoading(false))
   }, [])
 
   if (loading) return <LoadingSpinner />

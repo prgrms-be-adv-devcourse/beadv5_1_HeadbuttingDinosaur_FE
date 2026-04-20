@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await getProfile()
       const user = res.data
+      localStorage.setItem('userId', user.userId)
       setState({
         user,
         isLoggedIn: true,
@@ -54,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
+      localStorage.removeItem('userId')
       setState({ user: null, isLoggedIn: false, isLoading: false, role: null })
     }
   }, [])
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
+    localStorage.removeItem('userId')
     setState({ user: null, isLoggedIn: false, isLoading: false, role: null })
   }, [])
 

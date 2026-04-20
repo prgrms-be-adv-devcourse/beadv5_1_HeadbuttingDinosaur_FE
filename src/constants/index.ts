@@ -61,6 +61,13 @@ export const WALLET_TX_TYPE = {
   WITHDRAW: { label: '출금', sign: '−', color: 'var(--text-3)' },
 } as const
 
+// ── 결제/환불 Enum 상수 (payment 모듈 확정본) ───────────────────────────────
+export const PAYMENT_METHODS = ['WALLET', 'PG'] as const
+export const PAYMENT_STATUSES = ['READY', 'SUCCESS', 'FAILED', 'CANCELLED', 'REFUNDED'] as const
+export const REFUND_STATUSES = ['REQUESTED', 'APPROVED', 'REJECTED', 'COMPLETED', 'FAILED'] as const
+export const WALLET_CHARGE_STATUSES = ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'] as const
+export const WALLET_TRANSACTION_TYPES = ['CHARGE', 'USE', 'REFUND', 'WITHDRAW'] as const
+
 // ── 카테고리 목록 ─────────────────────────────────────────────────
 export const EVENT_CATEGORIES = [
   '컨퍼런스', '밋업', '해커톤', '스터디', '세미나', '워크샵', '기타',

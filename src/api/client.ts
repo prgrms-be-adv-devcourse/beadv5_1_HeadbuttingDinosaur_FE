@@ -35,7 +35,9 @@ export const apiClient: AxiosInstance = axios.create({
 // ── Request: access token 주입 ──────────────────────────────────────────────
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('accessToken');
+  const userId = localStorage.getItem('userId');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (userId) config.headers['X-User-Id'] = userId;
   return config;
 });
 
@@ -94,6 +96,7 @@ apiClient.interceptors.response.use(
       processQueue(refreshError, null);
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
       window.location.href = '/login';
       return Promise.reject(refreshError);
     } finally {

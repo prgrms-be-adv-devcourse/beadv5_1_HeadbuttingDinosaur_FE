@@ -32,11 +32,11 @@ export function AdminEvents() {
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
   const handleForceCancel = async (eventId: string, title: string) => {
-    if (!confirm(`"${title}" 이벤트를 강제 취소할까요?\n참여자 전원에게 자동 환불됩니다.`)) return
+    if (!confirm(`"${title}" 이벤트를 관리자 권한으로 취소할까요?\n참여자 전원 환불이 자동 처리됩니다.`)) return
     setActionLoading(eventId)
     try {
       await forcecancelEvent(eventId)
-      toast('강제 취소 처리되었습니다', 'success')
+      toast('관리자 이벤트 취소 및 환불 처리가 완료되었습니다', 'success')
       fetchEvents()
     } catch { toast('처리 실패', 'error') }
     finally { setActionLoading(null) }
@@ -98,7 +98,7 @@ export function AdminEvents() {
                           disabled={actionLoading === event.eventId}
                           onClick={() => handleForceCancel(event.eventId, event.title)}
                         >
-                          {actionLoading === event.eventId ? '...' : '강제 취소'}
+                          {actionLoading === event.eventId ? '...' : '관리자 취소'}
                         </button>
                       )}
                     </td>

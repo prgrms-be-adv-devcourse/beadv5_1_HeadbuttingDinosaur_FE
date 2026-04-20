@@ -33,10 +33,10 @@ export default function SellerDashboard() {
   useEffect(() => { fetchEvents() }, [activeTab])
 
   const handleStop = async (eventId: string, title: string) => {
-    if (!confirm(`"${title}" 판매를 중지할까요?`)) return
+    if (!confirm(`"${title}" 이벤트를 취소할까요?\n구매자 환불 프로세스가 함께 진행됩니다.`)) return
     try {
       await stopSellerEvent(eventId)
-      toast('판매 중지되었습니다', 'success')
+      toast('이벤트 취소 및 환불 처리가 시작되었습니다', 'success')
       fetchEvents()
     } catch { toast('처리 실패', 'error') }
   }
@@ -149,7 +149,7 @@ export default function SellerDashboard() {
                         <Link to={`/seller/events/${event.eventId}`} className="btn btn-ghost btn-sm">상세</Link>
                         <Link to={`/seller/events/${event.eventId}/edit`} className="btn btn-secondary btn-sm">수정</Link>
                         {event.status === 'ON_SALE' && (
-                          <button className="btn btn-danger btn-sm" onClick={() => handleStop(event.eventId, event.title)}>중지</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleStop(event.eventId, event.title)}>이벤트 취소</button>
                         )}
                       </div>
                     </td>
