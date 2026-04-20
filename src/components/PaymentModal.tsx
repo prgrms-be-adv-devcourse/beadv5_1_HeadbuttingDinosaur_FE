@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { readyPayment, confirmPayment } from '../api/payments.api'
 import { getWalletBalance } from '../api/wallet.api'
+import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
 
 declare global {
@@ -29,7 +30,10 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   useEffect(() => {
     if (!open) return
     getWalletBalance()
-      .then(r => setWalletBalance(r.data.data.balance))
+      .then(r => {
+        const wallet = unwrapApiData(r.data)
+        setWalletBalance(wallet.balance)
+      })
       .catch(() => setWalletBalance(null))
   }, [open])
 
@@ -61,7 +65,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
         : { orderId, paymentMethod: method }
 
       const readyRes = await readyPayment(readyBody)
-      const payment = readyRes.data.data
+      const payment = unwrapApiData(readyRes.data)
 
       if (method === 'WALLET') {
         await confirmPayment({

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { readyPayment, confirmPayment } from '../api/payments.api'
 import { getWalletBalance } from '../api/wallet.api'
+import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
 
 declare global {
@@ -26,7 +27,8 @@ export default function Payment() {
 
   useEffect(() => {
     getWalletBalance().then(res => {
-      setWalletBalance(res.data.data.balance)
+      const wallet = unwrapApiData(res.data)
+      setWalletBalance(wallet.balance)
     }).catch(() => {})
   }, [])
 
@@ -49,7 +51,7 @@ export default function Payment() {
         : { orderId: state.orderId, paymentMethod: method }
 
       const res = await readyPayment(body)
-      const payment = res.data.data
+      const payment = unwrapApiData(res.data)
 
       if (method === 'WALLET') {
         await confirmPayment({
