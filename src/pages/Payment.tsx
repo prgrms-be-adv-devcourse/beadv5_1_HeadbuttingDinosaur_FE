@@ -34,7 +34,7 @@ export default function Payment() {
 
   const parsedWalletAmount = Number(walletAmountInput || 0)
   const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < totalAmount
-  const walletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount >= totalAmount)
+  const walletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount > totalAmount)
   const walletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
 
   const payLabel = method !== 'WALLET_PG'
@@ -62,7 +62,19 @@ export default function Payment() {
         })
         navigate('/payment/complete', { state: { paymentId: payment.paymentId, orderId: state.orderId, amount: state.totalAmount, method: 'WALLET' } })
       } else {
-        const pgAmount = payment.pgAmount ?? state.totalAmount
+        const pgAmount = payment.pgAmount ?? Math.max(state.totalAmount - (payment.walletAmount ?? 0), 0)
+
+        if (pgAmount <= 0) {
+          await confirmPayment({
+            paymentId: payment.paymentId,
+            paymentKey: 'WALLET',
+            orderId: state.orderId,
+            amount: 0,
+          })
+          navigate('/payment/complete', { state: { paymentId: payment.paymentId, orderId: state.orderId, amount: state.totalAmount, method: 'WALLET_PG' } })
+          return
+        }
+
         sessionStorage.setItem('payment_context', JSON.stringify({
           paymentId: payment.paymentId,
           orderId: state.orderId,
@@ -120,7 +132,7 @@ export default function Payment() {
               <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-3)' }}>
                 PG 결제 예정 금액: {Math.max(state.totalAmount - parsedWalletAmount, 0).toLocaleString()}원
               </div>
-              {walletPgInvalidRange && <div style={{ color: 'var(--danger)', fontSize: 12 }}>예치금은 0원 초과, 총액 미만이어야 합니다.</div>}
+              {walletPgInvalidRange && <div style={{ color: 'var(--danger)', fontSize: 12 }}>예치금은 0원 초과, 총액 이하여야 합니다.</div>}
               {walletPgInsufficient && <div style={{ color: 'var(--danger)', fontSize: 12 }}>보유 예치금을 초과했습니다.</div>}
             </div>
           )}

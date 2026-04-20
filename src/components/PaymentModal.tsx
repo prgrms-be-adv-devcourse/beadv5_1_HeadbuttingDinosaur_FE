@@ -45,7 +45,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   }, [open, onClose])
 
   const parsedWalletAmount = Number(walletAmountInput || 0)
-  const isWalletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount >= totalAmount)
+  const isWalletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount > totalAmount)
   const isWalletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
   const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < totalAmount
   const walletPgDisabled = method === 'WALLET_PG' && (isWalletPgInvalidRange || isWalletPgInsufficient)
@@ -79,7 +79,20 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
         return
       }
 
-      const pgAmount = payment.pgAmount ?? totalAmount
+      const pgAmount = payment.pgAmount ?? Math.max(totalAmount - (payment.walletAmount ?? 0), 0)
+
+      if (pgAmount <= 0) {
+        await confirmPayment({
+          paymentId: payment.paymentId,
+          paymentKey: 'WALLET',
+          orderId,
+          amount: 0,
+        })
+        toast('결제가 완료되었습니다!', 'success')
+        onSuccess()
+        return
+      }
+
       sessionStorage.setItem('payment_context', JSON.stringify({
         paymentId: payment.paymentId,
         orderId,
@@ -168,7 +181,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
                 PG 결제 예정 금액: {Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원
               </div>
               {isWalletPgInvalidRange && (
-                <div style={{ fontSize: 12, color: 'var(--danger)' }}>예치금은 0원 초과, 총 결제금액 미만으로 입력해주세요.</div>
+                <div style={{ fontSize: 12, color: 'var(--danger)' }}>예치금은 0원 초과, 총 결제금액 이하로 입력해주세요.</div>
               )}
               {isWalletPgInsufficient && (
                 <div style={{ fontSize: 12, color: 'var(--danger)' }}>보유 예치금을 초과했습니다.</div>
