@@ -154,10 +154,10 @@ function TicketsTab({ toast }: { toast: any }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
         {tickets.map(ticket => {
           const status = TICKET_STATUS[ticket.status] ?? { label: ticket.status, cls: 'badge-gray' }
+          const canAttemptRefund = !['USED', 'CANCELLED', 'EXPIRED'].includes(ticket.status)
           return (
             <div key={ticket.ticketId}  className="card" style={{ padding: '18px 20px', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
               onClick={() =>{
-                  console.log("---")
                  setSelectedId(ticket.ticketId)
               }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)'}
@@ -174,7 +174,7 @@ function TicketsTab({ toast }: { toast: any }) {
               <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
                 #{ticket.ticketId}
               </div>
-              {ticket.status === 'VALID' && (
+              {canAttemptRefund && (
                 <button
                   className="btn btn-danger btn-sm"
                   style={{ marginTop: 10 }}
