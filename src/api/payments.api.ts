@@ -6,7 +6,7 @@ import type {
 } from './types';
 
 export const readyPayment = (body: PaymentRequest) =>
-  apiClient.post<ApiResponse<PaymentResponse>>('/payments/ready', body);
+  apiClient.post<PaymentResponse>('/payments/ready', body);
 
 export const confirmPayment = (body: PaymentConfirmRequest) =>
   apiClient.post<ApiResponse<PaymentConfirmResponse>>('/payments/confirm', body);
