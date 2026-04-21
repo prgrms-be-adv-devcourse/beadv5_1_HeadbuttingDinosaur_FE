@@ -4,6 +4,7 @@ import type {
   TicketRefundRequest, TicketRefundResponse,
   OrderRefundRequest, OrderRefundResponse,
   RefundListResponse,
+  SellerRefundListResponse,
   RefundDetailResponse,
 } from './types';
 
@@ -23,4 +24,4 @@ export const getRefundDetail = (refundId: string) =>
   apiClient.get<ApiResponse<RefundDetailResponse>>(`/refunds/${refundId}`);
 
 export const getSellerEventRefundsPage = (eventId: string, params?: { page?: number; size?: number }) =>
-  apiClient.get<RefundListResponse>(`/seller/refunds/events/${eventId}`, { params });
+  apiClient.get<SellerRefundListResponse>(`/seller/refunds/events/${eventId}`, { params });

@@ -133,15 +133,15 @@ function TicketsTab({ toast }: { toast: any }) {
     setProcessingTicketId(ticketId)
     try {
       const info = await getRefundInfo(String(ticketId))
-      if (!info.data.data.refundable) {
+      if (!info.data.refundable) {
         toast('현재 환불 가능한 티켓이 아닙니다', 'error')
         return
       }
-      const confirmed = confirm(`[${info.data.data.eventTitle}] 티켓을 ${info.data.data.refundRate}% (${info.data.data.refundAmount.toLocaleString()}원) 환불할까요?`)
+      const confirmed = confirm(`[${info.data.eventTitle}] 티켓을 ${info.data.refundRate}% (${info.data.refundAmount.toLocaleString()}원) 환불할까요?`)
       if (!confirmed) return
       const reason = prompt('환불 사유를 입력해주세요.', '단순 변심') || '단순 변심'
       await refundTicketByPg(String(ticketId), { reason })
-      toast('티켓 환불이 완료되었습니다', 'success')
+      toast('티켓 환불 요청이 접수되었습니다', 'success')
     } catch {
       toast('티켓 환불 실패', 'error')
     } finally {
