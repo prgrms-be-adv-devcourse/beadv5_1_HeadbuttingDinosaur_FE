@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { readyPayment, confirmPayment } from '../api/payments.api'
+import { readyPayment } from '../api/payments.api'
 import { getWalletBalance } from '../api/wallet.api'
 import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
@@ -51,29 +51,14 @@ export default function Payment() {
         : { orderId: state.orderId, paymentMethod: method }
 
       const res = await readyPayment(body)
-      const payment = unwrapApiData(res.data)
+
+      const payment = res.data
 
       if (method === 'WALLET') {
-        await confirmPayment({
-          paymentId: payment.paymentId,
-          paymentKey: 'WALLET',
-          orderId: state.orderId,
-          amount: state.totalAmount,
-        })
         navigate('/payment/complete', { state: { paymentId: payment.paymentId, orderId: state.orderId, amount: state.totalAmount, method: 'WALLET' } })
       } else {
-        const pgAmount = payment.pgAmount ?? Math.max(state.totalAmount - (payment.walletAmount ?? 0), 0)
 
-        if (method === 'WALLET_PG' && pgAmount <= 0) {
-          await confirmPayment({
-            paymentId: payment.paymentId,
-            paymentKey: 'WALLET',
-            orderId: state.orderId,
-            amount: payment.amount ?? state.totalAmount,
-          })
-          navigate('/payment/complete', { state: { paymentId: payment.paymentId, orderId: state.orderId, amount: state.totalAmount, method: 'WALLET_PG' } })
-          return
-        }
+        const pgAmount = payment.pgAmount || state.totalAmount
 
         sessionStorage.setItem('payment_context', JSON.stringify({
           paymentId: payment.paymentId,
@@ -93,7 +78,7 @@ export default function Payment() {
           failUrl: `${window.location.origin}/payment/fail`,
         })
       }
-    } catch {
+    } catch (e: unknown) {
       toast('결제 처리 중 오류가 발생했습니다', 'error')
     } finally {
       setLoading(false)

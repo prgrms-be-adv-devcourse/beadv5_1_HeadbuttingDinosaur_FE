@@ -415,6 +415,12 @@ export interface OrderCancelResponse {
   status: string;
 }
 
+export interface OrderStatusResponse {
+  orderId: string;
+  status: string;
+  updatedAt: string;
+}
+
 // ── Tickets ──────────────────────────────────────────────────────────────────
 export interface TicketListRequest {
   page?: number;

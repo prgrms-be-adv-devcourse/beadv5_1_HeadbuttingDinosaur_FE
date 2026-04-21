@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { readyPayment, confirmPayment } from '../api/payments.api'
+import { useEffect, useRef, useState } from 'react'
+import { readyPayment } from '../api/payments.api'
+import { getOrderStatus } from '../api/orders.api'
 import { getWalletBalance } from '../api/wallet.api'
 import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
@@ -26,6 +27,40 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [walletAmountInput, setWalletAmountInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [orderReady, setOrderReady] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setOrderReady(false)
+      if (pollRef.current) clearInterval(pollRef.current)
+      return
+    }
+
+    setOrderReady(false)
+    let attempts = 0
+    const MAX_ATTEMPTS = 20
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await getOrderStatus(orderId)
+        if (res.data.status === 'PAYMENT_PENDING') {
+          setOrderReady(true)
+          clearInterval(pollRef.current!)
+        } else if (++attempts >= MAX_ATTEMPTS) {
+          clearInterval(pollRef.current!)
+          toast('주문 준비 시간이 초과되었습니다. 다시 시도해주세요.', 'error')
+          onClose()
+        }
+      } catch {
+        clearInterval(pollRef.current!)
+        toast('주문 상태 확인에 실패했습니다.', 'error')
+        onClose()
+      }
+    }, 500)
+
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [open, orderId])
 
   useEffect(() => {
     if (!open) return
@@ -49,11 +84,13 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   const isWalletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
   const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < totalAmount
   const walletPgDisabled = method === 'WALLET_PG' && (isWalletPgInvalidRange || isWalletPgInsufficient)
-  const payDisabled = loading || walletInsufficient || walletPgDisabled
+  const payDisabled = !orderReady || loading || walletInsufficient || walletPgDisabled
 
-  const payLabel = method !== 'WALLET_PG'
-    ? `${totalAmount.toLocaleString()}원 결제`
-    : `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원`
+  const payLabel = !orderReady
+    ? '주문 준비 중...'
+    : method !== 'WALLET_PG'
+      ? `${totalAmount.toLocaleString()}원 결제`
+      : `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원`
 
   if (!open) return null
 
@@ -65,33 +102,16 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
         : { orderId, paymentMethod: method }
 
       const readyRes = await readyPayment(readyBody)
-      const payment = unwrapApiData(readyRes.data)
+
+      const payment = readyRes.data
 
       if (method === 'WALLET') {
-        await confirmPayment({
-          paymentId: payment.paymentId,
-          paymentKey: 'WALLET',
-          orderId,
-          amount: totalAmount,
-        })
         toast('결제가 완료되었습니다!', 'success')
         onSuccess()
         return
       }
 
-      const pgAmount = payment.pgAmount ?? Math.max(totalAmount - (payment.walletAmount ?? 0), 0)
-
-      if (method === 'WALLET_PG' && pgAmount <= 0) {
-        await confirmPayment({
-          paymentId: payment.paymentId,
-          paymentKey: 'WALLET',
-          orderId,
-          amount: payment.amount ?? totalAmount,
-        })
-        toast('결제가 완료되었습니다!', 'success')
-        onSuccess()
-        return
-      }
+      const pgAmount = payment.pgAmount || totalAmount
 
       sessionStorage.setItem('payment_context', JSON.stringify({
         paymentId: payment.paymentId,
@@ -198,7 +218,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
 
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, background: 'var(--surface-2)' }}>
           <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose} disabled={loading}>취소</button>
-          <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center', fontSize: 15, fontWeight: 700 }} onClick={handlePay} disabled={payDisabled}>
+          <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center', fontSize: 15, fontWeight: 700 }} onClick={() => { console.log('[PaymentModal] 결제 버튼 클릭 — disabled:', payDisabled, { loading, walletInsufficient, walletPgDisabled }); handlePay() }} disabled={payDisabled}>
             {loading ? '처리 중...' : payLabel}
           </button>
         </div>
