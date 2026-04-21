@@ -36,7 +36,7 @@ export function AdminEvents() {
     setActionLoading(eventId)
     try {
       await forcecancelEvent(eventId)
-      toast('관리자 이벤트 취소 및 환불 처리가 완료되었습니다', 'success')
+      toast('관리자 이벤트 취소 및 환불 요청이 접수되었습니다', 'success')
       fetchEvents()
     } catch { toast('처리 실패', 'error') }
     finally { setActionLoading(null) }
