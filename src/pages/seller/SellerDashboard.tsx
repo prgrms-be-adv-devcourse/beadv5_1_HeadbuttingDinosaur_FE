@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getSellerEvents, stopSellerEvent } from '../../api/events.api'
+import { getSellerEventRefundsPage } from '../../api/refunds.api'
 import type { SellerEventItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -36,7 +37,14 @@ export default function SellerDashboard() {
     if (!confirm(`"${title}" 이벤트를 취소할까요?\n구매자 환불 프로세스가 함께 진행됩니다.`)) return
     try {
       await stopSellerEvent(eventId)
-      toast('이벤트 취소 및 환불 처리가 시작되었습니다', 'success')
+      try {
+        const refundRes = await getSellerEventRefundsPage(eventId, { page: 0, size: 100 })
+        const refundCount = refundRes.data.totalElements
+        const totalRefundAmount = refundRes.data.content.reduce((sum, item) => sum + item.refundAmount, 0)
+        toast(`이벤트 취소 완료 · 환불 ${refundCount}건 (${totalRefundAmount.toLocaleString()}원)`, 'success')
+      } catch {
+        toast('이벤트 취소 및 환불 처리가 시작되었습니다', 'success')
+      }
       fetchEvents()
     } catch { toast('처리 실패', 'error') }
   }

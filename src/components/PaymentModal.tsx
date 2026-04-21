@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { readyPayment } from '../api/payments.api'
 import { getOrderStatus } from '../api/orders.api'
 import { getWalletBalance } from '../api/wallet.api'
+import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
 
 declare global {
@@ -64,7 +65,10 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   useEffect(() => {
     if (!open) return
     getWalletBalance()
-      .then(r => setWalletBalance(r.data.data.balance))
+      .then(r => {
+        const wallet = unwrapApiData(r.data)
+        setWalletBalance(wallet.balance)
+      })
       .catch(() => setWalletBalance(null))
   }, [open])
 
@@ -76,7 +80,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   }, [open, onClose])
 
   const parsedWalletAmount = Number(walletAmountInput || 0)
-  const isWalletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount >= totalAmount)
+  const isWalletPgInvalidRange = method === 'WALLET_PG' && (parsedWalletAmount <= 0 || parsedWalletAmount > totalAmount)
   const isWalletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
   const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < totalAmount
   const walletPgDisabled = method === 'WALLET_PG' && (isWalletPgInvalidRange || isWalletPgInsufficient)
@@ -98,6 +102,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
         : { orderId, paymentMethod: method }
 
       const readyRes = await readyPayment(readyBody)
+
       const payment = readyRes.data
 
       if (method === 'WALLET') {
@@ -107,6 +112,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
       }
 
       const pgAmount = payment.pgAmount || totalAmount
+
       sessionStorage.setItem('payment_context', JSON.stringify({
         paymentId: payment.paymentId,
         orderId,
@@ -195,7 +201,7 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
                 PG 결제 예정 금액: {Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원
               </div>
               {isWalletPgInvalidRange && (
-                <div style={{ fontSize: 12, color: 'var(--danger)' }}>예치금은 0원 초과, 총 결제금액 미만으로 입력해주세요.</div>
+                <div style={{ fontSize: 12, color: 'var(--danger)' }}>예치금은 0원 초과, 총 결제금액 이하로 입력해주세요.</div>
               )}
               {isWalletPgInsufficient && (
                 <div style={{ fontSize: 12, color: 'var(--danger)' }}>보유 예치금을 초과했습니다.</div>

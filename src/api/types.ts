@@ -609,6 +609,24 @@ export interface RefundListResponse {
   totalPages: number;
 }
 
+export interface SellerRefundItem {
+  refundId: string;
+  orderId: string;
+  paymentId: string;
+  refundAmount: number;
+  refundRate: number;
+  status: "REQUESTED" | "APPROVED" | "REJECTED" | "COMPLETED" | "FAILED";
+  paymentMethod: "PG" | "WALLET";
+  requestedAt: string;
+  completedAt?: string;
+}
+
+export interface SellerRefundListResponse {
+  content: SellerRefundItem[];
+  totalElements: number;
+  totalPages: number;
+}
+
 export interface RefundDetailResponse {
   refundId: string;
   orderId: string;

@@ -112,6 +112,21 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+/**
+ * 백엔드 응답이 `{ code, message, data }` 래퍼이거나 raw payload일 수 있어
+ * 두 케이스를 모두 안전하게 언랩합니다.
+ */
+export function unwrapApiData<T>(payload: ApiResponse<T> | T): T {
+  if (
+    payload !== null &&
+    typeof payload === 'object' &&
+    'data' in (payload as Record<string, unknown>)
+  ) {
+    return (payload as ApiResponse<T>).data;
+  }
+  return payload as T;
+}
+
 /** 멱등성 키 헤더를 포함한 axios config를 반환합니다. */
 export function idempotencyConfig() {
   return {
