@@ -365,6 +365,16 @@ export interface CartItemDeleteResponse {
 export interface CartClearResponse {
   success: boolean;
 }
+
+export interface RecommendationRequest {
+  userId: string;
+}
+
+export interface RecommendationResponse {
+  userId: string;
+  eventIdList: string[];
+}
+
 // ── Orders ──────────────────────────────────────────────────────────────────
 export interface OrderRequest {
   cartItemIds: string[];
