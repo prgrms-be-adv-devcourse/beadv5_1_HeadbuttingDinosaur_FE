@@ -9,6 +9,7 @@ import type {
   UserRoleRequest, UserRoleResponse,
   SellerApplicationListResponse,
   SettlementResponse,
+  AdminTechStackItem,
 } from './types';
 
 // ── 대시보드 ───────────────────────────────────────────────────────────────────
@@ -58,3 +59,16 @@ export const createFeePolicy = (body: unknown) =>
 
 export const updateFeePolicy = (policyId: string, body: unknown) =>
   apiClient.patch(`/admin/fee-policies/${policyId}`, body);
+
+// ── 기술 스택 관리 ──────────────────────────────────────────────────────────────
+export const getAdminTechStacks = () =>
+  apiClient.get<AdminTechStackItem[]>('/admin/techstacks');
+
+export const createAdminTechStack = (name: string) =>
+  apiClient.post<AdminTechStackItem>('/admin/techstacks', { name });
+
+export const updateAdminTechStack = (id: number, name: string) =>
+  apiClient.put<AdminTechStackItem>(`/admin/techstacks/${id}`, { name });
+
+export const deleteAdminTechStack = (id: number) =>
+  apiClient.delete(`/admin/techstacks/${id}`);

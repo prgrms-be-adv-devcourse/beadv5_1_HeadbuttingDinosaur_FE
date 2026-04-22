@@ -789,3 +789,8 @@ export interface TechStackItem {
 export interface TechStackListResponse {
   techStacks: TechStackItem[];
 }
+
+export interface AdminTechStackItem {
+  id: number;
+  name: string;
+}
