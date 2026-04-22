@@ -1,11 +1,8 @@
-import { apiClient, ApiResponse } from './client';
-import type {
-  SettlementResponse,
-  SellerSettlementDetailResponse,
-} from './types';
+import { apiClient } from './client';
+import type { SettlementMonthResponse } from './types';
 
-export const getSellerSettlements = () =>
-  apiClient.get<ApiResponse<SettlementResponse>>('/seller/settlements');
+export const getSellerSettlementByMonth = (yyyymm: string) =>
+  apiClient.get<SettlementMonthResponse>(`/seller/settlements/${yyyymm}`);
 
-export const getSellerSettlementDetail = (settlementId: string) =>
-  apiClient.get<ApiResponse<SellerSettlementDetailResponse>>(`/seller/settlements/${settlementId}`);
+export const getSellerSettlementPreview = () =>
+  apiClient.get<SettlementMonthResponse>('/seller/settlements/preview');
