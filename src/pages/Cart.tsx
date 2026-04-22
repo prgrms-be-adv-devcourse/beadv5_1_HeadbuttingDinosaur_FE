@@ -1,10 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getCart, updateCartItemQuantity, deleteCartItem, clearCart } from '../api/cart.api'
+import { addCartItem, clearCart, getCart } from '../api/cart.api'
+import { getEventDetail } from '../api/events.api'
+import { recommendByUserVector } from '../api/ai.api'
+import { unwrapApiData } from '../api/client'
 import type { CartItemDetail } from '../api/types'
 import { useToast } from '../contexts/ToastContext'
 import { createOrder } from '../api/orders.api'
 import PaymentModal from '../components/PaymentModal'
+
+type RecommendedEventCard = {
+  eventId: string
+  title: string
+  price: number
+  eventDateTime: string
+  category: string
+}
 
 export default function Cart() {
   const { toast } = useToast()
@@ -14,6 +25,9 @@ export default function Cart() {
   const [ordering, setOrdering] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
+  const [recommendations, setRecommendations] = useState<RecommendedEventCard[]>([])
+  const [recommendLoading, setRecommendLoading] = useState(true)
+  const [quickAddingId, setQuickAddingId] = useState<string | null>(null)
 
   const fetchCart = async () => {
     try {
@@ -26,20 +40,72 @@ export default function Cart() {
     }
   }
 
-  useEffect(() => { fetchCart() }, [])
+  const fetchRecommendations = async () => {
+    const userId = localStorage.getItem('userId')
+    if (!userId) {
+      setRecommendLoading(false)
+      return
+    }
+
+    try {
+      const recRes = await recommendByUserVector({ userId })
+      const recData = unwrapApiData(recRes.data)
+      const recommendedIds = (recData.eventIdList ?? []).slice(0, 5)
+
+      const detailResults = await Promise.allSettled(
+        recommendedIds.map((eventId) => getEventDetail(eventId)),
+      )
+
+      const cards = detailResults.map((result, index) => {
+        const fallbackId = recommendedIds[index]
+
+        if (result.status !== 'fulfilled') {
+          return {
+            eventId: fallbackId,
+            title: `추천 이벤트 ${index + 1}`,
+            price: 0,
+            eventDateTime: '',
+            category: '추천',
+          }
+        }
+
+        const detail = unwrapApiData(result.value.data)
+        return {
+          eventId: detail.eventId,
+          title: detail.title,
+          price: detail.price,
+          eventDateTime: detail.eventDateTime,
+          category: detail.category,
+        }
+      })
+
+      setRecommendations(cards)
+    } catch {
+      setRecommendations([])
+    } finally {
+      setRecommendLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCart()
+    fetchRecommendations()
+  }, [])
 
   const handleClear = async () => {
     if (!confirm('장바구니를 모두 비울까요?')) return
     try {
       await clearCart()
       setItems([])
-    } catch { toast('초기화 실패', 'error') }
+    } catch {
+      toast('초기화 실패', 'error')
+    }
   }
 
   const handleCheckout = async () => {
     setOrdering(true)
     try {
-      const res = await createOrder({ cartItemIds: items.map(i => i.cartItemId) })
+      const res = await createOrder({ cartItemIds: items.map((i) => i.cartItemId) })
       setOrderId(res.data.orderId)
       setPaymentOpen(true)
     } catch {
@@ -49,6 +115,20 @@ export default function Cart() {
     }
   }
 
+  const handleQuickAdd = async (eventId: string) => {
+    setQuickAddingId(eventId)
+    try {
+      await addCartItem({ eventId, quantity: 1 })
+      await fetchCart()
+      toast('추천 이벤트를 장바구니에 담았습니다.', 'success')
+    } catch {
+      toast('장바구니 담기에 실패했습니다.', 'error')
+    } finally {
+      setQuickAddingId(null)
+    }
+  }
+
+  const cartEventIdSet = useMemo(() => new Set(items.map((item) => item.eventId)), [items])
   const totalPrice = items.reduce((acc, i) => acc + i.price * i.quantity, 0)
 
   if (loading) return (
@@ -59,7 +139,7 @@ export default function Cart() {
 
   return (
     <>
-      <div className="container" style={{ paddingTop: 40, paddingBottom: 80, maxWidth: 840 }}>
+      <div className="container" style={{ paddingTop: 40, paddingBottom: 80, maxWidth: 980 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>장바구니</h1>
           {items.length > 0 && (
@@ -77,14 +157,22 @@ export default function Cart() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {items.map(item => (
+              {items.map((item) => (
                 <div key={item.eventId} className="card" style={{ padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'center' }}>
                   <div style={{
-                    width: 64, height: 64, borderRadius: 'var(--r-md)',
-                    background: 'var(--brand-light)', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 22, color: 'var(--brand)',
-                  }}>🎫</div>
+                    width: 64,
+                    height: 64,
+                    borderRadius: 'var(--r-md)',
+                    background: 'var(--brand-light)',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 22,
+                    color: 'var(--brand)',
+                  }}>
+                    🎫
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="truncate" style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
                       {item.eventTitle}
@@ -104,7 +192,7 @@ export default function Cart() {
             <div className="card" style={{ padding: '20px', position: 'sticky', top: 'calc(var(--nav-h) + 20px)' }}>
               <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>주문 요약</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                {items.map(item => (
+                {items.map((item) => (
                   <div key={item.eventId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-2)' }}>
                     <span className="truncate" style={{ maxWidth: 140 }}>{item.eventTitle}</span>
                     <span>{(item.price * item.quantity).toLocaleString()}원</span>
@@ -112,8 +200,12 @@ export default function Cart() {
                 ))}
               </div>
               <div style={{
-                borderTop: '1px solid var(--border)', paddingTop: 12,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16,
+                borderTop: '1px solid var(--border)',
+                paddingTop: 12,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 16,
               }}>
                 <span style={{ fontSize: 14, fontWeight: 500 }}>합계</span>
                 <span style={{ fontSize: 20, fontWeight: 700 }}>{totalPrice.toLocaleString()}원</span>
@@ -127,6 +219,68 @@ export default function Cart() {
               </button>
             </div>
           </div>
+        )}
+
+        {!recommendLoading && recommendations.length > 0 && (
+          <section style={{ marginTop: 32 }}>
+            <div style={{ marginBottom: 14 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>당신에 맞는 이벤트 추천</h2>
+              <p style={{ fontSize: 14, color: 'var(--text-3)' }}>
+                장바구니에서 이탈해도, 다시 빠르게 담을 수 있도록 추천해드렸어요.
+              </p>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12,
+            }}>
+              {recommendations.map((event) => {
+                const alreadyInCart = cartEventIdSet.has(event.eventId)
+                return (
+                  <article
+                    key={event.eventId}
+                    className="card"
+                    style={{
+                      padding: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{
+                      display: 'inline-flex',
+                      alignSelf: 'flex-start',
+                      borderRadius: 999,
+                      background: 'var(--brand-light)',
+                      color: 'var(--brand)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '4px 10px',
+                    }}>
+                      {event.category || '추천'}
+                    </div>
+                    <Link to={`/events/${event.eventId}`} className="truncate" style={{ fontWeight: 700, fontSize: 15 }}>
+                      {event.title}
+                    </Link>
+                    <div style={{ fontSize: 13, color: 'var(--text-3)' }}>
+                      {event.eventDateTime ? new Date(event.eventDateTime).toLocaleDateString() : '일정 확인'}
+                    </div>
+                    <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <strong style={{ fontSize: 16 }}>{event.price ? `${event.price.toLocaleString()}원` : '가격 확인'}</strong>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        disabled={alreadyInCart || quickAddingId === event.eventId}
+                        onClick={() => handleQuickAdd(event.eventId)}
+                      >
+                        {alreadyInCart ? '담긴 이벤트' : quickAddingId === event.eventId ? '담는 중...' : '빠르게 담기'}
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
         )}
       </div>
 

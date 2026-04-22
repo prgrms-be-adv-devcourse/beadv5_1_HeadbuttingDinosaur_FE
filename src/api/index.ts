@@ -17,3 +17,5 @@ export * from './wallet.api';
 export * from './refunds.api';
 export * from './seller.api';
 export * from './admin.api';
+
+export * from './ai.api';
