@@ -6,6 +6,7 @@ const NAV = [
   { to: '/admin',               label: '대시보드',       icon: '▦' },
   { to: '/admin/users',         label: '회원 관리',      icon: '👤' },
   { to: '/admin/events',        label: '이벤트 관리',    icon: '🎫' },
+  { to: '/admin/techstacks',    label: '기술 스택',      icon: '🧩' },
   { to: '/admin/applications',  label: '판매자 심사',    icon: '📋' },
   { to: '/admin/settlements',   label: '정산 관리',      icon: '₩' },
 ]

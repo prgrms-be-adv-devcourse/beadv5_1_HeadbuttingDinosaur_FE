@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const SHORTCUTS = [
     { to: '/admin/users',        label: '회원 관리',     icon: '👥', desc: '회원 조회·제재·권한 변경' },
     { to: '/admin/events',       label: '이벤트 관리',   icon: '🎫', desc: '이벤트 조회·강제 취소' },
+    { to: '/admin/techstacks',   label: '기술 스택',     icon: '🧩', desc: '기술 스택 생성·수정·삭제' },
     { to: '/admin/applications', label: '판매자 심사',   icon: '📋', desc: '신청 승인·반려' },
     { to: '/admin/settlements',  label: '정산 실행',     icon: '⚡', desc: '정산 프로세스 실행·조회' },
   ]

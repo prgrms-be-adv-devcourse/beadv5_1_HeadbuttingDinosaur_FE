@@ -42,6 +42,7 @@ const AdminUsers        = lazy(() => import('./pages/admin/AdminUsers'))
 const AdminEvents       = lazy(() => import('./pages/admin/AdminEvents'))
 const AdminApplications = lazy(() => import('./pages/admin/AdminApplications'))
 const AdminSettlements  = lazy(() => import('./pages/admin/AdminSettlements'))
+const AdminTechStacks   = lazy(() => import('./pages/admin/AdminTechStacks'))
 
 // ── 가드 ──────────────────────────────────────────────────────────
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="/admin/events"       element={<AdminEvents />} />
           <Route path="/admin/applications" element={<AdminApplications />} />
           <Route path="/admin/settlements"  element={<AdminSettlements />} />
+          <Route path="/admin/techstacks"   element={<AdminTechStacks />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />
