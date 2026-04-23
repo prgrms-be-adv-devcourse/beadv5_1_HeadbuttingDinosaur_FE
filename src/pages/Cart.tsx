@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addCartItem, clearCart, getCart } from '../api/cart.api'
 import { getEventDetail } from '../api/events.api'
-import { recommendByUserVector } from '../api/ai.api'
+import { getEventRecommendations } from '../api/ai.api'
 import { unwrapApiData } from '../api/client'
 import type { CartItemDetail } from '../api/types'
 import { useToast } from '../contexts/ToastContext'
@@ -41,14 +41,13 @@ export default function Cart() {
   }
 
   const fetchRecommendations = async () => {
-    const userId = localStorage.getItem('userId')
-    if (!userId) {
+    if (!localStorage.getItem('userId')) {
       setRecommendLoading(false)
       return
     }
 
     try {
-      const recRes = await recommendByUserVector({ userId })
+      const recRes = await getEventRecommendations()
       const recData = unwrapApiData(recRes.data)
       const recommendedIds = (recData.eventIdList ?? []).slice(0, 5)
 
