@@ -3,6 +3,7 @@ import {
   createAdminTechStack,
   deleteAdminTechStack,
   getAdminTechStacks,
+  reindexAdminTechStacks,
   updateAdminTechStack,
 } from '../../api/admin.api'
 import type { AdminTechStackItem } from '../../api/types'
@@ -17,6 +18,7 @@ export default function AdminTechStacks() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
   const [actionId, setActionId] = useState<number | null>(null)
+  const [reindexing, setReindexing] = useState(false)
 
   const fetchTechStacks = useCallback(async () => {
     setLoading(true)
@@ -97,11 +99,36 @@ export default function AdminTechStacks() {
     }
   }
 
+  const handleReindex = async () => {
+    if (!confirm('임베딩이 비어 있는 기술 스택을 재색인할까요?')) return
+
+    setReindexing(true)
+    try {
+      await reindexAdminTechStacks()
+      toast('기술 스택 재색인을 요청했습니다', 'success')
+      fetchTechStacks()
+    } catch {
+      toast('재색인 요청에 실패했습니다', 'error')
+    } finally {
+      setReindexing(false)
+    }
+  }
+
   return (
     <div style={{ padding: '32px 36px' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>기술 스택 관리</h1>
         <p style={{ fontSize: 14, color: 'var(--text-3)' }}>총 {techStacks.length}개</p>
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleReindex}
+            disabled={reindexing}
+          >
+            {reindexing ? '재색인 요청 중...' : '빈 임베딩 재색인'}
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleCreate} className="card" style={{ padding: 16, marginBottom: 16 }}>

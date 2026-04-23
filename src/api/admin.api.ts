@@ -72,3 +72,6 @@ export const updateAdminTechStack = (id: number, name: string) =>
 
 export const deleteAdminTechStack = (id: number) =>
   apiClient.delete(`/admin/techstacks/${id}`);
+
+export const reindexAdminTechStacks = () =>
+  apiClient.post('/admin/techstacks/reindex');
