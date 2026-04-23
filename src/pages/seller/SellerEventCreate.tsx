@@ -4,6 +4,7 @@ import {
   createSellerEvent,
   getSellerEventDetail,
   updateSellerEvent,
+  uploadEventImage,
 } from "../../api/events.api";
 import { getTechStacks } from "../../api/auth.api";
 import { extractTechStacks } from "../../api/techStacks";
@@ -29,7 +30,7 @@ interface EventForm {
   saleStartAt: string;
   saleEndAt: string;
   location: string;
-  imageUrls: string;
+  imageUrls: string[];
 }
 
 const EMPTY_FORM: EventForm = {
@@ -44,7 +45,7 @@ const EMPTY_FORM: EventForm = {
   saleStartAt: "",
   saleEndAt: "",
   location: "",
-  imageUrls: "",
+  imageUrls: [],
 };
 
 function EventForm({
@@ -61,6 +62,68 @@ function EventForm({
   const [form, setForm] = useState<EventForm>(initialData);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+
+  const handleFileSelect = async (file: File, slotIndex: number) => {
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+    if (!ALLOWED.includes(file.type)) {
+      setUploadErrors((prev) => {
+        const next = [...prev];
+        next[slotIndex] = "jpg, jpeg, png, webp 형식만 허용됩니다";
+        return next;
+      });
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setUploadErrors((prev) => {
+        const next = [...prev];
+        next[slotIndex] = "5MB 이하 파일만 업로드 가능합니다";
+        return next;
+      });
+      return;
+    }
+
+    setUploadingIndex(slotIndex);
+    setUploadErrors((prev) => {
+      const next = [...prev];
+      next[slotIndex] = "";
+      return next;
+    });
+
+    try {
+      const res = await uploadEventImage(file);
+      const url = res.data.data.imageUrl;
+      setForm((f) => {
+        const next = [...f.imageUrls];
+        next[slotIndex] = url;
+        return { ...f, imageUrls: next };
+      });
+    } catch {
+      setUploadErrors((prev) => {
+        const next = [...prev];
+        next[slotIndex] = "업로드에 실패했습니다. 다시 시도해주세요";
+        return next;
+      });
+    } finally {
+      setUploadingIndex(null);
+    }
+  };
+
+  const handleRemoveImage = (slotIndex: number) => {
+    setForm((f) => {
+      const next = [...f.imageUrls];
+      next.splice(slotIndex, 1);
+      return { ...f, imageUrls: next };
+    });
+    setUploadErrors((prev) => {
+      const next = [...prev];
+      next.splice(slotIndex, 1);
+      return next;
+    });
+  };
 
   const toggleStack = (s: string) =>
     setForm((f) => ({
@@ -241,17 +304,102 @@ function EventForm({
         </div>
 
         <div className="form-group">
-          <label className="form-label">이미지 URL</label>
-          <input
-            className="form-input"
-            placeholder="https://example.com/image.jpg"
-            value={form.imageUrls}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, imageUrls: e.target.value }))
-            }
-          />
+          <label className="form-label">이미지 (최대 2장)</label>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {[0, 1].map((slotIndex) => {
+              const existingUrl = form.imageUrls[slotIndex];
+              const isUploading = uploadingIndex === slotIndex;
+              return (
+                <div key={slotIndex}>
+                  {existingUrl ? (
+                    <div style={{ position: "relative", width: 120, height: 120 }}>
+                      <img
+                        src={existingUrl}
+                        alt={`이미지 ${slotIndex + 1}`}
+                        style={{
+                          width: 120,
+                          height: 120,
+                          objectFit: "cover",
+                          borderRadius: 8,
+                          border: "1px solid var(--border)",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(slotIndex)}
+                        style={{
+                          position: "absolute",
+                          top: 4,
+                          right: 4,
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          background: "rgba(0,0,0,0.6)",
+                          color: "#fff",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      style={{
+                        width: 120,
+                        height: 120,
+                        border: "2px dashed var(--border)",
+                        borderRadius: 8,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: isUploading ? "not-allowed" : "pointer",
+                        color: "var(--text-3)",
+                        fontSize: 12,
+                        gap: 6,
+                        opacity: isUploading ? 0.6 : 1,
+                      }}
+                    >
+                      {isUploading ? (
+                        <span>업로드 중...</span>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: 24 }}>+</span>
+                          <span>이미지 추가</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        style={{ display: "none" }}
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileSelect(file, slotIndex);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                  {uploadErrors[slotIndex] && (
+                    <span
+                      className="form-error"
+                      style={{ display: "block", maxWidth: 120, marginTop: 4 }}
+                    >
+                      {uploadErrors[slotIndex]}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           <span style={{ fontSize: 12, color: "var(--text-4)" }}>
-            최대 2장, 쉼표로 구분
+            jpg, jpeg, png, webp / 최대 5MB
           </span>
         </div>
       </Section>
@@ -413,12 +561,7 @@ export default function SellerEventCreate() {
       saleStartAt: form.saleStartAt,
       saleEndAt: form.saleEndAt,
       location: form.location,
-      imageUrls: form.imageUrls
-        ? form.imageUrls
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined,
+      imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
     });
     toast("이벤트가 등록되었습니다!", "success");
     navigate(`/seller/events/${res.data.data.eventId}`);
@@ -474,7 +617,7 @@ export function SellerEventEdit() {
           saleStartAt: "",
           saleEndAt: "",
           location: d.location,
-          imageUrls: "",
+          imageUrls: [],
         });
       })
       .catch(() => toast("이벤트 로드 실패", "error"));
@@ -496,12 +639,7 @@ export function SellerEventEdit() {
       saleStartAt: form.saleStartAt,
       saleEndAt: form.saleEndAt,
       location: form.location,
-      imageUrls: form.imageUrls
-        ? form.imageUrls
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined,
+      imageUrls: form.imageUrls.length > 0 ? form.imageUrls : undefined,
     });
     toast("이벤트가 수정되었습니다", "success");
     navigate(`/seller/events/${id}`);

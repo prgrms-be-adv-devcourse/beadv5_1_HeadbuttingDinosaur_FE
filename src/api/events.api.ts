@@ -37,10 +37,15 @@ export const filterEvents = (params: EventFilterRequest) =>
 
 // ── 판매자 이벤트 ──────────────────────────────────────────────────────────────
 export const createSellerEvent = (body: SellerEventCreateRequest) =>
-  apiClient.post<ApiResponse<SellerEventCreateResponse>>('/seller/events', body);
+  apiClient.post<ApiResponse<SellerEventCreateResponse>>(
+    "/seller/events",
+    body,
+  );
 
 export const getSellerEvents = (params?: SellerEventListRequest) =>
-  apiClient.get<ApiResponse<SellerEventListResponse>>('/seller/events', { params });
+  apiClient.get<ApiResponse<SellerEventListResponse>>("/seller/events", {
+    params,
+  });
 
 export const getSellerEventDetail = (eventId: string) =>
   apiClient.get<ApiResponse<SellerEventDetailResponse>>(
@@ -84,5 +89,15 @@ export const getSellerEventRefunds = (
     { params },
   );
 
+// ── 이미지 업로드 ───────────────────────────────────────────────────────────────
+export const uploadEventImage = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiClient.post<ApiResponse<{ imageUrl: string }>>(
+    "/seller/images/upload",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+};
 export const recommendEvents = () =>
     apiClient.get('/events/user/recommendations');
