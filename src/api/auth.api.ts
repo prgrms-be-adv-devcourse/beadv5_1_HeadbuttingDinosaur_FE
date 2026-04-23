@@ -60,5 +60,4 @@ export const getSellerApplicationStatus = () =>
 
 // ── 공통 ──────────────────────────────────────────────────────────────────────
 export const getTechStacks = () =>
-  apiClient.get<TechStackListResponse>('/techstacks')
-    .catch(() => apiClient.get<TechStackListResponse>('/tech-stacks'));
+    apiClient.get<TechStackListResponse>('/tech-stacks');
