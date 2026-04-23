@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addCartItem, clearCart, getCart } from '../api/cart.api'
 import { getEventDetail } from '../api/events.api'
+
 import { recommendEvents } from '../api/events.api'
+
 import { unwrapApiData } from '../api/client'
 import type { CartItemDetail } from '../api/types'
 import { useToast } from '../contexts/ToastContext'
