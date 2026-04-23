@@ -1,5 +1,5 @@
 import { apiClient, ApiResponse } from './client'
-import type { RecommendationRequest, RecommendationResponse } from './types'
+import type { RecommendationResponse } from './types'
 
-export const recommendByUserVector = (body: RecommendationRequest) =>
-  apiClient.post<ApiResponse<RecommendationResponse> | RecommendationResponse>('/internal/ai/recommendation', body)
+export const getEventRecommendations = () =>
+  apiClient.get<ApiResponse<RecommendationResponse> | RecommendationResponse>('/events/recommendations')
