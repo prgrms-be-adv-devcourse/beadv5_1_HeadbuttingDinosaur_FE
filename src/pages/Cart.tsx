@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addCartItem, clearCart, getCart } from '../api/cart.api'
 import { getEventDetail } from '../api/events.api'
-import { recommendByUserVector } from '../api/ai.api'
+
+import { recommendEvents } from '../api/events.api'
+
 import { unwrapApiData } from '../api/client'
 import type { CartItemDetail } from '../api/types'
 import { useToast } from '../contexts/ToastContext'
@@ -41,44 +43,16 @@ export default function Cart() {
   }
 
   const fetchRecommendations = async () => {
-    const userId = localStorage.getItem('userId')
-    if (!userId) {
-      setRecommendLoading(false)
-      return
-    }
-
     try {
-      const recRes = await recommendByUserVector({ userId })
+      const recRes = await recommendEvents()
       const recData = unwrapApiData(recRes.data)
-      const recommendedIds = (recData.eventIdList ?? []).slice(0, 5)
-
-      const detailResults = await Promise.allSettled(
-        recommendedIds.map((eventId) => getEventDetail(eventId)),
-      )
-
-      const cards = detailResults.map((result, index) => {
-        const fallbackId = recommendedIds[index]
-
-        if (result.status !== 'fulfilled') {
-          return {
-            eventId: fallbackId,
-            title: `추천 이벤트 ${index + 1}`,
-            price: 0,
-            eventDateTime: '',
-            category: '추천',
-          }
-        }
-
-        const detail = unwrapApiData(result.value.data)
-        return {
-          eventId: detail.eventId,
-          title: detail.title,
-          price: detail.price,
-          eventDateTime: detail.eventDateTime,
-          category: detail.category,
-        }
-      })
-
+      const cards = (recData.events ?? []).slice(0, 5).map((event: any) => ({
+        eventId: event.eventId,
+        title: event.title,
+        price: event.price,
+        eventDateTime: event.eventDateTime,
+        category: event.category ?? '추천',
+      }))
       setRecommendations(cards)
     } catch {
       setRecommendations([])

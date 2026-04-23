@@ -99,3 +99,5 @@ export const uploadEventImage = (file: File) => {
     { headers: { "Content-Type": "multipart/form-data" } },
   );
 };
+export const recommendEvents = () =>
+    apiClient.get('/events/user/recommendations');
