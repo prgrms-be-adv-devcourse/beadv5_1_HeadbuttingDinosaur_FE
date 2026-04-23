@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { readyPayment } from '../api/payments.api'
-import { getOrderStatus } from '../api/orders.api'
 import { getWalletBalance } from '../api/wallet.api'
 import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
@@ -27,40 +26,6 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [walletAmountInput, setWalletAmountInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [orderReady, setOrderReady] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => {
-    if (!open) {
-      setOrderReady(false)
-      if (pollRef.current) clearInterval(pollRef.current)
-      return
-    }
-
-    setOrderReady(false)
-    let attempts = 0
-    const MAX_ATTEMPTS = 20
-
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await getOrderStatus(orderId)
-        if (res.data.status === 'PAYMENT_PENDING') {
-          setOrderReady(true)
-          clearInterval(pollRef.current!)
-        } else if (++attempts >= MAX_ATTEMPTS) {
-          clearInterval(pollRef.current!)
-          toast('주문 준비 시간이 초과되었습니다. 다시 시도해주세요.', 'error')
-          onClose()
-        }
-      } catch {
-        clearInterval(pollRef.current!)
-        toast('주문 상태 확인에 실패했습니다.', 'error')
-        onClose()
-      }
-    }, 500)
-
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [open, orderId])
 
   useEffect(() => {
     if (!open) return
@@ -84,13 +49,11 @@ export default function PaymentModal({ open, orderId, totalAmount, onClose, onSu
   const isWalletPgInsufficient = method === 'WALLET_PG' && walletBalance !== null && parsedWalletAmount > walletBalance
   const walletInsufficient = method === 'WALLET' && walletBalance !== null && walletBalance < totalAmount
   const walletPgDisabled = method === 'WALLET_PG' && (isWalletPgInvalidRange || isWalletPgInsufficient)
-  const payDisabled = !orderReady || loading || walletInsufficient || walletPgDisabled
+  const payDisabled = loading || walletInsufficient || walletPgDisabled
 
-  const payLabel = !orderReady
-    ? '주문 준비 중...'
-    : method !== 'WALLET_PG'
-      ? `${totalAmount.toLocaleString()}원 결제`
-      : `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원`
+  const payLabel = method !== 'WALLET_PG'
+    ? `${totalAmount.toLocaleString()}원 결제`
+    : `예치금 ${parsedWalletAmount.toLocaleString()}원 + PG ${Math.max(totalAmount - parsedWalletAmount, 0).toLocaleString()}원`
 
   if (!open) return null
 

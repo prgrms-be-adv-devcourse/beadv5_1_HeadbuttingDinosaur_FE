@@ -4,7 +4,6 @@ import type {
   OrderListRequest, OrderListResponse,
   OrderDetailResponse,
   OrderCancelResponse,
-  OrderStatusResponse,
 } from './types';
 
 export const createOrder = (body: OrderRequest) =>
@@ -19,5 +18,3 @@ export const getOrderDetail = (orderId: string) =>
 export const cancelOrder = (orderId: string) =>
   apiClient.patch<ApiResponse<OrderCancelResponse>>(`/orders/${orderId}/cancel`);
 
-export const getOrderStatus = (orderId: string) =>
-  apiClient.get<OrderStatusResponse>(`/orders/${orderId}/status`);
