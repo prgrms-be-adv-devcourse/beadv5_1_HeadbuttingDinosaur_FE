@@ -84,3 +84,5 @@ export const getSellerEventRefunds = (
     { params },
   );
 
+export const recommendEvents = () =>
+    apiClient.get('/events/user/recommendations');
