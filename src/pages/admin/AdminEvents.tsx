@@ -227,7 +227,7 @@ export function AdminApplications() {
 // ── AdminSettlements ───────────────────────────────────────────────────────────
 const SETTLEMENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
   CONFIRMED:          { label: '지급 대기', cls: 'badge-blue' },
-  PENDING_MIN_AMOUNT: { label: '이월 보류', cls: 'badge-amber' },
+  PENDING_MIN_AMOUNT: { label: '지급 보류', cls: 'badge-amber' },
   CANCELLED:          { label: '취소됨',    cls: 'badge-gray' },
   PAID:               { label: '지급완료',  cls: 'badge-green' },
   PAID_FAILED:        { label: '지급실패',  cls: 'badge-red' },
@@ -349,7 +349,7 @@ export function AdminSettlements() {
                   <th style={{ textAlign: 'right' }}>실지급액</th>
                   <th>상태</th>
                   <th>정산확정일</th>
-                  <th>이월 처리 →</th>
+                  {/* <th>이월 처리 →</th> */}
                   <th>관리</th>
                 </tr>
               </thead>
@@ -378,9 +378,9 @@ export function AdminSettlements() {
                       <td style={{ fontSize: 13, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
                         {s.settledAt ? new Date(s.settledAt).toLocaleDateString('ko-KR') : '—'}
                       </td>
-                      <td style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
+                      {/* <td style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
                         {s.carriedToSettlementId ? `#${s.carriedToSettlementId.slice(0, 8)}` : '—'}
-                      </td>
+                      </td> */}
                       <td onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 4 }}>
                           {(() => {
