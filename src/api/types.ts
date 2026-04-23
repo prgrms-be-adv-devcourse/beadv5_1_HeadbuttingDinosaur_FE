@@ -640,22 +640,68 @@ export interface RefundDetailResponse {
 }
 
 // ── Admin Settlement ──────────────────────────────────────────────────────────
-export interface SettlementItem {
+export interface AdminSettlementItem {
   settlementId: string
-  eventTitle: string
-  settledAmount: number
-  feeAmount: number
-  netAmount: number
+  periodStart: string
+  periodEnd: string
+  totalSalesAmount: number
+  totalRefundAmount: number
+  totalFeeAmount: number
+  carriedInAmount: number
+  finalSettlementAmount: number
   status: string
   settledAt: string | null
+  carriedToSettlementId: string | null
+  sellerId: string
 }
 
-export interface SettlementResponse {
-  content: SettlementItem[]
+export interface AdminSettlementListResponse {
+  content: AdminSettlementItem[]
   page: number
   size: number
   totalElements: number
   totalPages: number
+}
+
+export interface AdminSettlementSearchRequest {
+  yearMonth?: string
+  page?: number
+  size?: number
+}
+
+export interface CarriedInSettlementSummary {
+  settlementId: string
+  periodStart: string
+  periodEnd: string
+  finalSettlementAmount: number
+  status: string
+}
+
+export interface AdminSettlementItemDetail {
+  eventId: string
+  eventTitle: string
+  salesAmount: number
+  refundAmount: number
+  feeAmount: number
+  settlementAmount: number
+}
+
+export interface AdminSettlementDetailResponse {
+  settlementId: string
+  sellerId: string
+  periodStart: string
+  periodEnd: string
+  totalSalesAmount: number
+  totalRefundAmount: number
+  totalFeeAmount: number
+  settlementAmount: number
+  carriedInAmount: number
+  finalSettlementAmount: number
+  status: string
+  settledAt: string | null
+  carriedToSettlementId: string | null
+  carriedInSettlements: CarriedInSettlementSummary[]
+  settlementItems: AdminSettlementItemDetail[]
 }
 
 // ── Seller Settlement ─────────────────────────────────────────────────────────

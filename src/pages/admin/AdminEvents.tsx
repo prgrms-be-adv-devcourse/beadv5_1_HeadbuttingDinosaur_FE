@@ -1,7 +1,8 @@
 // ── AdminEvents ────────────────────────────────────────────────────────────────
 import { useEffect, useState, useCallback } from 'react'
-import { getAdminEvents, forcecancelEvent, getSellerApplications, processSellerApplication, runSettlementProcess, getAdminSettlements } from '../../api/admin.api'
-import type { AdminEventItem, SellerApplicationListItem, SettlementItem } from '../../api/types'
+import { useNavigate } from 'react-router-dom'
+import { getAdminEvents, forcecancelEvent, getSellerApplications, processSellerApplication, runSettlementProcess, getAdminSettlements, cancelSettlement, paySettlement } from '../../api/admin.api'
+import type { AdminEventItem, SellerApplicationListItem, AdminSettlementItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
 const EVENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -224,22 +225,74 @@ export function AdminApplications() {
 }
 
 // ── AdminSettlements ───────────────────────────────────────────────────────────
+const SETTLEMENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  CONFIRMED:          { label: '지급 대기', cls: 'badge-blue' },
+  PENDING_MIN_AMOUNT: { label: '이월 보류', cls: 'badge-amber' },
+  CANCELLED:          { label: '취소됨',    cls: 'badge-gray' },
+  PAID:               { label: '지급완료',  cls: 'badge-green' },
+  PAID_FAILED:        { label: '지급실패',  cls: 'badge-red' },
+}
+
+const fmtPeriodDate = (s: string) => s ? s.slice(2).replace(/-/g, '.') : '—'
+
+const toYearMonth = (date: Date) =>
+  `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`
+
+const toInputValue = (ym: string) => `${ym.slice(0, 4)}-${ym.slice(4, 6)}`
+
 export function AdminSettlements() {
   const { toast } = useToast()
-  const [settlements, setSettlements] = useState<SettlementItem[]>([])
+  const navigate = useNavigate()
+  const [settlements, setSettlements] = useState<AdminSettlementItem[]>([])
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalElements, setTotalElements] = useState(0)
+  const [yearMonth, setYearMonth] = useState(() => toYearMonth(new Date()))
 
-  const fetchSettlements = async () => {
+  const fetchSettlements = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await getAdminSettlements()
+      const res = await getAdminSettlements({ yearMonth, page, size: 20 })
       setSettlements(res.data.content)
+      setTotalPages(res.data.totalPages)
+      setTotalElements(res.data.totalElements)
     } catch { toast('로드 실패', 'error') }
     finally { setLoading(false) }
+  }, [yearMonth, page])
+
+  useEffect(() => { fetchSettlements() }, [fetchSettlements])
+
+  const handleMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setYearMonth(e.target.value.replace('-', ''))
+    setPage(0)
   }
 
-  useEffect(() => { fetchSettlements() }, [])
+  const handleCancel = async (e: React.MouseEvent, settlementId: string) => {
+    e.stopPropagation()
+    if (!confirm('정산서를 취소하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
+    setActionLoading(`cancel-${settlementId}`)
+    try {
+      await cancelSettlement(settlementId)
+      toast('정산서가 취소되었습니다', 'success')
+      fetchSettlements()
+    } catch { toast('취소 처리 실패', 'error') }
+    finally { setActionLoading(null) }
+  }
+
+  const handlePay = async (e: React.MouseEvent, settlementId: string) => {
+    e.stopPropagation()
+    if (!confirm('정산금을 지급하시겠습니까?')) return
+    setActionLoading(`pay-${settlementId}`)
+    try {
+      await paySettlement(settlementId)
+      toast('정산금 지급이 완료되었습니다', 'success')
+      fetchSettlements()
+    } catch { toast('지급 처리 실패', 'error') }
+    finally { setActionLoading(null) }
+  }
 
   const handleRun = async () => {
     if (!confirm('정산 프로세스를 실행할까요? 이 작업은 되돌릴 수 없습니다.')) return
@@ -252,24 +305,26 @@ export function AdminSettlements() {
     finally { setRunning(false) }
   }
 
-  const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-    PENDING:   { label: '대기', cls: 'badge-amber' },
-    COMPLETED: { label: '완료', cls: 'badge-green' },
-    CANCELLED: { label: '취소', cls: 'badge-gray' },
-  }
-
-  const totalNet = settlements.reduce((acc, s) => acc + s.netAmount, 0)
-
   return (
     <div style={{ padding: '32px 36px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>정산 관리</h1>
-          <p style={{ fontSize: 14, color: 'var(--text-3)' }}>총 정산액: <strong>{totalNet.toLocaleString()}원</strong></p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>정산서 관리</h1>
+          <p style={{ fontSize: 14, color: 'var(--text-3)' }}>총 {totalElements.toLocaleString()}건</p>
         </div>
         <button className="btn btn-primary" onClick={handleRun} disabled={running}>
           {running ? '실행 중...' : '⚡ 정산 프로세스 실행'}
         </button>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <label style={{ fontSize: 13, color: 'var(--text-3)', fontWeight: 500 }}>정산 연월</label>
+        <input
+          type="month"
+          value={toInputValue(yearMonth)}
+          onChange={handleMonthChange}
+          style={{ padding: '4px 8px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface)', color: 'var(--text-1)' }}
+        />
       </div>
 
       {loading ? (
@@ -277,42 +332,112 @@ export function AdminSettlements() {
       ) : settlements.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">💰</div>
-          <div className="empty-title">정산 내역이 없습니다</div>
+          <div className="empty-title">정산서가 없습니다</div>
         </div>
       ) : (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>이벤트</th>
-                <th style={{ textAlign: 'right' }}>판매액</th>
-                <th style={{ textAlign: 'right' }}>수수료</th>
-                <th style={{ textAlign: 'right' }}>정산액</th>
-                <th>상태</th>
-                <th>정산일</th>
-              </tr>
-            </thead>
-            <tbody>
-              {settlements.map(s => {
-                const status = STATUS_MAP[s.status] ?? { label: s.status, cls: 'badge-gray' }
-                return (
-                  <tr key={s.settlementId}>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{s.eventTitle}</div>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>{s.settledAmount.toLocaleString()}원</td>
-                    <td style={{ textAlign: 'right', color: 'var(--danger)' }}>−{s.feeAmount.toLocaleString()}원</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--brand)' }}>{s.netAmount.toLocaleString()}원</td>
-                    <td><span className={`badge ${status.cls}`}>{status.label}</span></td>
-                    <td style={{ fontSize: 13, color: 'var(--text-3)' }}>
-                      {s.settledAt ? new Date(s.settledAt).toLocaleDateString('ko-KR') : '—'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>정산 기간</th>
+                  <th>판매자</th>
+                  <th style={{ textAlign: 'right' }}>판매액</th>
+                  <th style={{ textAlign: 'right' }}>환불액</th>
+                  <th style={{ textAlign: 'right' }}>수수료</th>
+                  <th style={{ textAlign: 'right' }}>이월금액</th>
+                  <th style={{ textAlign: 'right' }}>실지급액</th>
+                  <th>상태</th>
+                  <th>정산확정일</th>
+                  <th>이월 처리 →</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {settlements.map(s => {
+                  const status = SETTLEMENT_STATUS_MAP[s.status] ?? { label: s.status, cls: 'badge-gray' }
+                  return (
+                    <tr key={s.settlementId}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/admin/settlements/${s.settlementId}`)}
+                    >
+                      <td style={{ fontSize: 12, whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', color: 'var(--text-3)' }}>
+                        {fmtPeriodDate(s.periodStart)} ~ {fmtPeriodDate(s.periodEnd)}
+                      </td>
+                      <td style={{maxWidth: '150px',whiteSpace: 'nowrap',overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.sellerId}</td> 
+                      <td style={{ textAlign: 'right', fontSize: 13 }}>{s.totalSalesAmount.toLocaleString()}원</td>
+                      <td style={{ textAlign: 'right', fontSize: 13, color: 'var(--danger)' }}>−{s.totalRefundAmount.toLocaleString()}원</td>
+                      <td style={{ textAlign: 'right', fontSize: 13, color: 'var(--text-3)' }}>−{s.totalFeeAmount.toLocaleString()}원</td>
+                      <td style={{ textAlign: 'right', fontSize: 13, color: 'var(--brand)' }}>
+                        {s.carriedInAmount ? `+${s.carriedInAmount.toLocaleString()}원` : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--brand)' }}>
+                        {s.finalSettlementAmount.toLocaleString()}원
+                      </td>
+                      <td><span className={`badge ${status.cls}`}>{status.label}</span></td>
+                      <td style={{ fontSize: 13, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+                        {s.settledAt ? new Date(s.settledAt).toLocaleDateString('ko-KR') : '—'}
+                      </td>
+                      <td style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
+                        {s.carriedToSettlementId ? `#${s.carriedToSettlementId.slice(0, 8)}` : '—'}
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {(() => {
+                            const cancelable = actionLoading === null && ['CONFIRMED', 'PENDING_MIN_AMOUNT'].includes(s.status)
+                            const payable    = actionLoading === null && ['CONFIRMED', 'PAID_FAILED'].includes(s.status)
+                            return (
+                              <>
+                                <button
+                                  className="btn btn-sm"
+                                  disabled={!cancelable}
+                                  onClick={e => handleCancel(e, s.settlementId)}
+                                  style={{
+                                    background: cancelable ? 'var(--danger)' : 'var(--surface-2)',
+                                    color: cancelable ? '#fff' : 'var(--text-4)',
+                                    border: `1px solid ${cancelable ? 'var(--danger)' : 'var(--border)'}`,
+                                    cursor: cancelable ? 'pointer' : 'not-allowed',
+                                  }}
+                                >
+                                  {actionLoading === `cancel-${s.settlementId}` ? '...' : '정산취소'}
+                                </button>
+                                <button
+                                  className="btn btn-sm"
+                                  disabled={!payable}
+                                  onClick={e => handlePay(e, s.settlementId)}
+                                  style={{
+                                    background: payable ? 'var(--brand)' : 'var(--surface-2)',
+                                    color: payable ? '#fff' : 'var(--text-4)',
+                                    border: `1px solid ${payable ? 'var(--brand)' : 'var(--border)'}`,
+                                    cursor: payable ? 'pointer' : 'not-allowed',
+                                  }}
+                                >
+                                  {actionLoading === `pay-${s.settlementId}` ? '...' : '지급'}
+                                </button>
+                              </>
+                            )
+                          })()}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20 }}>
+              <button className="btn btn-secondary btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                이전
+              </button>
+              <span style={{ fontSize: 13, color: 'var(--text-3)' }}>{page + 1} / {totalPages}</span>
+              <button className="btn btn-secondary btn-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                다음
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
