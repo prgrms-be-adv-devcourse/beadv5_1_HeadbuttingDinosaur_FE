@@ -8,7 +8,7 @@ import type {
   UserStatusRequest, UserStatusResponse,
   UserRoleRequest, UserRoleResponse,
   SellerApplicationListResponse,
-  SettlementResponse,
+  AdminSettlementListResponse, AdminSettlementSearchRequest, AdminSettlementDetailResponse,
   AdminTechStackItem,
 } from './types';
 
@@ -47,8 +47,17 @@ export const processSellerApplication = (applicationId: string, decision: string
 export const runSettlementProcess = () =>
   apiClient.post('/admin/settlements/run');
 
-export const getAdminSettlements = () =>
-  apiClient.get<ApiResponse<SettlementResponse>>('/admin/settlements');
+export const getAdminSettlements = (params?: AdminSettlementSearchRequest) =>
+  apiClient.get<AdminSettlementListResponse>('/admin/settlements', { params });
+
+export const getAdminSettlementDetail = (settlementId: string) =>
+  apiClient.get<AdminSettlementDetailResponse>(`/admin/settlements/${settlementId}`);
+
+export const cancelSettlement = (settlementId: string) =>
+  apiClient.post(`/admin/settlements/${settlementId}/cancel`);
+
+export const paySettlement = (settlementId: string) =>
+  apiClient.post(`/admin/settlements/${settlementId}/payment`);
 
 // ── 수수료 정책 ────────────────────────────────────────────────────────────────
 export const getFeePolicies = () =>
