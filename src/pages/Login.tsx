@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { login as loginApi } from '../api/auth.api'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
+import Card from '../components/ui/Card'
 
 const GOOGLE_OAUTH_URL = import.meta.env.VITE_GOOGLE_OAUTH_URL ?? 'http://localhost:8080/oauth2/authorization/google'
 
@@ -62,27 +65,31 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="card" style={{ padding: '28px' }}>
+        <Card style={{ padding: '28px' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="form-group">
-              <label className="form-label">이메일</label>
-              <input className="form-input" type="email" placeholder="you@example.com"
-                value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                style={errors.email ? { borderColor: 'var(--danger)' } : {}} />
-              {errors.email && <span className="form-error">{errors.email}</span>}
-            </div>
+            <Input
+              label="이메일"
+              type="email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              error={errors.email}
+              style={errors.email ? { borderColor: 'var(--danger)' } : {}}
+            />
 
-            <div className="form-group">
-              <label className="form-label">비밀번호</label>
-              <input className="form-input" type="password" placeholder="비밀번호 입력"
-                value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                style={errors.password ? { borderColor: 'var(--danger)' } : {}} />
-              {errors.password && <span className="form-error">{errors.password}</span>}
-            </div>
+            <Input
+              label="비밀번호"
+              type="password"
+              placeholder="비밀번호 입력"
+              value={form.password}
+              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              error={errors.password}
+              style={errors.password ? { borderColor: 'var(--danger)' } : {}}
+            />
 
-            <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading} style={{ marginTop: 4 }}>
+            <Button type="submit" variant="primary" full size="lg" disabled={loading} style={{ marginTop: 4 }}>
               {loading ? '로그인 중...' : '로그인'}
-            </button>
+            </Button>
           </form>
 
           {/* 구분선 */}
@@ -109,7 +116,7 @@ export default function Login() {
             <GoogleIcon />
             Google로 로그인
           </button>
-        </div>
+        </Card>
 
         <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--text-3)', marginTop: 20 }}>
           아직 계정이 없으신가요?{' '}
