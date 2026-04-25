@@ -5,6 +5,7 @@ import { addCartItem } from '../api/cart.api'
 import type { EventDetailResponse } from '../api/types'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import EventMap from '../components/EventMap'
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   ON_SALE:  { label: '판매 중',  color: 'var(--success-text)', bg: 'var(--success-bg)' },
@@ -162,6 +163,15 @@ export default function EventDetail() {
               {event.description || '상세 설명이 없습니다.'}
             </div>
           </div>
+
+          {/* Map */}
+          {event.location && (
+            <div style={{ marginTop: 32 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: 'var(--text)' }}>행사 위치</h2>
+              <EventMap location={event.location} />
+              <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-3)' }}>📍 {event.location}</div>
+            </div>
+          )}
         </div>
 
         {/* Right – Purchase box */}
