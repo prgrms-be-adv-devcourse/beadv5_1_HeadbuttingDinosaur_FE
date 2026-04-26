@@ -248,7 +248,27 @@ src/api/
 (작성 예정)
 
 ## 5. 라이브러리
-(작성 예정)
+
+`package.json` 기준. 카테고리별로 도입된 패키지(+버전). 명시된 의존성이 없는 카테고리는 "없음" 으로 표기.
+
+| 카테고리 | 패키지 | 버전 | 비고 |
+|---|---|---|---|
+| CSS / 스타일 | — | — | CSS 라이브러리 의존성 없음. 순수 CSS 한 파일 (`src/styles/globals.css`). 프로토타입은 별도 `tokens.css` / `ide-theme.css` 사용 |
+| 데이터 페칭 | `axios` | `^1.6.8` | `src/api/client.ts` 에서 단일 인스턴스 + 인터셉터. React Query/SWR 류 캐시 라이브러리 없음 |
+| 라우팅 | `react-router-dom` | `^6.22.3` | `Routes`/`Route`/`Navigate` + `lazy` + `Suspense` (`src/App.tsx`) |
+| 폼 | — | — | `react-hook-form`, `formik`, `zod` 등 없음. 페이지마다 `useState` 로 직접 관리 |
+| 전역 상태 | — | — | Redux/Zustand/Jotai 등 없음. React Context 만 사용 (`AuthContext`, `ThemeContext`, `ToastContext`) |
+| UI 프레임워크 | `react`, `react-dom` | `^18.2.0` | — |
+| 빌드 / 번들러 | `vite`, `@vitejs/plugin-react` | `^5.1.6`, `^4.2.1` | scripts: `dev` / `build` / `preview` |
+| 언어 / 타입 | `typescript`, `@types/react`, `@types/react-dom` | `^5.2.2`, `^18.2.64`, `^18.2.21` | — |
+| 결제 / 외부 SDK | `@tosspayments/tosspayments-sdk` | `^2.6.0` | 토스페이먼츠 PG |
+| 지도 | `react-kakao-maps-sdk` | `^1.2.1` | 카카오 맵 |
+
+### 주의 사항
+
+- 테스트 러너/린터/포매터 (Vitest, Jest, ESLint, Prettier) 의존성이 **하나도 없음** — v2 도입 검토 필요.
+- Tailwind/CSS-in-JS/CSS Modules 도입되지 않음. 디자인 토큰이 코드 레벨 표준이 아니므로 v2 토큰 전략 합의 필요.
+- 데이터 페칭 캐시 레이어가 없어 페이지 단에서 `useEffect` + `useState` + 자체 훅(`hooks/useApi`, `usePagedApi`) 으로 처리 중.
 
 ## 6. 프로토타입에만 있는 것
 (작성 예정)
