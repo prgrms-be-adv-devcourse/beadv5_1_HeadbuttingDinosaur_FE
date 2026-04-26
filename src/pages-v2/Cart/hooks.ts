@@ -1,7 +1,7 @@
 /**
  * Cart 페이지 훅.
  *
- * Cart.plan.md § 3 / § 5 / § 10.2.
+ * Cart.plan.md § 3 / § 5 / § 7 / § 10.2.
  *
  * - `useCart` — 마운트 시 1회 `getCart()` → `toCartVM` → `CartQuery` 상태 머신.
  *   `refetch()` 와 `mutate(updater)` 를 노출. `mutate` 는 `useCartMutations` 가
@@ -9,7 +9,8 @@
  * - `useCartMutations` — `pendingItemIds: Set<string>` 가드 + PATCH/DELETE 낙관적
  *   업데이트 + 실패 시 snapshot 롤백 + 409 시 `refetch()` 1 회 호출.
  *   `addCartItem` 은 EventDetail/`usePurchaseActions` 에서 처리하므로 여기 미포함.
- * - `useCheckout` 는 후속 커밋에서 추가.
+ * - `useCheckout` — `createOrder` (POST `/orders`) + `idempotencyConfig()` 헤더 부착.
+ *   성공 시 `paymentTarget(OrderResultVM)` 노출 → 컨테이너가 `<PaymentModal>` 마운트.
  *
  * 401/403/PROFILE_NOT_COMPLETED 는 `apiClient` 인터셉터가 페이지 도달 전에
  * 처리하므로 본 훅들은 그 외 케이스만 분기 (§ 4 표 4).
@@ -19,11 +20,17 @@ import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { deleteCartItem, getCart, updateCartItemQuantity } from '@/api/cart.api';
-import { unwrapApiData } from '@/api/client';
+import {
+  apiClient,
+  idempotencyConfig,
+  unwrapApiData,
+  type ApiResponse,
+} from '@/api/client';
+import type { OrderRequest, OrderResponse } from '@/api/types';
 import { useToast } from '@/contexts/ToastContext';
 
-import { mergeQuantityUpdate, toCartVM } from './adapters';
-import type { CartItemVM, CartQuery, CartVM } from './types';
+import { mergeQuantityUpdate, toCartVM, toOrderResultVM } from './adapters';
+import type { CartItemVM, CartQuery, CartVM, OrderResultVM } from './types';
 
 // ── useCart ──────────────────────────────────────────────────────────────────
 
@@ -202,4 +209,79 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
   );
 
   return { pendingItemIds, setQuantityDelta, removeItem };
+}
+
+// ── useCheckout ──────────────────────────────────────────────────────────────
+
+export type CheckoutState = 'idle' | 'submitting' | 'error';
+
+export interface UseCheckoutReturn {
+  checkoutState: CheckoutState;
+  /** 성공 시 set → 컨테이너가 `<PaymentModal>` 을 마운트하는 트리거. */
+  paymentTarget: OrderResultVM | null;
+  /** 409 시 `OrderSummary` 영역에 표시할 인라인 메시지 (§ 4 표 4 (b)). */
+  inlineError: string | null;
+  /** 결제하기 버튼 핸들러. items / pending 가드 후 createOrder 호출. */
+  submit: () => Promise<void>;
+  /** PaymentModal close — paymentTarget clear (idempotency 키는 호출당 새로 발급). */
+  closeModal: () => void;
+}
+
+/**
+ * § 9.2-15: `createOrder` 에 `idempotencyConfig()` 헤더 부착.
+ * `src/api/orders.api.ts :: createOrder` 가 config 인자를 받지 않으므로
+ * (api 레이어 freeze — § 4 헤더 주석 참고) `apiClient.post` 를 직접 호출.
+ */
+const submitCreateOrder = (body: OrderRequest) =>
+  apiClient.post<ApiResponse<OrderResponse>>('/orders', body, idempotencyConfig());
+
+const isStatusCode = (err: unknown, status: number): boolean =>
+  axios.isAxiosError(err) && err.response?.status === status;
+
+export function useCheckout(
+  items: CartItemVM[],
+  refetch: () => void,
+): UseCheckoutReturn {
+  const { toast } = useToast();
+  const [checkoutState, setCheckoutState] = useState<CheckoutState>('idle');
+  const [paymentTarget, setPaymentTarget] = useState<OrderResultVM | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+
+  // 최신 items 를 submit 클로저로 흘려보내기 위한 ref. 의존성으로 잡으면
+  // 매 mutation 마다 submit 인스턴스가 재생성되어 부수효과가 큼.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const stateRef = useRef(checkoutState);
+  stateRef.current = checkoutState;
+
+  const submit = useCallback(async (): Promise<void> => {
+    const list = itemsRef.current;
+    if (list.length === 0) return;
+    if (stateRef.current === 'submitting') return;
+
+    setInlineError(null);
+    setCheckoutState('submitting');
+    try {
+      const res = await submitCreateOrder({
+        cartItemIds: list.map((i) => i.cartItemId),
+      });
+      const order = toOrderResultVM(unwrapApiData(res.data));
+      setPaymentTarget(order);
+      setCheckoutState('idle');
+    } catch (err) {
+      if (isStatusCode(err, 409)) {
+        refetch();
+        setInlineError('재고가 부족하거나 일부 항목이 변경되었습니다. 장바구니를 다시 확인해주세요.');
+      } else {
+        toast('결제를 시작하지 못했습니다.', 'error');
+      }
+      setCheckoutState('error');
+    }
+  }, [refetch, toast]);
+
+  const closeModal = useCallback(() => {
+    setPaymentTarget(null);
+  }, []);
+
+  return { checkoutState, paymentTarget, inlineError, submit, closeModal };
 }
