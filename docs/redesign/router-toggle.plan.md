@@ -185,7 +185,80 @@ declare function useUiVersion(): UiVersion
 페이지별 v2 도입 = 위 한 줄에 `v2={<XxxV2 />}` 만 추가. 분기 로직은 `VersionedRoute` 한 곳에만 존재 (§2 요구사항 충족).
 
 ## 4. 영향받는 파일 목록
-(작성 예정)
+
+### 신규 (`src/router-v2/` 디렉토리 신설)
+
+`-v2` 접미사 규약(`docs/CLAUDE.md`)에 맞춰 라우팅 인프라 전용 디렉토리 분리. 기존 `src/components/`, `src/pages/` 와 격리.
+
+| 경로 | 신/수 | LOC(대략) | 핵심 변경 |
+|---|---|---|---|
+| `src/router-v2/useUiVersion.ts` | 신규 | ~25 | `UiVersion` 타입 + `useUiVersion()` 훅. `URLSearchParams` → `localStorage['ui.version']` → `import.meta.env.VITE_UI_DEFAULT_VERSION` 순 우선순위 해석 + URL 값 발견 시 `useEffect` 로 localStorage 동기화 (§2-2, §2-5) |
+| `src/router-v2/VersionedRoute.tsx` | 신규 | ~15 | §3 시그니처(`v1: ReactElement`, `v2?: ReactElement`) 그대로. 내부에서 `useUiVersion()` 호출 → `'2'` && `v2` 면 `v2`, 아니면 `v1` 반환 |
+| `src/router-v2/index.ts` | 신규 | ~3 | barrel: `VersionedRoute`, `useUiVersion`, `UiVersion` 재수출 |
+
+### 수정
+
+| 경로 | 신/수 | LOC(대략) | 핵심 변경 |
+|---|---|---|---|
+| `.env.development` | 수정 | +1 | `VITE_UI_DEFAULT_VERSION=1` 한 줄 추가 (env 채널 §2-1 활성화, 누락 시 `'1'` fallback이라 동작은 동일하지만 노출용) |
+| `src/api/.env.example` | 수정 | +1 | 동일 변수 한 줄 주석과 함께 추가 (앱 전역 변수지만 현 프로젝트에 다른 `.env.example` 가 없어 여기 같이 둠) |
+
+### 의도적으로 손대지 않는 파일
+
+| 경로 | 이유 |
+|---|---|
+| `src/App.tsx` | 라우트 wiring(`element={<VersionedRoute .../>}` 교체)은 v2 페이지 도입 PR 단위로 한 줄씩 진행. 본 PR에서 미리 wrap 해두면 v2 prop 부재 라우트가 모두 헬퍼를 거치게 되어 회귀 위험만 늘림 (현 시점 v2 페이지 0개) |
+| `src/main.tsx`, `BrowserRouter` 마운트 | URL 쿼리는 `URLSearchParams(window.location.search)` 로 직접 읽으므로 라우터 마운트 변경 불필요 |
+| `src/contexts/*` | 토글은 라우팅 레이어 책임. AuthContext 류 전역 컨텍스트에 결합하지 않음 (단순화 + 테스트 용이) |
+| `package.json` | 신규 의존성 없음 (react-router-dom, React만으로 구현) |
+
+총 변경: 신규 3 파일(~43 LOC) + 수정 2 파일(+2 LOC).
 
 ## 5. 파일 생성/수정 순서
-(작성 예정)
+
+### Step 1 — 헬퍼 모듈 신규 작성 (1 commit)
+
+순서:
+1. `src/router-v2/useUiVersion.ts` 작성 (의존성 없음 — React + 브라우저 API만).
+2. `src/router-v2/VersionedRoute.tsx` 작성 (Step 1.1 의 훅 사용).
+3. `src/router-v2/index.ts` 작성 (위 둘 barrel).
+
+세 파일은 한 커밋으로 묶음 (서로 1:1 결합, 분할 시 중간 커밋이 빌드 깨짐).
+
+권장 commit 메시지: `feat(router-v2): add VersionedRoute toggle helper`
+
+### Step 2 — env 변수 노출 (1 commit)
+
+1. `.env.development` 에 `VITE_UI_DEFAULT_VERSION=1` 추가.
+2. `src/api/.env.example` 에 동일 변수 + `# 1 또는 2. 미설정 시 1` 한 줄 주석 추가.
+
+권장 commit 메시지: `chore(env): document VITE_UI_DEFAULT_VERSION`
+
+### Step 3 — 메커니즘 검증 (커밋 없음, 로컬 임시 작업)
+
+App.tsx 미변경 상태에선 헬퍼가 호출되지 않으므로, 다음을 **로컬에서만** 적용 후 확인 → **반드시 되돌리고 커밋하지 않음**.
+
+검증용 임시 패치 (`src/App.tsx`):
+```tsx
+import { VersionedRoute } from './router-v2'
+
+// /login 라우트 한 줄을 임시로 교체
+<Route path="/login"
+  element={<VersionedRoute v1={<Login />} v2={<div>V2 DUMMY</div>} />} />
+```
+
+`npm run dev` 후 다음 케이스 수동 확인:
+
+| # | 동작 | 기대 결과 | 검증 항목 |
+|---|---|---|---|
+| 1 | `/login` 접속 | `<Login>` 렌더 | 기본값 `'1'` (§2-2 4단계) |
+| 2 | `/login?v=2` 접속 | "V2 DUMMY" 렌더 + DevTools에서 `localStorage.getItem('ui.version') === '2'` | URL 파싱 + localStorage 동기화 (§2-5) |
+| 3 | (#2 직후) `/` 클릭 → `/login` 로 다시 이동 (쿼리 없이) | "V2 DUMMY" 유지 | §2-5 sticky 동작 |
+| 4 | `/login?v=1` 접속 | `<Login>` + `localStorage.getItem('ui.version') === null` | URL `v=1` 명시 시 키 제거 |
+| 5 | 쿼리 제거 후 v2 prop 빼고 `<VersionedRoute v1={<Login />} />` 로 임시 변경 → `/login?v=2` 접속 | `<Login>` 그대로 | v2 미존재 자동 fallback (§2-4) |
+
+5케이스 통과 후 App.tsx 임시 수정 전부 revert (예: `git checkout -- src/App.tsx`). 이 PR 의 최종 diff 에는 App.tsx 변경 없음.
+
+### Step 4 — push & PR 본문에 검증 결과 5케이스 OK 명시
+
+PR 리뷰어가 동일 절차로 재현할 수 있도록 §5 Step 3 표를 PR 설명에 그대로 인용.
