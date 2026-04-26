@@ -1,6 +1,6 @@
 import { SectionHead } from '@/components-v2/SectionHead';
 
-import type { RecommendedCardVM } from '../adapters';
+import type { RecommendedCardVM } from '@/pages-v2/_shared/recommendation';
 import { RecommendedCard } from './RecommendedCard';
 
 export interface RecommendedSectionProps {

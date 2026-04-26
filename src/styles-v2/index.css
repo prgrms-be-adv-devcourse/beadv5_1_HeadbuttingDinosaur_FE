@@ -25,3 +25,4 @@
 /* Page-level styles. One file per page route. */
 @import './pages/login.css';
 @import './pages/event-detail.css';
+@import './pages/cart.css';

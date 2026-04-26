@@ -18,10 +18,11 @@ import NotFound          from './pages/NotFound'
 const OAuthCallback       = lazy(() => import('./pages/OAuthCallback'))
 const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
 
-// lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1)
+// lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1, Cart.plan §10.1)
 const LoginV2             = lazy(() => import('./pages-v2/Login'))
 const EventListV2         = lazy(() => import('./pages-v2/EventList'))
 const EventDetailV2       = lazy(() => import('./pages-v2/EventDetail'))
+const CartV2              = lazy(() => import('./pages-v2/Cart'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
@@ -90,7 +91,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/"                       element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />
           <Route path="/events/:id"             element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
-          <Route path="/cart"                   element={<RequireAuth><Cart /></RequireAuth>} />
+          <Route path="/cart"                   element={<RequireAuth><VersionedRoute v1={<Cart />} v2={<CartV2 />} /></RequireAuth>} />
           <Route path="/payment"                element={<RequireAuth><Payment /></RequireAuth>} />
           <Route path="/payment/complete"       element={<RequireAuth><PaymentComplete /></RequireAuth>} />
           <Route path="/mypage"                 element={<RequireAuth><MyPage /></RequireAuth>} />
