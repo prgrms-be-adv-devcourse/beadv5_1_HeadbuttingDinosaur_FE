@@ -217,6 +217,78 @@
   justify-content: center;
 }
 
+/* RecommendedCard (§2 RecommendedCard / §8-항목4-v) — mini card with
+   category pill / title (link) / date / price. No quick-add. */
+.ed-rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  min-height: 130px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease);
+}
+.ed-rec-card:hover {
+  border-color: var(--brand-muted);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.ed-rec-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.ed-rec-card__category {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.ed-rec-card__title {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ed-rec-card__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.ed-rec-card__date {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.ed-rec-card__price {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.ed-rec-card__price.is-free {
+  color: var(--term-green-dim);
+}
+
 /* EventDetailSkeleton (§5-(1)) — part-by-part loading placeholders. */
 @keyframes ed-skel-shimmer {
   0%   { opacity: 0.55; }
