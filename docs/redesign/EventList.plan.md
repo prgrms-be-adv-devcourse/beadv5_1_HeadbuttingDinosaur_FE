@@ -464,7 +464,108 @@ const hasActiveFilters = filters.keyword !== '' || filters.category !== '전체'
 - **단순화 옵션**: 너무 noise스러우면 1차에선 생략하고 § 9 의사결정으로 넘김. **기본은 표시(스피너 1개)** — 입력이 반영 중인지 사용자가 알 수 있어야 함.
 
 ## 7. 키보드 인터랙션
-(작성 예정)
+
+프로토타입은 `window.__focusSearch` / `window.__cardNav` / `__openPalette` 같은 전역을 썼지만 SPEC § 0에서 `window.*` 글로벌 금지. 페이지 단일 hook(`useEventListKeyboard`, § 1/§ 2)에서 `keydown` 1개 리스너로 통합 처리.
+
+### 단축키 표
+
+| 키 | 동작 | 스코프 | 인풋 포커스 시 |
+|---|---|---|---|
+| **`⌘K` / `Ctrl+K`** | 빠른 검색 팔레트 열기 | 글로벌 | (열림) |
+| **`/`** | 검색 인풋 포커스 + 기존 텍스트 select | 글로벌 (인풋 포커스 시 제외) | 패스스루 (`/`가 그대로 입력됨) |
+| **`Esc`** | 검색 인풋 비우기 + blur | 검색 인풋 포커스 시 | 동작 |
+| **`j`** | 다음 카드 포커스 + 뷰포트로 스크롤 | 글로벌 (인풋 포커스 시 제외) | 패스스루 |
+| **`k`** | 이전 카드 포커스 + 스크롤 | 글로벌 (인풋 포커스 시 제외) | 패스스루 |
+| **`Enter`** | 포커스된 카드 열기 (상세로 이동) | 카드 포커스 시 | (카드는 인풋이 아님) |
+| **`Tab` / `Shift+Tab`** | 자연 포커스 사이클 (검색 → chip → 카드 → 페이지네이션) | 항상 (개입하지 않음) | 동작 |
+
+### 1) 글로벌 vs 로컬 스코프
+
+- **글로벌(window keydown 1개)**: `⌘K`, `/`, `j`, `k`. 페이지 어디서나 잡힘.
+- **로컬(요소 자체 핸들러)**: `Esc`(검색 인풋), `Enter`(카드). 둘 다 해당 요소가 native focusable이라 별도 글로벌 처리 없이 `onKeyDown`으로 처리.
+- `Tab`은 절대 가로채지 않는다 (브라우저 기본 동작 유지).
+
+### 2) `⌘K` 처리 (이번 PR 범위 밖)
+
+- 빠른 검색 팔레트(프로토타입 Landing의 `__openPalette`)는 **EventList PR 범위 밖**. 별 PR 또는 Layout PR(§ 7 SPEC)에서 다룰 가능성.
+- EventList의 hook은 `onOpenPalette?: () => void` props만 노출. 부모(`index.tsx`)가 `undefined`면 `⌘K` 핸들러는 **`preventDefault` 없이 무시** — 브라우저 기본(주소창 포커스 등)이 그대로 동작 → 사용자가 기능 미구현임을 자연히 인지.
+- 팔레트 PR이 들어오면 `index.tsx`에서 `onOpenPalette` 주입 한 줄만 추가하면 됨.
+
+### 3) 인풋에 포커스 있을 때 (입력 우선)
+
+`document.activeElement`(또는 `e.target`)가 다음 중 하나면 `j` / `k` / `/`는 **그대로 패스스루**(preventDefault X):
+- `INPUT`, `TEXTAREA`, `SELECT`
+- `contenteditable` 속성이 켜진 모든 요소
+- `aria-haspopup` 또는 `role="combobox"`로 모달 위에 떠 있는 위젯 (방어적 처리)
+
+→ 검색창에서 "javascript"를 칠 때 `j`/`k`/`/`가 카드 내비/포커스 이동을 트리거하지 않음.
+
+`⌘K` / `Ctrl+K`는 **인풋 포커스 시에도 우선 처리**(modifier 키 조합이라 입력 충돌 없음).
+
+### 4) 단축키 처리 위치
+
+- `src/pages-v2/EventList/hooks.ts`의 `useEventListKeyboard`. 단일 `useEffect`로 `window.addEventListener('keydown', ...)` 등록 + cleanup.
+- 라이브러리 미사용(SPEC § 9 / INVENTORY § 5와 일관 — `react-hotkeys`, `tinykeys` 등 도입 X).
+- 카드/검색 인풋의 ref는 컨테이너(`EventList.tsx`)가 만들어 hook과 컴포넌트 양쪽에 동일 객체를 넘긴다.
+
+### 5) 카드 포커스 표시 + 접근성
+
+- **카드는 native focusable**: `<article tabIndex={0} role="link" aria-label={...}>`. Tab 키 자연 사이클에 들어감.
+- 포커스 표시는 **`:focus-visible` CSS** — accent border + 2px ring(§ 2 EventCard의 focused 스타일과 동일 톤).
+  - 마우스 클릭으로 들어온 포커스에는 ring을 안 띄우고(`:focus-visible` 표준 동작), `j`/`k`/`Tab`으로 들어온 포커스에만 띄움.
+  - § 2의 `EventCard` props `focused` 는 본 섹션 결정에 따라 **DOM 포커스로 대체** → `focused` prop 제거. `innerRef`만 유지 (`useEventListKeyboard`가 `cardRefs` 통해 프로그래밍 포커스 호출). § 2 표는 다음 PR/리비전에서 정리.
+- `Enter` / `Space`로 카드 활성화 시 native click 발생(role=link + tabIndex=0 + onKeyDown 처리). `onClick={onOpen}` 한 줄로 둘 다 커버 가능하나, 보수적으로 `onKeyDown` 분기에서 `Enter`/`Space` 명시 처리.
+- `aria-keyshortcuts="/ j k Meta+K"` 를 `Hero`(또는 페이지 루트)에 표기 — 스크린 리더에 단축키 노출.
+- `prefers-reduced-motion: reduce`면 `scrollIntoView`의 smooth 옵션 생략 (`block: 'nearest'`만 유지).
+
+### 핵심 흐름 (코드 골격)
+
+```ts
+// src/pages-v2/EventList/hooks.ts
+const isTypingTarget = (el: EventTarget | null) => {
+  if (!(el instanceof HTMLElement)) return false;
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable;
+};
+
+export function useEventListKeyboard(opts: {
+  itemCount: number;
+  cardRefs: React.MutableRefObject<(HTMLElement | null)[]>;
+  searchInputRef: React.RefObject<HTMLInputElement>;
+  onOpenPalette?: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        if (opts.onOpenPalette) { e.preventDefault(); opts.onOpenPalette(); }
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
+      if (e.key === '/') { e.preventDefault(); opts.searchInputRef.current?.focus(); opts.searchInputRef.current?.select(); return; }
+      if (e.key !== 'j' && e.key !== 'k') return;
+      if (opts.itemCount === 0) return;
+      e.preventDefault();
+      const cards = opts.cardRefs.current;
+      const cur = cards.findIndex(el => el === document.activeElement);
+      const next = Math.max(0, Math.min(opts.itemCount - 1, cur < 0 ? 0 : cur + (e.key === 'j' ? 1 : -1)));
+      cards[next]?.focus();
+      cards[next]?.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [opts.itemCount, opts.onOpenPalette]);
+}
+```
+
+`Esc`(검색 인풋 비우기 + blur)와 `Enter`(카드 → 라우터 push)는 위 글로벌 hook이 아니라 **각 컴포넌트의 `onKeyDown`** 으로 처리:
+
+```tsx
+// SearchAndFilters.tsx 의 검색 인풋
+<input onKeyDown={e => { if (e.key === 'Escape') { onKeywordChange(''); e.currentTarget.blur(); } }} ... />
+
+// EventCard.tsx
+<article tabIndex={0} role="link" aria-label={`${event.title} — ${event.dateLabel}`}
+  onClick={onOpen} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }} ... />
+```
 
 ## 8. 라우터 등록 방법
 (작성 예정)
