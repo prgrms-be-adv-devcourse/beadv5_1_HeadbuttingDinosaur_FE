@@ -1,0 +1,37 @@
+/* avatar.css
+   Source: docs/redesign/prototype/Login.jsx "DT" brand mark (sm) and
+   MyPage.jsx profile initial (md). Single visual variant — brand bg
+   with white mono lettering — per shared-components.plan.md §4.11.
+   lg radius 14 extrapolated from prototype's 8/10 progression
+   (≈ size × 0.2). Image-URL variant deferred to phase 2. */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  flex: none;
+}
+
+/* ── Size tokens ──────────────────────────────────── */
+.avatar-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.avatar-md {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+.avatar-lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  font-size: 28px;
+}
