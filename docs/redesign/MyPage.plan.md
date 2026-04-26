@@ -235,7 +235,218 @@ export function TabNav({ active, tabs }: TabNavProps) {
 - 프로토타입의 `gutter`(60줄 라인 번호)는 IDE chrome 의 일부. shell 내부에 직접 박지 않고 v2 Layout (`prototype/Layout.jsx` → `src/components-v2/Layout`)이 제공하는지 확인 필요 — 없으면 shell 내부에 작성하되 § 11 에 표시.
 
 ## 4. 공유 자산 (모든 탭이 공유)
-(작성 예정)
+
+"공유" 의 범위는 **MyPage 내부**(shell + 탭 사이) 와 **MyPage 외부**(`src/components-v2/`, `src/pages-v2/_shared/`, `src/lib/`) 두 층. 외부 자산은 그대로 import, 내부 자산은 `MyPage/shared/` 에 둠. ≥2개 탭이 쓰는 것만 `shared/` 로 승격, 1탭 전용은 해당 탭 폴더 안에 둔다.
+
+### 4.0 자산 한눈에
+
+| 자산 | 위치 | 사용처 | 비고 |
+|---|---|---|---|
+| `useAuth()` (전역) | `src/contexts/AuthContext.tsx` (기존, 수정 금지) | shell + Tickets/Orders/Refund/Wallet 모두 (간접) | 토큰/프로필/role |
+| `useMyProfile()` (래퍼) | `MyPage/shared/useMyProfile.ts` | shell, Wallet(?) | `useAuth().user` 를 `ProfileVM` 로 변환 |
+| `WalletBalanceProvider` / `useWalletBalance()` | `MyPage/shared/walletBalance.tsx` | shell(`ProfileHeader`) + Wallet 탭(`BalanceCard`) | § 3.3 결정 — 페이지 내부 컨텍스트 |
+| `EmptyState` | `src/components-v2/EmptyState/` (Phase 0 공용) | Tickets / Orders / Refund | 그대로 import. **신규 작성 X** |
+| `TabFetchState` 패턴 | `MyPage/shared/TabFetchState.tsx` | Tickets / Orders / Wallet / Refund | 로딩·에러·빈 상태를 동일 모양으로 분기 |
+| 탭별 Skeleton | 각 탭의 `components/` 안 (`TicketsSkeleton.tsx` 등) | 해당 탭만 | placeholder 모양은 탭마다 달라 공유 X |
+| `fmtPrice`, `fmtDate`, `fmtISO` | `src/lib/format.ts` (v2 기존) | 모든 탭 | 그대로 import. **신규 작성 X** |
+| `formatBalance` (원화 큰 단위) | `MyPage/shared/currency.ts` | shell 메타 라인 + Wallet `BalanceCard` | `fmtPrice` 와 다른 표기 — 본문 참조 |
+| `TabSectionHeader` (탭 카운트 요약) | **현재는 `tabs/Tickets/components/TicketsHeader.tsx` 단일** | Tickets 만 | 4.4 참조 — 승격 안 함 |
+
+### 4.1 사용자 정보 훅
+
+#### 4.1.1 출처 — 기존 `useAuth()` 그대로
+
+`src/contexts/AuthContext.tsx` (INVENTORY § 4) 는 SPEC § 0 "기존 코드 건드리지 않음" 대상이라 **수정 금지**. v2 페이지에서도 그대로 사용한다 (이미 `pages-v2/Login/index.tsx` 가 사용 중).
+
+```ts
+const { user, isLoggedIn, isLoading, role, logout, refresh } = useAuth();
+// user: GetProfileResponse | null
+```
+
+#### 4.1.2 `useMyProfile()` 래퍼 (선택)
+
+`useAuth()` 가 던지는 `GetProfileResponse` 는 SPEC § 0 어댑터 규칙상 컴포넌트로 바로 흘리지 않음. shell 의 `ProfileHeader` 에 들어갈 `ProfileVM`(§ 3.2) 변환을 1곳에 모은 hook.
+
+```ts
+// src/pages-v2/MyPage/shared/useMyProfile.ts
+export function useMyProfile(): {
+  status: 'loading' | 'guest' | 'ready';
+  profile: ProfileVM | null;
+} {
+  const { user, isLoading, isLoggedIn } = useAuth();
+  if (isLoading) return { status: 'loading', profile: null };
+  if (!isLoggedIn || !user) return { status: 'guest', profile: null };
+  return { status: 'ready', profile: toProfileVM(user) };
+}
+```
+
+`toProfileVM` 은 `MyPage/shell/adapters.ts`(또는 `shared/adapters.ts`) 의 함수 — § 3.2 의 `ProfileVM` 시그니처 채움.
+
+#### 4.1.3 탭별 사용 필드
+
+| 탭 | 어떤 필드 | 용도 |
+|---|---|---|
+| shell `ProfileHeader` | `nickname`, 이니셜, `isOnline`, (TBD: `joinedAtLabel`) | 헤더 표시 |
+| shell `WalletBalanceProvider` | (없음 — `useAuth().isLoggedIn` 로 fetch 가드만) | 비로그인이면 fetch 자체 막음 |
+| Tickets | (없음 — `getTickets` 가 토큰으로 자동 인증) | — |
+| Orders | (없음 — 동일) | — |
+| Wallet | (없음 — `getWalletBalance` / 충전·출금 자동 인증) | — |
+| Refund | (없음 — `getRefunds` 자동 인증) | — |
+| (TBD) settings/프로필 수정 | `nickname`, `position`, `bio`, `techStacks`, `profileImageUrl` | § 11 결정 후 |
+
+요약: 인증 필드는 **shell 만** 직접 소비. 탭들은 인증을 axios 인터셉터(INVENTORY § 4)에 위임하므로 `user` 객체를 직접 보지 않는다 → 탭 컴포넌트가 `useAuth()` 를 import 하지 않아야 깨끗하다.
+
+### 4.2 빈 상태 / 에러 / 로딩 패턴
+
+#### 4.2.1 `EmptyState` — Phase 0 공용 그대로 사용
+
+`src/components-v2/EmptyState/` 가 이미 존재 (`shared-components.plan.md § 1.4 #22`):
+
+```ts
+interface EmptyStateProps {
+  emoji?: string;
+  title: string;
+  message?: ReactNode;
+  action?: ReactNode;
+  className?: string;
+}
+```
+
+- Tickets: `<EmptyState emoji="🎫" title="구매한 티켓이 없습니다" message="..." action={<Button>이벤트 둘러보기</Button>}/>`
+- Orders: `<EmptyState emoji="📄" title="주문 내역이 없습니다" .../>`
+- Refund: 프로토타입 그대로 `<EmptyState emoji="💳" title="환불 내역이 없습니다" message="..."/>`
+- Wallet 은 빈 상태가 없음(잔액 0원도 카드는 보임). 거래내역 섹션을 추가할 경우 그쪽에 1회 등장.
+
+신규 작성 없음. **MyPage 내부에 `EmptyTickets` / `EmptyOrders` / `EmptyRefunds` 래퍼 컴포넌트는 § 1 디렉토리에 이미 명시** — 각 탭에서 텍스트/CTA 만 채워 `<EmptyState>` 로 감싸는 thin wrapper.
+
+#### 4.2.2 `TabFetchState` — 로딩/에러/빈 상태 분기 헬퍼
+
+같은 패턴을 4개 탭이 반복하므로 분기 로직만 한 곳에 모은다. UI 컴포넌트가 아니라 **render-prop 또는 narrow 헬퍼**.
+
+```tsx
+// src/pages-v2/MyPage/shared/TabFetchState.tsx
+type FetchState<T> =
+  | { status: 'loading' }
+  | { status: 'error'; error: Error; retry: () => void }
+  | { status: 'ready'; data: T };
+
+interface TabFetchStateProps<T> {
+  state: FetchState<T>;
+  skeleton: ReactNode;
+  empty?: { when: (data: T) => boolean; render: ReactNode };
+  children: (data: T) => ReactNode;
+}
+
+export function TabFetchState<T>({ state, skeleton, empty, children }: TabFetchStateProps<T>) {
+  if (state.status === 'loading') return <>{skeleton}</>;
+  if (state.status === 'error')   return <TabErrorBox onRetry={state.retry} />;
+  if (empty?.when(state.data))    return <>{empty.render}</>;
+  return <>{children(state.data)}</>;
+}
+```
+
+- `TabErrorBox` (`shared/TabErrorBox.tsx`): `EmptyState` 변형 — `<EmptyState emoji="⚠️" title="불러오지 못했습니다" message="..." action={<Button onClick={onRetry}>다시 시도</Button>}/>`. 4개 탭에서 동일 모양. **공용 EmptyState 의 인스턴스**라 신규 컴포넌트가 아니라 정해진 props 로 EmptyState 를 부르는 얇은 함수.
+- 위치 결정: **`MyPage/shared/`**. Phase 0 공용 승격 안 함 — 다른 v2 페이지(EventList, Cart 등)는 이미 자기 패턴(EventList plan § 6, Cart plan § 6)을 따로 정의했고, render-prop API 가 페이지마다 다른 도메인 분기를 갖기 좋아 강제 통일하면 오히려 어색해짐. MyPage 내부 4탭만 강한 공통성을 가진 케이스.
+
+#### 4.2.3 Skeleton — 공유 안 함
+
+탭마다 placeholder 모양이 다르다 (Tickets = 카드 그리드, Orders = 테이블 행, Wallet = 큰 카드, Refund = 리스트). 공통화하면 모양이 깨져 가치가 없다. 각 탭의 `components/{Tab}Skeleton.tsx` 에 그대로.
+
+### 4.3 날짜 / 금액 포매터
+
+#### 4.3.1 기본 — `src/lib/format.ts` 그대로 사용
+
+이미 v2 용으로 분리되어 존재 (`src/lib/format.ts`):
+
+| 함수 | 출력 | 사용 탭 |
+|---|---|---|
+| `fmtDate(iso)` | `'2026.05.18 14:00'` (local) | Tickets(일시), Orders(주문일시), Wallet(거래내역 일시), Refund(환불일시) |
+| `fmtPrice(p)` | `0 → 'free'`, `49000 → '49,000원'` | Orders(금액) — Refund(금액) |
+| `fmtISO(iso)` | `'2026-05-18 14:00'` (UTC) | (사용 안 함, 기록용) |
+
+> v1 의 `src/utils/index.ts` 는 `formatPrice(amount → '4.9만원')` 등 다른 규칙을 쓴다. **혼용 금지** — v2 는 `src/lib/format.ts` 만 import. SPEC § 0 "기존/v2 분리" 와 일치.
+
+#### 4.3.2 `formatBalance` (원화 큰 단위)
+
+`fmtPrice(120000)` 은 `'120,000원'` — Orders/Refund 의 행 금액에는 적절하나 Wallet `BalanceCard` 의 38px 큰 숫자 표기와 shell 메타 라인의 컴팩트 표기에는 형태가 다르다.
+
+| 사용처 | 원하는 출력 | 후보 |
+|---|---|---|
+| Wallet `BalanceCard` 38px 숫자 | `120,000` (단위 `원` 은 별도 span) | 숫자만 분리한 포맷터 필요 |
+| shell 메타 라인 ("예치금 잔액 N원") | `120,000원` | `fmtPrice` 와 동일 — 별도 함수 불필요 |
+| Tickets 잔여 금액(없음) | — | — |
+
+```ts
+// src/pages-v2/MyPage/shared/currency.ts
+export function formatBalanceParts(amount: number): { value: string; unit: '원' } {
+  return { value: amount.toLocaleString('ko-KR'), unit: '원' };
+}
+```
+
+위치 결정: **`MyPage/shared/currency.ts`**. `src/lib/format.ts` 에 같은 류의 다른 변형이 늘어나는 걸 막고, "잔액 표기" 라는 의미 단위가 MyPage 안에서만 의미 있어서 페이지 내부에 둔다. 외부 페이지(예: Cart)에서 같은 표기가 필요해지면 그때 `src/lib/format.ts` 로 승격.
+
+#### 4.3.3 한글 상대시간 / 가입일 등
+
+- Tickets/Orders/Wallet/Refund 모두 절대 일시(`fmtDate`)만 사용 — 상대시간(`5분 전`) 패턴 등장 X.
+- 가입일 라벨은 § 3.2 에서 데이터 자체가 부재(`createdAt` 누락) — 포매터 결정은 § 11 의사결정 이후.
+
+### 4.4 탭 헤더 패턴 (카운트 요약)
+
+#### 4.4.1 현황
+
+프로토타입에서 카운트 요약 라인을 가진 탭은 **Tickets 1개뿐**:
+
+```
+티켓 3개            사용 가능 2개 · 사용 완료 1개
+```
+
+- Orders: 프로토타입은 곧장 테이블. 카운트 라인 없음.
+- Wallet: 단일 잔액 카드. 카운트 개념 없음.
+- Refund: 프로토타입은 빈 상태. 데이터가 있을 때 카운트 라인을 어떻게 둘지 미정.
+
+#### 4.4.2 결정 — 공통 컴포넌트로 추출 안 함
+
+`shared-components.plan.md § 1.5` 의 원칙: "단일 페이지 사용은 페이지 plan 에 두고, 추가 사용처 등장 시 승격". 같은 원칙을 페이지 내부에도 적용 → **사용처 1탭** 인 카운트 요약은 `MyPage/shared/` 로 올리지 않는다.
+
+위치: **`tabs/Tickets/components/TicketsHeader.tsx`** (§ 1 에 이미 명시).
+
+```ts
+interface TicketsHeaderProps {
+  total: number;          // "티켓 N개"
+  validCount: number;     // "사용 가능 N개"
+  usedCount: number;      // "사용 완료 N개"
+}
+```
+
+#### 4.4.3 승격 트리거 (미래 작업)
+
+Orders 탭이 페이지네이션 요약("총 N건 · M/N 페이지") 을, Refund 탭이 카운트 라인을 추가하면 **사용처 ≥2** 로 늘어남. 그 시점에 `MyPage/shared/TabSectionHeader.tsx` 로 승격해 다음 props 로 일반화:
+
+```ts
+interface TabSectionHeaderProps {
+  primary: string;             // "티켓 3개" / "총 24건"
+  secondary?: ReactNode;       // 우측 세부 메타
+}
+```
+
+승격은 별도 PR. 현재 plan 범위에는 포함 안 함.
+
+### 4.5 `MyPage/shared/` 최종 파일 목록 (§ 1 보강)
+
+§ 1 의 `shared/` 트리에 § 4 의 결정을 합쳐 정리:
+
+```
+src/pages-v2/MyPage/shared/
+├── tabs.ts                    ← § 1, § 3.4 — 탭 메타 단일 정의
+├── types.ts                   ← § 1 — TabKey 등 페이지 전역 타입
+├── currency.ts                ← § 4.3.2 — formatBalanceParts
+├── useMyProfile.ts            ← § 4.1.2 — useAuth → ProfileVM 래퍼
+├── walletBalance.tsx          ← § 3.3 — WalletBalanceProvider + useWalletBalance
+├── TabFetchState.tsx          ← § 4.2.2 — 로딩/에러/빈 상태 분기
+└── TabErrorBox.tsx            ← § 4.2.2 — EmptyState 변형 (재시도 액션)
+```
+
+§ 1 트리 갱신은 § 11 의사결정 종결 후 한 번에 (디렉토리 트리 흔들기 방지).
 
 ## 5. 탭 1: 내 티켓
 (작성 예정)
