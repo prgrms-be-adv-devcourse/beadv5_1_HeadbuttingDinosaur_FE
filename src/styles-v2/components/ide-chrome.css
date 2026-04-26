@@ -226,6 +226,21 @@
  * border. The first header (메뉴) stays clean. */
 .side-group + .side-header { border-top: 1px solid var(--border); }
 
+/* Button-element variant of .side-header — reset native button chrome and let
+ * the existing .side-header flex/typography rules drive the layout. Used by
+ * SidebarMenu and SidebarUpcoming for the aria-expanded toggle. */
+button.side-header {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
 /* Smaller, dimmer side-item variant (session row). */
 .side-item.side-item--mini {
   font-size: 11.5px;
