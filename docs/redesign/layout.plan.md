@@ -659,7 +659,150 @@ INVENTORY §5: 기존 코드에 `CartContext` / `CartProvider` / `useCart` **없
 
 
 ## 5. ide-chrome.css 토큰 및 클래스 목록
-(작성 예정)
+
+기준: tokens.plan.md §4 에서 결정된 **시나리오 A — 단일 tokens.css 에 IDE 전용 토큰 22개 포함**. `ide-chrome.css` 는 토큰 소비자이며, Layout chrome 전용 클래스만 정의.
+
+위치: `src/styles-v2/components/ide-chrome.css`. 앱 진입에서 `tokens.css → global.css → ide-chrome.css` 순서로 import.
+
+### 5-1. 토큰
+
+**ide-chrome.css 에 들어가는 글로벌 토큰: 없음.** (모든 IDE 토큰은 tokens.css — tokens.plan §4-4 결정)
+
+다만 Layout chrome 내부에서만 의미 있는 **로컬 사이즈 변수**는 `.ide` 룰에 스코프 한정으로 둔다(전역 토큰으로 승격하지 않음 — 다른 페이지에서 참조할 일 없음).
+
+| 로컬 변수 | 값 | 용도 |
+|---|---|---|
+| `--ide-titlebar-h` | `36px` | grid-template-rows 1행 |
+| `--ide-tabs-h` | `34px` | grid-template-rows 2행 |
+| `--ide-status-h` | `24px` | grid-template-rows 4행 |
+| `--ide-activity-w` | `48px` | grid-template-columns 1열 |
+| `--ide-sidebar-w` | `220px` | grid-template-columns 2열 |
+| `--ide-minimap-w` | `60px` | grid-template-columns 4열 |
+
+```css
+.ide {
+  --ide-titlebar-h: 36px;
+  --ide-tabs-h: 34px;
+  --ide-status-h: 24px;
+  --ide-activity-w: 48px;
+  --ide-sidebar-w: 220px;
+  --ide-minimap-w: 60px;
+  grid-template-rows: var(--ide-titlebar-h) var(--ide-tabs-h) 1fr var(--ide-status-h);
+  grid-template-columns: var(--ide-activity-w) var(--ide-sidebar-w) 1fr var(--ide-minimap-w);
+  /* ... */
+}
+```
+
+ide-chrome.css 가 **소비**하는 tokens.css 토큰(요약):
+- IDE 전용: `--chrome`, `--chrome-2`, `--editor-bg`, `--editor-line`, `--sidebar-bg`, `--minimap-bg`, `--status-bg`, `--status-text`, `--term-green`, `--syn-keyword`, `--syn-string`, `--syn-fn`, `--syn-comment`
+- 공통: `--brand`, `--brand-light`, `--border`, `--surface`, `--surface-2`, `--surface-3`, `--text`, `--text-2`, `--text-3`, `--text-4`, `--font`, `--font-mono`
+
+### 5-2. 컴포넌트 클래스
+
+§2 의 컴포넌트 ↔ §1-4 의 클래스 맵을 1:1 매핑.
+
+| 클래스 | 사용 컴포넌트 | 출처 (ide-theme.css) | 비고 |
+|---|---|---|---|
+| `.ide` | `Layout` (index.tsx) | L98-117 | 그리드 컨테이너. grid-template-areas 포함 |
+| `.ide-title` | `TitleBar` | L120-131 | grid-area: title |
+| `.traffic`, `.tc-red`, `.tc-yellow`, `.tc-green` | `TitleBar` | L132-139 | macOS 트래픽 라이트 |
+| `.title-text` | `TitleBar` | L140-147 | 중앙 서비스명 |
+| `.title-cmd`, `.title-cmd:hover`, `.title-cmd kbd` | `TitleBar` | L148-171 | ⌘K 검색 박스 |
+| `.ide-activity` | `ActivityBar` | L174-182 | grid-area: act |
+| `.act-btn`, `.act-btn:hover`, `.act-btn.active`, `.act-btn svg` | `ActivityBar`, `TitleBar` (테마 토글에서도 재사용) | L183-196 | active 시 좌측 brand 보더 |
+| `.act-badge` | `ActivityBar` | L197-209 | 카트 카운트 |
+| `.act-spacer` | `ActivityBar` | L210 | 설정 버튼 하단 푸시 |
+| `.ide-sidebar` | `Sidebar` | L213-218 | grid-area: side |
+| `.side-header` | `Sidebar/SidebarMenu`, `Sidebar/SidebarUpcoming`, `Sidebar/SidebarSession` | L219-228 | 섹션 제목 + 토글 |
+| `.side-group` | 동일 3개 | L229 | 섹션 본문 컨테이너 |
+| `.side-item`, `.side-item:hover`, `.side-item.active`, `.side-item .tri`, `.side-item .fi` | `SidebarMenu`, `SidebarUpcoming`, `SidebarSession` | L230-254 | 메뉴/이벤트/세션 행 공용 |
+| `.side-count` | `SidebarMenu` | L255-263 | 카테고리/총개수 배지 |
+| `.side-nested` | `SidebarMenu` | L264 | 카테고리 들여쓰기 (현재 프로토타입은 인라인 padding-left 28px 사용 — v2 에서 이 클래스로 이전) |
+| `.ide-tabs`, `.ide-tabs::-webkit-scrollbar` | `TabBar` | L267-275 | grid-area: tabs |
+| `.tab`, `.tab:hover`, `.tab.active`, `.tab.active::before`, `.tab .fi`, `.tab .close`, `.tab:hover .close`, `.tab .close:hover` | `TabBar` | L276-312 | active 시 상단 brand 인디케이터 |
+| `.tab .dot`, `.tab .dot.modified` | `TabBar` (선택) | L313-318 | **현재 미사용 — 수정됨 마커 도입 시 활성화. 우선 포함 (마크업만 추가하면 동작)** |
+| `.ide-editor`, `.ide-editor::-webkit-scrollbar`, `.ide-editor::-webkit-scrollbar-track`, `.ide-editor::-webkit-scrollbar-thumb`, `.ide-editor::-webkit-scrollbar-thumb:hover` | `Layout` (children 슬롯) | L115, L321, L635-645 | overflow auto + 커스텀 스크롤바 |
+| `.ide-minimap` | `Minimap` | L374-380 | grid-area: mini |
+| `.mini-line`, `.mini-line.kw`, `.mini-line.fn`, `.mini-line.str`, `.mini-line.cmt` | `Minimap` | L381-391 | syntax 흉내 라인 |
+| `.mini-window` | `Minimap` | L392-401 | viewport 표시 박스 |
+| `.ide-status` | `StatusBar` | L404-413 | grid-area: status |
+| `.status-item`, `.status-item.clickable`, `.status-item.clickable:hover`, `.status-item svg` | `StatusBar` | L414-422 | 좌/우 항목 공용 |
+| `.status-spacer` | `StatusBar` | L424 | 좌-우 분리 |
+| `.status-item.term-ok` | `StatusBar` | L425 | "● 정상" 인디케이터 |
+| `.palette-backdrop` | `CommandPalette` | L648-657 | fixed 오버레이 |
+| `.palette` | `CommandPalette` | L658-667 | 560px 박스 |
+| `.palette-input`, `.palette-input::placeholder` | `CommandPalette` | L668-676 | 검색 입력 |
+| `.palette-list` | `CommandPalette/PaletteList` | L677 | max-height + scroll |
+| `.palette-item`, `.palette-item:hover`, `.palette-item.sel`, `[data-theme="dark"] .palette-item:hover`, `[data-theme="dark"] .palette-item.sel`, `.palette-item .fi`, `.palette-item .shortcut` | `PaletteList` | L678-698 | 항목 행 |
+| `.palette-hint`, `.palette-hint kbd` | `CommandPalette` | L699-713 | 푸터 힌트 |
+| `.ide-sidebar::-webkit-scrollbar`, `.ide-sidebar::-webkit-scrollbar-track`, `.ide-sidebar::-webkit-scrollbar-thumb`, `.ide-sidebar::-webkit-scrollbar-thumb:hover` | `Sidebar` | L636-645 | 사이드바 스크롤바 |
+
+### 5-3. 유틸 클래스
+
+Layout chrome 안에서 사용하는 작은 유틸. ide-chrome.css 안에 둘지(스코프 좁힘) global.css 로 옮길지 정리.
+
+| 클래스 | 출처 | 사용처 | 배치 결정 |
+|---|---|---|---|
+| `.truncate` | L747 | `PaletteList` (이벤트 항목 라벨), 향후 `Sidebar` 긴 제목 | **global.css** (다른 페이지/카드에서도 광범위 사용 예상). ide-chrome.css 는 사용만 |
+| `.kbd` (스탠드얼론 클래스) | L748-759 | Layout 안에서는 **사용 안 함** — Layout 은 모두 `<kbd>` 엘리먼트의 nested 셀렉터(`.title-cmd kbd`, `.palette-hint kbd`, `.status-item kbd`)로 처리 | **global.css** (다른 페이지에서 키보드 가이드 표시 시 재사용) |
+| `.mono` | L760 | Layout 직접 사용 없음 (모든 영역이 이미 `font-family` 명시) | **global.css** |
+| `.sans` | L761 | `TitleBar` (`.title-text` 가 직접 명시 — 사용 안 함). 다른 페이지 본문에서 활용 | **global.css** |
+
+→ ide-chrome.css 는 **유틸 클래스를 정의하지 않음**. 위 4개는 모두 global.css 로 분리.
+
+### 5-4. 애니메이션 / keyframes
+
+| 항목 | 출처 | 처리 |
+|---|---|---|
+| `@keyframes caret-blink` | L371 | **제외** (Layout 사용 안 함 — `.caret` 는 페이지 본문/터미널 블록 책임) |
+| `transition: color 0.12s` 등 인라인 transition | L188, L238, L287, L418, L472 등 | ide-chrome.css 에 그대로 포함 (keyframes 아님, 룰셋에 직접 기술) |
+| `.mini-window { transition: top 0.2s; }` | L401 | 포함. (현 시점 viewport 위치 갱신은 미구현이지만 클래스만 유지) |
+
+→ ide-chrome.css 에 별도 `@keyframes` 블록 없음.
+
+### 5-5. 반응형
+
+```css
+@media (max-width: 960px) {
+  .ide { grid-template-columns: var(--ide-activity-w) 0 1fr 0; }
+  .ide-sidebar, .ide-minimap { display: none; }
+}
+```
+
+ide-theme.css L802-805 그대로 ide-chrome.css 로 이전. 추가 브레이크포인트는 §6 에서 다룸.
+
+### 5-6. 제외 — ide-theme.css 에는 있지만 ide-chrome.css 에 안 들어가는 것
+
+Layout chrome 책임이 아닌 클래스. **각 페이지/공용 컴포넌트의 별도 CSS 파일**(`src/styles-v2/components/<name>.css` 또는 컴포넌트 폴더 내)에 분리.
+
+| 그룹 | 클래스 | 출처 | 어디로 이전 |
+|---|---|---|---|
+| 라인 거터 (페이지 본문) | `.editor-scroll`, `.gutter`, `.gutter .ln`, `.gutter .ln.active` | L322-339 | 페이지 측 또는 `code-block.css` 등 |
+| 에디터 본문 | `.editor-body` | L341-347 | 페이지 측 |
+| Syntax 하이라이팅 | `.sk`, `.ss`, `.sn`, `.sf`, `.sp`, `.sc`, `.spu`, `.st`, `.stg` | L350-358 | `syntax.css` (페이지 본문 공용) |
+| 캐럿 | `.caret`, `.caret.term`, `@keyframes caret-blink` | L361-371 | Landing TypedTerminal 컴포넌트 |
+| 터미널 블록 | `.terminal`, `.term-header`, `.term-body`, `.term-prompt`, `.term-cmd`, `.term-flag`, `.term-value`, `.term-out`, `.term-ok`(블록 내부), `.term-path`, `[data-theme="dark"] .terminal`, `[data-theme="dark"] .term-header`, `[data-theme="dark"] .term-body`, `[data-theme="dark"] .term-cmd`, `[data-theme="dark"] .term-out` | L428-461 | Landing 또는 `terminal.css`. **주의**: `.term-ok` 셀렉터는 ide-chrome.css 의 `.status-item.term-ok` 와 이름이 같음 — 이전 시 충돌하지 않도록 컨텍스트(`.terminal .term-ok`)로 한정 |
+| JSON 카드 | `.json-card`, `.json-card:hover`, `.json-card-head`, `.json-card-head .fi`, `.json-card-body`, `.json-card-body .row`, `.row .key`, `.row .value`, `.row .num`, `.row .kw`, `.json-card-body .title`, `.json-card-line`, `[data-theme="dark"] .json-card-head`, `[data-theme="dark"] .json-card:hover` | L464-512 | `json-card.css` (이벤트 리스트/상세 공용) |
+| 상태 칩 | `.status-chip`, `.status-chip.ok`, `.status-chip.sold`, `.status-chip.free`, `.status-chip.end`, `.status-chip .dot`, `[data-theme="dark"] .status-chip.ok/.sold/.end` | L514-532 | `status-chip.css` |
+| 버튼 | `.btn`, `.btn:active`, `.btn:disabled`, `.btn-primary`, `.btn-primary:hover`, `.btn-term`, `.btn-term:hover`, `.btn-ghost`, `.btn-ghost:hover`, `.btn-lg`, `.btn-sm`, `.btn-full`, `[data-theme="dark"] .btn-term` | L535-571 | `button.css` (전역 공용) |
+| 코드 입력 | `.code-input`, `.code-input:focus-within`, `.code-input .prompt`, `.code-input input`, `.code-input input::placeholder`, `.code-input kbd` | L574-607 | `code-input.css` (검색 입력 공용) |
+| 칩/태그 | `.chip`, `.chip:hover`, `.chip.active`, `[data-theme="dark"] .chip.active` | L610-632 | `chip.css` (카테고리/필터 공용) |
+| 스택 트레이스 | `.stack-trace`, `.stack-trace .err-title`, `.err-msg`, `.at`, `.file`, `.line-col`, `.hint` | L716-744 | `stack-trace.css` (에러/빈 상태) |
+| 평면 카드 | `.flat-card` | L764-769 | `card.css` |
+| 폼 | `.form-row`, `.form-row label`, `.form-row .input`, `.form-row .input:focus-within`, `.form-row .input .quote`, `.form-row .input input`, `.form-row .input input::placeholder`, `.form-row .err` | L772-799 | `form.css` (Login/Signup/MyPage 공용) |
+
+**이전은 본 plan 범위 아님** — Layout chrome PR 에서는 ide-chrome.css 만 신설하고, 위 그룹들은 각 페이지 PR 진입 시점에 해당 페이지에서 분리 작성. ide-theme.css 원본은 v2 빌드에 포함하지 않음 (프로토타입 전용).
+
+### 5-7. 다크 오버라이드
+
+ide-chrome.css 안에 `[data-theme="dark"]` 추가 룰이 필요한 항목:
+
+| 셀렉터 | 출처 | 이유 |
+|---|---|---|
+| `[data-theme="dark"] .palette-item:hover, [data-theme="dark"] .palette-item.sel { color: #C7D2FE; }` | L690-692 | 다크 모드에서 brand-light 위 텍스트 가독성 보정 |
+
+그 외 IDE 전용 토큰의 다크 값은 모두 `tokens.css` 의 `[data-theme="dark"]` 블록에서 처리되므로(tokens.plan §5), ide-chrome.css 에는 위 1건만.
+
 
 ## 6. 반응형 / 다크모드 / 접근성
 (작성 예정)
