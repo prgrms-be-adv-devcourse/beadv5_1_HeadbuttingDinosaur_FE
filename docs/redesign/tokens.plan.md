@@ -413,7 +413,109 @@ body {
 > 위 항목은 § 1 토큰 표에는 아직 안 들어간 "후보". 실제 추가 여부는 v2 컴포넌트 PR 단위에서 합의.
 
 ## 4. IDE 전용 토큰 처리 방침
-(작성 예정)
+
+### 4-0. 식별: IDE 전용 토큰 22개
+
+`prototype/ide-theme.css:8-36` 에서 정의된 토큰. 다크 오버라이드(`:38-76`)는 같은 토큰의 다른 값이라 토큰 수에 포함하지 않음.
+
+| 그룹 | 토큰 | 사용처 (프로토타입) |
+|---|---|---|
+| **Terminal accent** (3) | `--term-green`, `--term-green-dim`, `--term-green-soft` | Landing TypedTerminal, 터미널 블록, status bar `.term-ok`, code-input prompt, btn-term, status-chip.free |
+| **Syntax** (9) | `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-fn`, `--syn-prop`, `--syn-comment`, `--syn-punct`, `--syn-type`, `--syn-tag` | 에디터 본문(`.sk/.ss/.sn/...`), JSON 카드 헤더/필드, 미니맵 라인, stack-trace, form-row label |
+| **Chrome** (2) | `--chrome`, `--chrome-2` | 타이틀바, 탭바, JSON 카드 헤더, command palette hint |
+| **Gutter** (2) | `--gutter`, `--gutter-text` | 라인 번호 거터 |
+| **Editor** (2) | `--editor-bg`, `--editor-line` | 에디터 본문 배경, 활성 라인/사이드 active 하이라이트 |
+| **Sidebar** (1) | `--sidebar-bg` | IDE 좌측 활동바 + 파일 트리 |
+| **Status bar** (2) | `--status-bg`, `--status-text` | 하단 상태바 |
+| **Minimap** (1) | `--minimap-bg` | 우측 미니맵 |
+
+### 4-1. 결정 기준 (SPEC 정합성)
+
+`docs/redesign/Spec.md:319-328` § 8 토큰 머지 가이드는 다음을 못박음:
+
+> **"신규 추가: IDE 전용 토큰 (--editor-bg, --chrome, --gutter, --term-green 등). 신규 토큰 위치: `src/styles-v2/tokens.css`. 컴포넌트 안에 박지 말 것."**
+
+따라서 두 시나리오 공통으로:
+- ❌ **Layout 컴포넌트 안에 `style={{...}}` 또는 컴포넌트 모듈 CSS 의 `:where(.layout)` 스코프로 두는 안 — 채택 불가** (SPEC § 8 위반)
+- ✅ tokens.css(또는 그에 준하는 별도 토큰 파일)에 `:root` 레벨로 정의
+
+남은 결정 축은 **"단일 tokens.css 인가, 분리 ide-tokens.css 인가"** 하나뿐.
+
+### 4-2. 시나리오 A — IDE 충실 재현 (SPEC § 7 기본값)
+
+전제: Layout chrome 이 사이드바/탭/거터/미니맵/상태바를 모두 갖춤. 22개 토큰이 **거의 다 활발히 사용**됨.
+
+**방침: 단일 `src/styles-v2/tokens.css` 에 모두 포함.**
+
+```
+src/styles-v2/
+├── tokens.css         # 공통 토큰 + IDE 전용 토큰 (22개) + 다크 오버라이드
+└── global.css         # 리셋 / body / 키프레임
+```
+
+| 항목 | 처리 |
+|---|---|
+| 라이트 토큰 22종 | tokens.css 의 `:root` 블록 내 `/* === IDE === */` 섹션으로 묶어 추가 |
+| 다크 오버라이드 22종 | tokens.css 의 `[data-theme="dark"]` 블록에 합류 (§ 5) |
+| 컴포넌트 클래스 (`.ide-*`, `.tab`, `.gutter`, `.json-card`, `.terminal`, `.palette*`, `.stack-trace`, `.code-input`, `.chip`, `.btn-term`, `.flat-card`, `.form-row`, `.status-chip`, `.act-*`, `.side-*`, `.term-*`, `.kbd`, `.mono`, `.sans`) | **토큰이 아니라 클래스이므로** tokens.css 가 아닌 Layout 컴포넌트의 CSS Module 또는 `src/styles-v2/components/ide-chrome.css` 로 분리. § 6 에서 확정 |
+
+**장점**
+- SPEC § 8 의 "단일 위치" 원칙과 100% 정합
+- 변수 lookup 위치가 한 군데 — 디버깅 단순
+- 다크 오버라이드를 한 블록에서 관리 가능 (§ 5)
+
+**단점**
+- IDE 외 페이지에서 안 쓰이는 변수(`--minimap-bg`, `--syn-tag` 등)도 항상 평가됨. 단 CSS 변수는 lazy 평가라 런타임 비용 사실상 0.
+
+### 4-3. 시나리오 B — 컨셉만 차용
+
+전제: gutter / mono 폰트 / 상태바 정도만 chrome 으로 가져가고, 사이드바·탭·미니맵·문법 하이라이팅은 사용 안 함. 22개 중 실사용은 **약 6~8개**로 축소.
+
+**권고 방침: 그래도 단일 `tokens.css` 를 유지 (B-1). 단, 페이지 톤 디자인이 IDE 어휘와 명확히 분리된다고 팀이 판단하면 B-2 (분리) 채택 가능.**
+
+#### B-1. 단일 tokens.css 유지 (SPEC § 8 정합)
+
+| 토큰 | 옵션 B 사용처 | 처리 |
+|---|---|---|
+| `--term-green*` (3) | Landing TypedTerminal, 결제 성공/티켓 OK 인디케이터 | tokens.css |
+| `--gutter`, `--gutter-text` (2) | 본문 영역 라인 번호 띠 | tokens.css |
+| `--status-bg`, `--status-text` (2) | 하단 상태바 | tokens.css |
+| `--editor-bg`, `--editor-line` (2) | 본문 배경 / 활성 라인 hover (옵션) | tokens.css (안 쓰면 dead 변수, 비용 0) |
+| 나머지 13개 (`--chrome*`, `--sidebar-bg`, `--minimap-bg`, `--syn-*`) | 사용처 없음 | tokens.css 에 그대로 두되 주석으로 "옵션 B 미사용" 표기, 또는 아예 제외 |
+
+→ 13개를 제외하기로 결정하면 § 1 의 IDE 전용 표에서도 빼야 함. **합의 시점에 § 1 동기화 필요.**
+
+#### B-2. 분리 파일 `src/styles-v2/ide-tokens.css` (SPEC § 8 부분 deviation)
+
+```
+src/styles-v2/
+├── tokens.css         # 공통 토큰만 (Brand/Surface/Text/.../Motion)
+├── ide-tokens.css     # IDE 전용 토큰 22개 + 그 다크 오버라이드
+└── global.css         # 리셋 / body / 키프레임
+```
+
+- `ide-tokens.css` 는 **앱 진입점에서 무조건 같이 import** (tokens.css 직후) — 컴포넌트 단위 import 가 아님. 이 점이 "컴포넌트 안에 박지 말 것" 규칙을 우회하지 않음을 보장.
+- SPEC § 8 의 문구상 "위치: tokens.css" 와 충돌하므로 **B-2 채택 시 SPEC § 8 갱신 PR 동반 필요**.
+
+| 장점 | 단점 |
+|---|---|
+| tokens.css 가 도메인 토큰만 깨끗하게 유지 | 변수 위치가 두 파일로 갈라짐 — 신규 합류자 학습 비용 |
+| IDE 컨셉 폐기 시 ide-tokens.css 만 제거하면 됨 | SPEC § 8 갱신 필요 |
+| 다른 테마(예: 미니멀) 추가 시 파일 단위 swap 가능 | 다크 오버라이드 위치도 두 파일로 분산 (§ 5 영향) |
+
+### 4-4. 결정 매트릭스
+
+| Layout chrome 결정 | tokens 처리 권고 | SPEC 갱신 필요? |
+|---|---|---|
+| **A** (충실 재현, SPEC 기본값) | **시나리오 A: 단일 tokens.css 에 22개 모두 포함** | ❌ 불필요 |
+| **B** (컨셉만) + 변수 정리 OK | **B-1: 단일 tokens.css 유지, 미사용 13개 제거 또는 주석** | § 1 동기화만 |
+| **B** (컨셉만) + 파일 분리 선호 | B-2: `ide-tokens.css` 분리 | ✅ § 8 갱신 PR 동반 |
+
+### 4-5. 현 시점 액션
+
+- SPEC § 7 의 기본 가정이 **A** 이므로, 다른 결정이 없으면 **시나리오 A 로 진행**.
+- Layout chrome 작업 PR (Phase 0 첫 PR) 에서 A/B 가 확정될 때까지 § 1 의 "IDE 전용" 블록은 22개 모두 유지.
+- B 로 뒤집힐 경우 § 1 와 § 5 의 IDE 토큰 부분, 그리고 (B-2 라면) SPEC § 8 도 동반 갱신.
 
 ## 5. 다크모드 [data-theme="dark"] 스코프
 (작성 예정)
