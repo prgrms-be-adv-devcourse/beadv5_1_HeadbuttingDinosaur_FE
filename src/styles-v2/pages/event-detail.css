@@ -208,6 +208,15 @@
   line-height: 1.7;
 }
 
+/* Error / NotFound / Forbidden cards (§5-(2)) — inline replacement of the
+   page main column. Action slot holds 1–2 buttons in a horizontal row. */
+.ed-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
 /* EventDetailSkeleton (§5-(1)) — part-by-part loading placeholders. */
 @keyframes ed-skel-shimmer {
   0%   { opacity: 0.55; }
