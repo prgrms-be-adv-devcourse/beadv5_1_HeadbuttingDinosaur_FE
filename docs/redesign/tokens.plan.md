@@ -676,4 +676,103 @@ src/styles-v2/
 기존 `src/styles/globals.css:443-494` 의 컴포넌트 단위 다크 오버라이드(`.card`, `.form-input`, `.btn-secondary`, `th`, `tr:hover td`, `.toast`, `header`)는 **변수만 제대로 다크에 매핑되면 자동으로 처리되므로 v2 컴포넌트에서는 거의 불필요**해질 전망. 단 기존 globals.css 자체는 § 3-4 대로 cutover 시 일괄 폐기.
 
 ## 6. 파일 생성 순서 (구현 시 참고)
-(작성 예정)
+
+§ 1 ~ § 5 결론(특히 § 4 시나리오 **A**, § 5-4 옵션 **a** 권고)을 전제로 한 순서. 각 단계는 **하나의 commit**, 전체는 **하나의 PR (Phase 0 첫 PR)** 로 묶기를 권장.
+
+### Phase 0 첫 PR — "v2 토큰/글로벌 도입"
+
+#### 1️⃣ `src/styles-v2/tokens.css` (신규)
+
+| 항목 | 값 |
+|---|---|
+| 의존성 | 없음 (가장 먼저) |
+| 내용 | § 1 의 모든 공통 토큰 + § 4 시나리오 A 의 IDE 전용 22개 + § 5-2/5-3 의 다크 오버라이드 |
+| 토큰 수 (라이트) | 약 95개 — Brand 4 + Surfaces 4 + Text 4 + Borders 2 + Semantic 12 + Accent 7 + Radius 5 + Elevation 5 + Typography 23 (font 2 + scale 11 + weight 5 + lh 3 + ls 2) + Layout 3 + Motion 4 + IDE 22 |
+| 토큰 수 (다크 오버라이드) | 33개 — 공통 11 + IDE 22 (5-4-a 채택 시 surface/text/border 재오버라이드 없음) |
+| 추정 LOC | **약 200~250줄** (섹션 주석 포함) |
+| 구조 | `:root { /* 섹션별 주석 + 변수 */ }` → `[data-theme="dark"] { color-scheme:dark; /* 33개 오버라이드 */ }` |
+| Commit 메시지 | `style(v2): add tokens.css with all design tokens (light + dark)` |
+
+#### 2️⃣ `src/styles-v2/global.css` (신규)
+
+| 항목 | 값 |
+|---|---|
+| 의존성 | ① tokens.css (변수 참조) |
+| 내용 | § 2 그대로 |
+| 추정 LOC | **약 80~100줄** — 폰트 import 1 + 리셋 10 + html/body 15 + ::selection 4 + 스크롤바 3 + 유틸(.sr-only, .truncate) 15 + @keyframes(spin, blink, slideUp) 10 + color-scheme 힌트 2 + 섹션 주석 |
+| Commit 메시지 | `style(v2): add global.css (reset, body, scrollbar, keyframes)` |
+
+#### 3️⃣ `src/main.tsx` (수정)
+
+| 항목 | 값 |
+|---|---|
+| 의존성 | ①, ② |
+| 변경 | 기존 `import './styles/globals.css'` 위에 `import './styles-v2/tokens.css'` + `import './styles-v2/global.css'` 두 줄 추가 (tokens 먼저, global 다음) |
+| 추정 LOC | **+2줄** |
+| 주의 | 기존 globals.css 는 **삭제하지 않음** — § 3-4 대로 cutover PR 까지 살려둠. § 3-1 에서 확인했듯 v2 토큰과 충돌 없음 (이름·값 동일) |
+| Commit 메시지 | `chore(v2): import tokens.css and global.css in main.tsx` |
+
+#### 4️⃣ `src/contexts/ThemeContext.tsx` (수정)
+
+| 항목 | 값 |
+|---|---|
+| 의존성 | ① — tokens.css 의 `[data-theme="dark"]` 블록이 11개 공통 변수를 정의해야 안전 |
+| 변경 | § 5-1 — `applyTheme()` 의 if/else `setProperty/removeProperty` 블록(`ThemeContext.tsx:25-49`) 삭제. `root.setAttribute('data-theme', resolved)` 한 줄만 남김. state/localStorage/system 감지/토글 로직은 그대로 |
+| 추정 LOC | **약 -25줄** (50줄 → 약 25줄) |
+| 회귀 영향 | 기존 `src/pages/`, `src/components/` 다크 모드 그대로 동작 — JS 주입하던 변수와 같은 이름·값을 CSS 가 정의하므로 |
+| 주의 | CLAUDE.md 절대 규칙은 `src/pages/`, `src/components/` 수정 금지. `src/contexts/` 는 금지 대상 아님. 단 부담 시 `src/contexts-v2/ThemeContext.tsx` 신규로 두는 안도 가능 (§ 5-1 참고) |
+| Commit 메시지 | `refactor(theme): drop JS setProperty, rely on CSS [data-theme]` |
+
+#### PR 단위 합산
+- 총 변경 파일: **3 신규 + 2 수정 = 4 파일** (main.tsx 포함)
+- 총 LOC 변화: **약 +280 ~ +330** / **-25** (신규 토큰/글로벌 추가, ThemeContext 슬림)
+- PR 사이즈: 리뷰 1회로 머지 가능한 수준
+
+---
+
+### Phase 0 두 번째 PR — Layout chrome (별도 PR)
+
+§ 4 시나리오 A 결정 시 따라오는 작업. 토큰 plan 의 범위는 아니지만 의존 관계 표기만:
+
+#### 5️⃣ `src/styles-v2/components/ide-chrome.css` (신규, Layout PR 에 포함)
+
+| 항목 | 값 |
+|---|---|
+| 의존성 | ①, ② (변수 + 폰트) |
+| 내용 | `prototype/ide-theme.css:78-806` 의 **클래스 정의 부분** (`.ide`, `.ide-title`, `.tab`, `.gutter`, `.editor-*`, `.json-card`, `.terminal`, `.palette*`, `.stack-trace`, `.code-input`, `.chip`, `.btn-term`, `.flat-card`, `.form-row`, `.status-chip`, `.act-*`, `.side-*`, `.term-*`, `.kbd`, `.mono`, `.sans` 등). **토큰 정의(`:root`, `[data-theme="dark"]`)는 제외** — 이미 ① 에 옮겨졌으므로 |
+| 추정 LOC | **약 700줄** |
+| 분리 이유 | § 2-9 / § 4 의 "글로벌에 들어가지 않는 항목" 정책. global.css 비대화 방지 |
+| Commit / PR | Layout chrome PR 의 별도 commit. tokens plan 의 후속 작업 |
+
+#### 6️⃣ `src/components-v2/Layout/` 컴포넌트들 (신규, Layout PR)
+
+| 항목 | 값 |
+|---|---|
+| 의존성 | ①, ②, ⑤ |
+| 내용 | `prototype/Layout.jsx` 를 분해해서 IdeShell / TitleBar / ActivityBar / Sidebar / TabBar / StatusBar / Minimap 컴포넌트로 — **각각 1 commit** (CLAUDE.md 절대 규칙: 컴포넌트 1개씩) |
+| 추정 LOC | 컴포넌트당 50~150줄 — 총 약 600~800줄 |
+| Commit / PR | Layout chrome PR 의 컴포넌트별 commit |
+
+---
+
+### 의존성 그래프
+
+```
+①  tokens.css ─┬─→ ②  global.css ─→ ③  main.tsx import
+               │
+               ├─→ ④  ThemeContext refactor
+               │
+               └─→ ⑤  ide-chrome.css ─→ ⑥  Layout 컴포넌트들
+                                       (Phase 0 두 번째 PR)
+```
+
+### 체크리스트 (PR 작성 전 확인)
+
+- [ ] § 4 의 A/B 결정이 확정됐는가 — A 미확정이면 ① 의 IDE 토큰 22개를 제외하고 90개로 시작 후 후속 PR 에서 추가
+- [ ] § 5-4 의 a/b/c 결정이 확정됐는가 — a 미확정이면 ① 다크 오버라이드의 surface/text/border 값을 보류
+- [ ] `src/contexts/` 인플레이스 수정에 팀 합의가 있는가 — 부담 시 `src/contexts-v2/` 로 분기 (§ 5-1)
+- [ ] 기존 globals.css 는 cutover PR 까지 **건드리지 않음** — § 3-4 대로 cutover 시 일괄 폐기
+
+### PR 머지 후 다음 단계 신호
+
+①~④ 머지되면 다음 PR 부터 `src/components-v2/`, `src/pages-v2/` 의 모든 신규 코드가 v2 토큰을 안전하게 사용 가능. Layout chrome PR(⑤⑥)이 들어가야 페이지 단위 작업(Login/Cart/MyPage/EventDetail/EventList/Landing) 의 시각 검수가 가능해짐.
