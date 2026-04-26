@@ -464,7 +464,8 @@ button.side-header {
   border: 0;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
-  font-family: inherit;
+  /* Sans for the search query — the rest of the palette is mono. */
+  font-family: var(--font);
   color: var(--text);
   outline: none;
 }
@@ -496,6 +497,27 @@ button.side-header {
   margin-left: auto;
   font-size: 10px;
   color: var(--text-4);
+}
+/* Two-line column inside a palette item: label on top, hint below.  */
+.palette-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.palette-item-label {
+  font-family: var(--font);
+  color: var(--text);
+}
+.palette-item-hint {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--text-4);
+}
+/* Empty-results placeholder inside the list. */
+.palette-empty {
+  padding: 18px 14px;
+  color: var(--text-4);
+  font-size: 13px;
+  font-family: var(--font);
 }
 .palette-hint {
   padding: 8px 14px;
