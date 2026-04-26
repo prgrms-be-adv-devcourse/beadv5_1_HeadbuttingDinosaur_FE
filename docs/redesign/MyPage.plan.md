@@ -1041,8 +1041,142 @@ export function useOrders(page: number /* 1-base */):
 - 빠른 페이지 연타로 인한 stale 응답 처리: 1차 PR 에서는 `useEffect` cleanup 으로 in-flight 요청 abort 표시만 하되 axios cancel 토큰 도입 여부는 § 11 (BE 가 빠르면 일반적으로 무해).
 
 ## 7. 탭 3: 예치금
-(작성 예정)
+
+`prototype/MyPage.jsx:133-147` (wallet 탭 본문). shell + 외부 자산은 § 3·§ 4. 이 절은 탭 본문만 다룬다.
+
 ### 7.1 컴포넌트 분해
+
+#### 7.1.1 시각 구조 (프로토타입 매핑)
+
+```
+[탭 본문 영역]
+ └─ flat-card (padding 28)
+     ├─ 라벨 "예치금 잔액"     ← 13px / text-3 / mb 6
+     ├─ 잔액 행 (huge number)  ← 38px / fontWeight 800 / letter-spacing -0.01em / mb 4
+     │   ├─ "120,000"
+     │   └─ <span> 원 </span>  ← 18px / fontWeight 600 / text-3 / margin-left 6
+     ├─ 라스트업데이트 캡션     ← 12.5px / text-3 / mb 20  ★ 프로토타입 mock 라인 (§ 7.1.5)
+     └─ 버튼 행 (gap 8)
+         ├─ <Button variant="primary"><Icon name="plus" size=13/> 충전하기</Button>
+         └─ <Button variant="ghost"><Icon name="wallet" size=13/> 출금 요청</Button>
+```
+
+#### 7.1.2 컴포넌트 표 — 1차 PR 범위
+
+| 이름 | 역할 | 위치 | props | 의존 |
+|---|---|---|---|---|
+| `WalletTab` | 탭 진입점. `useWalletBalance()` (§ 3.3 페이지 내부 컨텍스트)로 상태/`refresh()` 획득 → `TabFetchState` 분기. `BalanceCard` 에 잔액 + 액션 콜백 prop drilling | `tabs/Wallet/WalletTab.tsx` | (라우트 element. props 없음) | `useWalletBalance` (§ 3.3 `MyPage/shared/walletBalance`), `TabFetchState` (§ 4.2.2), `BalanceCard`, `BalanceCardSkeleton`, `TabErrorBox` |
+| `BalanceCard` | 큰 카드 1개. 라벨 + 잔액 분할 표기(38px 숫자 / 18px "원") + (선택) 마지막 갱신 캡션 + 충전/출금 버튼 행 | `tabs/Wallet/components/BalanceCard.tsx` | `{ balance: number; lastUpdatedAtLabel?: string \| null; onCharge(): void; onWithdraw(): void; chargePending?: boolean; withdrawPending?: boolean }` | Phase 0 `Card`(`variant='flat'`), Phase 0 `Button`, Phase 0 `Icon`, `formatBalanceParts` (§ 4.3.2) |
+| `BalanceCardSkeleton` | placeholder. 같은 28 padding 카드 + 라벨 자리 / 잔액 자리(큰 막대) / 버튼 자리 빈 박스 2개 | `tabs/Wallet/components/BalanceCardSkeleton.tsx` | `{}` | Phase 0 `Card` |
+
+#### 7.1.3 합성 결정 — `WalletTab` 이 데이터·콜백 보유, `BalanceCard` 는 시각만
+
+- `WalletTab` 의 책임: `useWalletBalance()` 결과 분기 + 충전/출금 트리거 콜백 정의 (`onCharge`, `onWithdraw`). 충전/출금 동작 자체는 § 11 결정 후 합류 — 1차 PR 의 콜백은 **placeholder**(`alert('준비 중입니다')` 또는 toast).
+- `BalanceCard` 는 `balance: number` 만 받아 표시. fetch / mutation 미관여. 이렇게 두면:
+  - 향후 charge / withdraw 모달 도입(§ 11) 때 `BalanceCard` 본체 변경 0.
+  - 스토리북/스냅샷에서 `balance: 0`, `balance: 1_234_567` 같은 케이스 단독 렌더 가능.
+- `BalanceCard` 의 `chargePending` / `withdrawPending` prop 은 1차 PR 에서는 사용처 0 (콜백이 placeholder 라). 예약만 두고 § 11 도입 시 즉시 활용.
+
+```tsx
+// tabs/Wallet/WalletTab.tsx (요지)
+function WalletTab() {
+  const balance = useWalletBalance();  // FetchState<{ amount: number; lastFetchedAt: number }> & { refetch }
+  return (
+    <TabFetchState
+      state={balance}
+      skeleton={<BalanceCardSkeleton />}
+      empty={undefined}                 // § 7.1.6 — 빈 상태 분기 없음
+    >
+      {(data) => (
+        <BalanceCard
+          balance={data.amount}
+          lastUpdatedAtLabel={null}     // § 7.1.5 — 1차 PR 미노출
+          onCharge={() => alert('충전 — 준비 중입니다')}
+          onWithdraw={() => alert('출금 — 준비 중입니다')}
+        />
+      )}
+    </TabFetchState>
+  );
+}
+```
+
+#### 7.1.4 잔액 분할 표기 — `formatBalanceParts`
+
+§ 4.3.2 의 `formatBalanceParts(amount) → { value, unit: '원' }` 로 38px / 18px 두 단위를 분리 렌더:
+
+```tsx
+// tabs/Wallet/components/BalanceCard.tsx (요지)
+const { value, unit } = formatBalanceParts(balance);
+return (
+  <Card variant="flat" className="balance-card">
+    <div className="balance-label">예치금 잔액</div>
+    <div className="balance-amount">
+      {value}
+      <span className="balance-unit">{unit}</span>
+    </div>
+    {lastUpdatedAtLabel && (
+      <div className="balance-last-updated">최종 업데이트 · {lastUpdatedAtLabel}</div>
+    )}
+    <div className="balance-actions">
+      <Button variant="primary" iconStart={<Icon name="plus" size={13} />} onClick={onCharge} loading={chargePending}>
+        충전하기
+      </Button>
+      <Button variant="ghost" iconStart={<Icon name="wallet" size={13} />} onClick={onWithdraw} loading={withdrawPending}>
+        출금 요청
+      </Button>
+    </div>
+  </Card>
+);
+```
+
+- 38px / 18px 사이즈는 page-local CSS (`.balance-amount` / `.balance-unit`) 로. SPEC § 0 "동적 값만 인라인 허용" 규칙에 맞춰 css class 가 사이즈를 가짐.
+- shell `ProfileHeader` 메타 라인은 `fmtPrice(balance) → '120,000원'` 한 덩어리(§ 4.3.2). 동일 잔액이지만 표기 형태는 두 곳이 다르고 그게 의도.
+
+#### 7.1.5 "최종 업데이트" 라인 — API 부재
+
+- `WalletBalanceResponse { walletId: string; balance: number }` (`src/api/types.ts:522`) 에 timestamp 필드 **없음**. 프로토타입의 `"최종 업데이트 · 2026.04.18 10:23"` 은 mock 전용.
+- 옵션:
+  | 옵션 | 전략 | 평가 |
+  |---|---|---|
+  | 1. **삭제** | 라인 자체 미렌더 | 1차 PR. SPEC § 0 mock 금지 규칙 |
+  | 2. 클라이언트 fetch 시각 사용 | `useWalletBalance` 가 `lastFetchedAt: number` 동시 노출 → `BalanceCard` 가 `timeAgo(lastFetchedAt)` 로 "방금 전" 표기 | `timeAgo` 가 v1 `src/utils/index.ts` 에는 있지만 v2 `src/lib/format.ts` 에 없음 (§ 4.3.3). 도입 결정은 § 11 |
+  | 3. BE 변경 요청 | `WalletBalanceResponse` 에 `updatedAt: string` 추가 | 근본 해결. § 11 안건 |
+- **1차 PR 결정 — 옵션 1**. `BalanceCard` 의 `lastUpdatedAtLabel` prop 은 시그니처에 두되 `null` 로 호출 → 마크업 미렌더. 옵션 2 또는 3 도착 시 prop 채워 즉시 노출.
+
+#### 7.1.6 빈 상태 분기 없음
+
+- 잔액 = 0 인 케이스도 카드는 보여야 함 ("0원" 표기). `EmptyWallet` 같은 빈 상태 컴포넌트 도입 X.
+- API 가 정상 응답 + `balance: 0` 이면 `ready` 상태로 직진. `formatBalanceParts(0) → { value: '0', unit: '원' }`.
+- 이 결정은 § 4.0 표("Wallet 은 빈 상태가 없음")와 일치.
+
+#### 7.1.7 확장 후보 — § 11 안건 (1차 PR 범위 외)
+
+| 후보 | 필요 자산 | API | 비고 |
+|---|---|---|---|
+| `TransactionList` + `TransactionRow` + `TransactionsSkeleton` | 거래내역 세로 스택, type 별 부호/색(`CHARGE` `+`, `USE/WITHDRAW` `-`, `REFUND` `+`) | `getWalletTransactions` (`src/api/wallet.api.ts`) → `WalletTransactionListResponse` (`types.ts:541`). 페이지네이션 별도 결정 | v1 MyPage.tsx:282 가 `{ page: 0, size: 20 }` 단일 호출 — 패턴 차용 가능 |
+| `ChargeFlow` (모달 또는 별도 라우트) | 금액 입력 폼 + PG 진입(@tosspayments/tosspayments-sdk) + 성공/실패 결과 처리 | `startWalletCharge` (`POST /wallet/charge`) → `WalletChargeStartResponse` 로 PG 위젯 호출. 콜백 라우트 `/wallet/charge/success` 에서 `confirmWalletCharge` (기존 v1 페이지 그대로 활용 — INVENTORY § 7) | `idempotencyConfig()` 필수 — 중복 결제 방지 (`src/api/client.ts`) |
+| `WithdrawFlow` (모달) | 금액 입력 + 비밀번호 / 본인 확인 + 출금 트리거 | `withdrawWallet` (`POST /wallet/withdraw`) → `WalletWithdrawResponse` (`status: 'SUCCESS' \| 'FAILED'`). `idempotencyConfig()` 필수 | 비밀번호/본인 확인 정책은 SPEC 미명시 — § 11 |
+| `BalanceCard` 내부 mutation 피드백 | charge/withdraw 진행 중 버튼 disabled + spinner. 완료 후 `useWalletBalance().refresh()` 호출 | 위 두 hooks 의 결과를 `WalletTab` 에서 처리 | `chargePending` / `withdrawPending` prop 이 1차 PR 시그니처에 미리 마련됨 (§ 7.1.2) |
+
+위 확장은 모두 **§ 7.1.2 의 컴포넌트 표를 변경하지 않고 추가만**으로 들어올 수 있게 1차 PR 시그니처를 설계했다 (`onCharge`/`onWithdraw` 콜백 + `*Pending` prop). 따라서 § 11 결정 후 BalanceCard 본체 수정 없이 합류 가능.
+
+#### 7.1.8 Phase 0 자산 사용 — 신규 작성 X
+
+| 자산 | 사용처 | API |
+|---|---|---|
+| `Card` | `BalanceCard`, `BalanceCardSkeleton` | `variant='flat'` (`padding=28` 은 className 으로 — page-local CSS 가 토큰 적용) |
+| `Button` | `BalanceCard` 의 충전/출금 | `variant='primary'` / `'ghost'`, `iconStart`, `loading` |
+| `Icon` | `BalanceCard` 의 버튼 아이콘 | `name='plus'`, `name='wallet'`, `size=13` |
+| `EmptyState` | (사용 안 함 — § 7.1.6) | — |
+
+#### 7.1.9 분해 원칙 (요약)
+
+- 데이터 fetching 은 shell 의 `WalletBalanceProvider` (§ 3.3) 가 책임. `WalletTab` 은 그 hook 의 소비자일 뿐 fetch 로직 없음 → `ProfileHeader` 와 잔액이 자동 일치.
+- `BalanceCard` 는 시각 prop 만 받음. 도메인 모델 모름. 충전·출금 모달이 추후 도입돼도 `BalanceCard` 시그니처 그대로.
+- 1차 PR 의 충전/출금 버튼은 placeholder 콜백. 사용자 클릭은 안내 toast/alert 로만 처리하고 § 11 결정 후 실제 플로우 합류.
+- 프로토타입의 인라인 `style={{}}` (padding 28, fontSize 38, letterSpacing -0.01em 등) 은 모두 page-local CSS class 로 이전. SPEC § 0 "동적 값만 인라인" 규칙 준수.
+- "최종 업데이트" 라인은 mock 전용이라 1차 PR 에서 미노출. prop 자리만 마련.
+
 ### 7.2 API 매핑
 ### 7.3 상태 처리
 
