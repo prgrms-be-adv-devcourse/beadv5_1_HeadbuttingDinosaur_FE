@@ -1,4 +1,6 @@
-export type EventStatus = 'ON_SALE' | 'SOLD_OUT' | 'SALE_ENDED' | 'CANCELLED' | 'ENDED';
+import type { EventStatus } from '@/types-v2/event';
+
+export type { EventStatus };
 
 export interface EventVM {
   eventId: string;
