@@ -1,0 +1,145 @@
+/* ==========================================================================
+   Login page — v2
+   Tokens: src/styles-v2/tokens.css
+   Spec:   docs/redesign/Spec.md § 1
+   Layout: full-viewport center, 460px shell, Card padding=28 (handled by Card).
+   No layout chrome (Layout.plan / Login.plan §5.4 D-5).
+   ========================================================================== */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.login-shell {
+  width: 100%;
+  max-width: 460px;
+}
+
+/* ── Brand header (DT mark + wordmark) ─────────────────────────── */
+.login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.login-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--brand);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-wide);
+}
+
+.login-brand-word {
+  font-size: 20px;
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+
+/* ── Page heading ──────────────────────────────────────────────── */
+.login-heading {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.login-title {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.login-subcopy {
+  font-size: var(--fs-base);
+  color: var(--text-3);
+}
+
+/* ── Form ──────────────────────────────────────────────────────── */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-form-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+}
+
+.login-form-error span[aria-hidden] {
+  font-weight: var(--fw-bold);
+}
+
+/* ── Social login block ────────────────────────────────────────── */
+.login-social {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-divider-label {
+  font-size: var(--fs-xs);
+  color: var(--text-4);
+  white-space: nowrap;
+}
+
+/* ── Signup callout (in-card, divider above) ──────────────────── */
+.login-signup-callout {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--text-3);
+}
+
+.login-signup-link {
+  color: var(--brand);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.login-signup-link:hover {
+  color: var(--brand-hover);
+}
+
+.login-signup-link[aria-disabled='true'] {
+  pointer-events: none;
+  opacity: 0.6;
+}
