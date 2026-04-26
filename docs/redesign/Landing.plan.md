@@ -313,7 +313,138 @@ Featured 만 로딩·에러·빈 상태 분기.
 
 
 ## 5. 데이터 페칭 전략 (캐싱 / 합성)
-(작성 예정)
+
+Landing 은 트래픽이 가장 많은 페이지이므로 캐싱이 핵심. 다만 SPEC § 9
+의사결정 ("**추가 라이브러리 미도입 확정** — React Query/SWR 미사용")에
+따라 EventList 와 동일한 자체 패턴을 따른다.
+
+### 5.1 사용 훅 — EventList 와 동일 패턴
+
+EventList 의 `useEvents` (`src/pages-v2/EventList/hooks.ts:91`) 가 채택한
+자체 모듈 캐시 + `useState/useEffect` + `AbortController` 패턴을
+Landing 의 모든 훅에 적용한다.
+
+| 훅 | 위치 | 반환 상태 |
+|---|---|---|
+| `useLandingStats()` | `src/pages-v2/Landing/hooks.ts` | `{ status: 'loading'\|'success'\|'error'; data?: StatVM[]; previous?: StatVM[]; error?: unknown; refetch }` |
+| `useLandingCategories()` | 동일 | `{ ..., data?: CategoryTileVM[] }` |
+| `useFeaturedEvents()` | 동일 | `{ ..., data?: FeaturedItemVM[] }` |
+
+상태 형태는 EventList 의 `EventsQuery` 와 같은 차별 유니온
+(`loading` 시 `previous` 보존, `error` 시도 `previous` 보존) — UI 깜빡임 방지.
+
+### 5.2 캐시 키 설계
+
+EventList 의 모듈-level `Map<string, { data, fetchedAt }>` 패턴을
+재사용. **Landing 전용 캐시 키 네임스페이스**를 둬서 EventList 캐시와
+충돌 없이 공존.
+
+| 키 | 값 타입 | 용도 |
+|---|---|---|
+| `landing:events:firstpage:size=10` | `EventListPage` | Stats(클라 집계) + Featured 가 모두 의존하는 1차 응답 |
+| `landing:stats` | `StatVM[]` | 합성된 4 카드 (1차 응답에서 파생) |
+| `landing:featured` | `FeaturedItemVM[]` | 1차 응답에서 `ON_SALE` 필터 + 5개 슬라이스 |
+| `landing:categories:counts` | `CategoryTileVM[]` | 6개 카테고리별 `filterEvents({ category, size:1 })` 합산 |
+
+키는 함수형 빌더로 생성: `landingKey('events', 'firstpage', size)`.
+EventList 의 `serializeFilters` 와 같은 결을 유지.
+
+### 5.3 EventList 와의 캐시 공유
+
+| 시나리오 | 처리 |
+|---|---|
+| 사용자가 Landing → EventList 이동 | EventList 는 자체 키(`q=|cat=|stack=|page=0`) 를 가지므로 직접 공유는 불가. 단 § 5.2 의 `landing:events:firstpage` 가 EventList 첫 페이지와 내용이 동일 — **낙관적 placeholder**로 활용 가능 (mount 직후 1프레임 렌더 후 실제 fetch) |
+| 같은 query key | React Query 가 아니라 자체 Map 이므로 **자동 공유 없음**. 같은 데이터를 두 페이지가 쓰려면 키를 통합해야 함 — Landing v1 범위 밖, § 11 결정 후 cutover 작업 |
+| Featured ↔ EventList 가 같은 데이터 | Featured 는 첫 페이지의 부분집합. Landing 에서 `landing:events:firstpage` 를 받아 두 섹션이 동일 응답 공유 (네트워크 1회) |
+
+> v1 결론: **Landing 내부에서만 1차 응답을 두 섹션(Stats/Featured)이
+> 공유**. EventList 와의 cross-page 공유는 cutover 시 캐시 키 통합으로
+> 추후 처리.
+
+### 5.4 stale time / LRU
+
+EventList 는 `STALE_MS = 60_000` (1분), `LRU_LIMIT = 8`. Landing 데이터는
+변경 빈도가 더 낮으므로 길게:
+
+| 키 | stale | 비고 |
+|---|---|---|
+| `landing:events:firstpage` | 5분 (`5 * 60_000`) | Featured + Stats 가 같이 의존 |
+| `landing:categories:counts` | 10분 | 카테고리 카운트는 더 느리게 변함 |
+| `landing:stats` | 5분 | 1차 응답에서 파생되므로 사실상 firstpage 와 동기 |
+
+LRU 한도는 EventList 와 분리된 자체 Map 이므로 `LRU_LIMIT = 4` 면 충분
+(키 4종 고정). Landing 캐시는 `src/pages-v2/Landing/hooks.ts` 의 모듈
+스코프에 둠.
+
+### 5.5 병렬 로딩 + 합성
+
+세 훅을 페이지 컨테이너에서 동시에 호출. EventList 패턴과 동일하게 각
+훅이 `useEffect` 안에서 자기 `AbortController` 를 갖고 독립 fetch.
+
+```ts
+// src/pages-v2/Landing/index.tsx (스케치)
+export default function LandingPage() {
+  const stats = useLandingStats();
+  const categories = useLandingCategories();
+  const featured = useFeaturedEvents();
+  return <Landing stats={stats} categories={categories} featured={featured} />;
+}
+```
+
+내부적으로 Stats 와 Featured 는 같은 1차 응답을 공유하기 위해 **얇은
+fetcher 함수** 하나를 두고 두 훅이 그것을 호출한다. fetcher 는 모듈
+캐시를 먼저 보고 있으면 그대로 반환, 없으면 한 번만 fetch (in-flight
+프로미스 reuse 로 race 방지).
+
+```ts
+// src/pages-v2/Landing/hooks.ts (스케치)
+let firstPageInFlight: Promise<EventListPage> | null = null;
+
+const getFirstPage = (): Promise<EventListPage> => {
+  const hit = cache.get('landing:events:firstpage:size=10');
+  if (hit && Date.now() - hit.fetchedAt < 5 * 60_000) return Promise.resolve(hit.data);
+  if (firstPageInFlight) return firstPageInFlight;
+  firstPageInFlight = fetchFirstPage()
+    .then((page) => {
+      cachePut('landing:events:firstpage:size=10', page);
+      return page;
+    })
+    .finally(() => { firstPageInFlight = null; });
+  return firstPageInFlight;
+};
+
+export function useLandingStats(): UseLandingStatsReturn { /* getFirstPage() + toStatsVM */ }
+export function useFeaturedEvents(): UseFeaturedEventsReturn { /* getFirstPage() + filter+slice+toFeaturedItemVM */ }
+```
+
+`useLandingCategories` 는 별도 fetcher: `Promise.all` 로 6개
+`filterEvents({ category, page:0, size:1 })` 호출 후 합쳐 캐시에 저장
+(§ 4 표 2 옵션 A).
+
+### 5.6 에러 격리
+
+`Promise.allSettled` 가 아니라 **세 훅이 각자 독립** — 한 섹션이 실패해도
+나머지는 정상 렌더 (EventList 의 `useEvents` 와 동일한 분리 패턴).
+
+| 시나리오 | 표시 |
+|---|---|
+| `getFirstPage` 실패 | Stats(2·3번 카드) + Featured 두 섹션 모두 에러 박스 + 재시도 버튼. Stats 1번 카드는 같은 응답을 쓰므로 함께 실패 |
+| 카테고리 한 개 실패 | 해당 타일만 카운트 자리에 `—`, 나머지 5개 정상 (`Promise.allSettled` 로 처리) |
+| 카테고리 전체 실패 | Categories 섹션 에러 박스 + 재시도 |
+| Hero / CTA / TypedTerminal | 데이터 없음 — 영향 받지 않음 |
+
+`refetch` 는 EventList 와 동일하게 캐시에서 해당 키 삭제 후 트리거.
+
+### 5.7 비고
+
+- React Query 도입 시 (§ 11 재논의 결과로 SPEC § 9 가 뒤집히는 경우)
+  위 자체 캐시 로직은 모두 `useQuery` + `staleTime` + `queryKey` 로
+  치환. 인터페이스(`useLandingStats` 등 훅 이름) 는 동일하게 유지하면
+  호출부 변경 0.
+- `idempotencyConfig` 는 GET 호출들이라 불필요.
+- Landing 은 비로그인 첫 화면이므로 401 재발급 분기 발생 빈도 낮음 —
+  apiClient 인터셉터가 알아서 처리 (SPEC § 0 부수).
+
 
 ## 6. 신규 상태 처리
 (작성 예정)
