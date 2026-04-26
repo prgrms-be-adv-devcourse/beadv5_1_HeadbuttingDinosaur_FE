@@ -9,11 +9,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 
 import {
-  toEventDetailVM,
   toRecommendedCards,
   type RecommendationResponse,
   type RecommendedCardVM,
-} from './adapters';
+} from '@/pages-v2/_shared/recommendation';
+
+import { toEventDetailVM } from './adapters';
 import type { EventDetailQuery, EventDetailVM } from './types';
 
 const STALE_MS = 60_000;

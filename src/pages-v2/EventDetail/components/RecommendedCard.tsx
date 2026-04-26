@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-import type { RecommendedCardVM } from '../adapters';
+import type { RecommendedCardVM } from '@/pages-v2/_shared/recommendation';
 
 export interface RecommendedCardProps {
   vm: RecommendedCardVM;
