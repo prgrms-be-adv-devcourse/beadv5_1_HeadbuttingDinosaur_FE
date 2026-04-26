@@ -29,3 +29,11 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 
 export { Input } from './Input';
 export type { InputProps, InputVariant } from './Input';
+
+/* PR 3 — Container / Display */
+
+export { Card } from './Card';
+export type { CardProps, CardVariant, CardPadding } from './Card';
+
+export { SectionHead } from './SectionHead';
+export type { SectionHeadProps } from './SectionHead';
