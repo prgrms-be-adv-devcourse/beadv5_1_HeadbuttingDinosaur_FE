@@ -689,7 +689,136 @@ EventDetail 은 중간 크기라 PR 2~3 개로 분할.
 시. 가능하면 스크린샷 1~2장 (success / sold-out 분기) 첨부.
 
 ### 9.2 PR 2: API 통합 + 상태 처리 + 라우터 등록
-(작성 예정)
+
+**목적**: PR 1 의 스텁 hook 을 실제 `getEventDetail` 호출로 교체하고, § 5 의
+모든 상태 분기 (loading / not-found / forbidden / error / success) 를 컨테이
+너에 wire 한다. `App.tsx` 에 `<VersionedRoute>` 정식 등록 → `?v=2` 로 실제
+API 데이터를 가지고 페이지 동작을 검증한다.
+
+**의존**: **PR 1 머지 후 진행**. PR 1 의 스텁 hook 시그니처 (`useEventDetail
+(eventId): EventDetailQuery & { refetch }`) 가 본 PR 의 정식 구현으로 자연스
+럽게 교체되도록 PR 1 단계 9 에서 시그니처를 § 4 형태로 미리 맞춰둔다는 전제.
+
+#### 포함 파일 / 변경 사항
+
+**신규 (4):**
+
+| # | 경로 | 내용 |
+|---|---|---|
+| N1 | `src/pages-v2/EventDetail/components/EventDetailSkeleton.tsx` | § 5-(1) 의 부분별 스켈레톤. Hero / 헤더 라인 / chip placeholder / InfoCard 4행 / Description 3-line / 우측 패널 placeholder. |
+| N2 | `src/pages-v2/EventDetail/components/ErrorState.tsx` | "다시 시도" (primary, `refetch` prop) + "이벤트 목록으로" (ghost, `/events?v=2`). 헤드라인/서브카피 prop. |
+| N3 | `src/pages-v2/EventDetail/components/NotFoundCard.tsx` | 이모지 `🔍` + "이벤트를 찾을 수 없습니다" + 서브카피 + "이벤트 목록으로" / "메인으로" 두 버튼. 재시도 없음. |
+| N4 | `src/pages-v2/EventDetail/components/ForbiddenCard.tsx` | "이 이벤트에 접근할 수 없습니다" + 서버 메시지 우선 + "이벤트 목록으로". 재시도 없음. |
+
+**수정 (3):**
+
+| # | 경로 | 변경 |
+|---|---|---|
+| M1 | `src/pages-v2/EventDetail/hooks.ts` | 스텁 본체 제거 → § 4 정식 구현. `useState<EventDetailQuery>` + `useEffect` + 모듈 Map (`detailCache`, LRU 12, STALE 60s) + `AbortController`. 응답 200→success / 404→not-found / 403 (PROFILE_NOT_COMPLETED 제외)→forbidden / 그 외→error. `refetch` 는 cache 삭제 + tick 증가. § 8-O6 추천안 (placeholder 채택) 적용 시 EventList `cache` 를 import 해 초기 state 의 `previous` 슬롯에 부분 VM 합성 — EventList `hooks.ts` 가 cache 를 export 하지 않으면 본 PR 에서 같이 export 추가 (§ 9.4 의존성 항목). |
+| M2 | `src/pages-v2/EventDetail/EventDetail.tsx` | PR 1 의 success-only 분기 → 분기 체인 추가 (§ 5 우선순위): `loading` (스켈레톤 또는 placeholder) → `not-found` (NotFoundCard) → `forbidden` (ForbiddenCard) → `error` (ErrorState + refetch) → `success` (기존 본문 + PurchasePanel). Breadcrumb 는 모든 분기에서 노출 (제목 슬롯은 placeholder). |
+| M3 | `src/pages-v2/EventDetail/index.tsx` | PR 1 의 mock id 하드코딩 (있다면) 제거. `useParams<{ eventId }>` 로 추출 + 컨테이너 prop 주입. (PR 1 단계 13 에서 이미 이 형태로 작성했으면 변경 없음.) |
+
+**삭제 (1):**
+
+| # | 경로 | 이유 |
+|---|---|---|
+| D1 | `src/pages-v2/EventDetail/__mocks__/sampleEventDetail.ts` | 정식 hook 으로 대체되어 사용처 없음. 디렉토리째 삭제. |
+
+**App.tsx 정식 등록 (1):**
+
+| # | 경로 | 변경 |
+|---|---|---|
+| A1 | `src/App.tsx` | `EventDetailV2 = lazy(() => import('./pages-v2/EventDetail'))` 한 줄 import 추가. `/events/:id` 라우트 element 를 `<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />` 로 한 줄 교체. (PR 1 의 임시 wire T1 을 정식 등록으로 승격하는 것이라 diff 자체는 동일.) |
+
+#### 추정 LOC
+
+| 그룹 | LOC |
+|---|---|
+| EventDetailSkeleton (N1) | ~80 |
+| ErrorState / NotFoundCard / ForbiddenCard (N2~N4) | ~100 |
+| hooks.ts 정식 구현 (M1) | +60 (스텁 -25 → 정식 +85) |
+| EventDetail.tsx 분기 체인 (M2) | +50 |
+| index.tsx (M3) | 0~5 |
+| App.tsx (A1) | +3 |
+| __mocks__ 삭제 (D1) | -40 |
+| **합계 (순증)** | **~260** |
+
+사용자 목표 200~400 LOC 안에 들어옴.
+
+> § 8-O6 의 placeholder 채택 시 EventList `hooks.ts` 의 `cache` export 추가
+> (~5 LOC) + 본 hook 의 placeholder 합성 로직 (~30 LOC) 이 추가됨 → 총 ~295.
+> 여전히 budget 안. placeholder 미채택 시 단순 스켈레톤만 노출.
+
+#### 파일 생성/수정 순서
+
+각 단계 끝에서 type-check 통과 확인. 단계 5 이후부터 dev 서버 시각 검증
+가능.
+
+1. **N1** `EventDetailSkeleton.tsx` 신규 — 의존 없음. PR 1 의 시각 컴포넌트
+   placeholder 와 동일 톤 (회색 박스 / shimmer 정도).
+2. **N2~N4** 에러 카드 3종 신규 — 의존 없음 (Phase 0 `Button` 만 사용).
+3. **M1** `hooks.ts` 정식 구현으로 교체 — 스텁 제거 + § 4 형태 작성. § 8-O6
+   채택 시 EventList cache import 추가 (M1 의존: EventList hooks.ts 의 cache
+   export — 같은 PR 에서 작은 수정으로 처리).
+4. **M2** `EventDetail.tsx` 분기 체인 추가 — N1~N4 import + hook union 분기.
+5. **M3** `index.tsx` 정리 — PR 1 의 mock 의존 잔재 있으면 제거 (대체로 변경
+   불필요).
+6. **D1** `__mocks__/sampleEventDetail.ts` 삭제 — 사용처 없는 것 확인 후 디렉
+   토리째 삭제. `npm run build` 가 통과하면 안전.
+7. **A1** `src/App.tsx` 한 줄 교체 — PR 1 검증용 임시 wire 와 동일 형태로 정식
+   등록.
+8. **(검증 후 commit)** 시각 검증 5케이스 통과 확인.
+
+#### 단계별 commit 메시지 권장
+
+| 커밋 | 단계 | 메시지 |
+|---|---|---|
+| C1 | 1 | `feat(event-detail-v2): add EventDetailSkeleton for loading state` |
+| C2 | 2 | `feat(event-detail-v2): add ErrorState / NotFoundCard / ForbiddenCard` |
+| C3 | 3 | `feat(event-detail-v2): replace stub hook with live useEventDetail` (placeholder 채택 시 메시지에 `+ EventList cache placeholder` 추가) |
+| C4 | 4 | `feat(event-detail-v2): wire container to live data with state branches` |
+| C5 | 5, 6 | `chore(event-detail-v2): drop mock fixture and tidy index.tsx` |
+| C6 | 7 | `feat(event-detail-v2): register VersionedRoute for /events/:id` |
+
+6 commits 가 부담스러우면 C1~C2 통합 (`feat(event-detail-v2): add skeleton and
+error cards`), C3~C5 통합 (`feat(event-detail-v2): integrate live API and state
+handling`), C6 단독 — 총 3 commits 도 가능.
+
+#### 검증 방법
+
+**타입/빌드:**
+
+- `npm run build` — 모든 단계 후 통과.
+- `git grep "sampleEventDetail" -- src/` — 결과 없어야 함 (삭제 확인).
+
+**?v=2 토글 시각 검증** (router-toggle.plan.md § 5 Step 3 표 형식):
+
+| # | 동작 | 기대 결과 |
+|---|---|---|
+| 1 | `/events/{유효한_eventId}` (쿼리 없음) | 기존 v1 `<EventDetail>` 렌더 (회귀 없음) |
+| 2 | `/events/{유효한_eventId}?v=2` 첫 진입 | EventDetailV2 — `<EventDetailSkeleton>` 짧게 노출 후 success 분기로 본문 + PurchasePanel. `localStorage.getItem('ui.version') === '2'` |
+| 3 | (#2 직후) 다른 이벤트 카드 클릭으로 이동 | v2 유지. 캐시 hit 면 스켈레톤 없이 즉시 렌더 |
+| 4 | `/events/00000000-0000-0000-0000-000000000000?v=2` (또는 백엔드가 404 주는 임의 id) | `<NotFoundCard>` 인라인 렌더 + Breadcrumb 유지 ("이벤트 › 이벤트") |
+| 5 | DevTools Network 탭에서 `/events/:id` 만 차단 후 `/events/:id?v=2` 진입 | `<ErrorState>` "네트워크 연결을 확인해주세요" + "다시 시도" 버튼 |
+| 6 | (#5 상태에서) 차단 해제 후 "다시 시도" 클릭 | success 분기로 전환 (`refetch` 동작 확인) |
+| 7 | DevTools Network throttle "Slow 3G" + `?v=2` 새로고침 | 스켈레톤이 1초 이상 지속 노출 |
+| 8 | § 8-O6 placeholder 채택 시: EventList (`/?v=2`) 에서 카드 클릭 → detail 진입 | 스켈레톤 대신 placeholder VM (제목/카테고리/가격/일시/잔여 등) 즉시 표시 + description/장소/주최 영역만 shimmer → 백그라운드 fetch 완료 후 success 로 교체 |
+| 9 | `/events/:id?v=1` | v1 렌더 + `localStorage.getItem('ui.version') === null` |
+| 10 | (선택, 백엔드가 403 시뮬 가능하면) 비공개 이벤트 id | `<ForbiddenCard>` 렌더 |
+| 11 | 매진 이벤트 / 잔여 0 이벤트 | 우측 PurchasePanel 이 disabled 매진 버튼 노출 (PR 1 작성분 회귀 확인) |
+| 12 | 비로그인 상태로 "장바구니에 담기" 클릭 | 콘솔 로그만 (PR 3 까지 실제 액션 없음 — 변화 없음 확인) |
+
+**검증 결과 기록**: 12케이스를 PR 본문에 체크리스트로 옮기고 OK 표시. 케이스
+4 (404), 5 (네트워크), 6 (재시도) 각각 스크린샷 1장 권장.
+
+**회귀 확인:**
+
+- EventList (`/?v=2`) 는 본 PR 변경 영향 없음 (placeholder export 추가 외) → 시
+  각 무변화.
+- v1 `/events/:id` (쿼리 없음) 는 element 분기로 들어가긴 하나 `<EventList />`
+  v1 element 를 그대로 받음 → 시각 무변화.
+- `<VersionedRoute>` 의 sticky localStorage 동작 (`?v=2` 후 다른 페이지 이동
+  → 다시 detail 진입 시 v2 유지) 도 케이스 3 으로 확인됨.
 
 ### 9.3 PR 3: 구매 플로우 (장바구니 연동) — 선택
 (작성 예정)
