@@ -699,4 +699,196 @@ PR 시점에 수동 QA로 모두 확인:
 | location/host B안 채택 시 | `adapters.ts` 메타 1줄(일시)만, § 2 `MetaLine` 사용 횟수 1회로 축소 |
 
 ## 10. PR 분할 + 파일 생성 순서
-(작성 예정)
+
+### 분할 원칙
+
+- **각 PR 200~400 LOC 목표**. 시각이 큰 PR(특히 PR 3)은 ~500까지 허용.
+- **PR 1에 라우터 등록 포함** (사용자 최초 제안과 차이 — 사유는 아래). PR 2~5는 사용자가 화면으로 진척을 검증할 수 있어야 하므로 PR 1 시점부터 `?v=2` 토글이 동작해야 함.
+- **정렬(§ 9 정렬 도입 후속 작업) 은 후속 별 PR**로 분리. 백엔드의 `sort` 파라미터 합의가 선결조건이라 본 5개 PR 시퀀스에 포함시키면 차단 위험.
+- **팔레트(§ 9 ⌘K)는 별 PR로 선행 또는 병행**. EventList 디렉토리 외부에 mount되는 chrome-level 기능이라 EventList PR 시퀀스에 묶이면 PR 5가 비대해짐. 본 §10에선 EventList 측 hook(`onOpenPalette` 결선)만 PR 5에 둔다.
+
+### PR 0 (선결조건 — 본 페이지와 별)
+
+| 항목 | 상태 |
+|---|---|
+| Phase 1 공용 컴포넌트 (Eyebrow, Chip, Kbd, StatusChip, Button, Skeleton, …) | SPEC § 0에서 선행 필수. 본 시퀀스 시작 전 머지되어 있어야 함. |
+| `<VersionedRoute>` / `useUiVersion` | `src/router-v2/`에 이미 존재 (router-toggle.plan, LoginV2 사용 중). |
+| Layout chrome v2 | EventList가 `<Route element={<Layout />}>` 안에 있으므로 v2 Layout 작업과 충돌 없는지 확인. 현 단계 v1 Layout 위에서도 동작해야 함. |
+
+---
+
+### PR 1 — 골격 + 데이터 레이어 + 라우터 등록
+
+**목표**: `/?v=2`로 진입 가능한 빈 placeholder 페이지를 만들고, 데이터 레이어(types/adapters/hooks)를 완성. 화면은 비어 있지만 콘솔에 API 호출 1회가 찍히면 성공.
+
+**파일 (생성 순서)**
+
+| 순서 | 파일 | 신/수 | LOC | 내용 |
+|---|---|---|---|---|
+| 1 | `src/pages-v2/EventList/types.ts` | 신 | ~30 | `EventVM`, `EventListFilters`, `EventListPage`, `EventsQuery` (§ 5 상태 셰이프) |
+| 2 | `src/pages-v2/EventList/adapters.ts` | 신 | ~90 | `toEventVM`, `toEventListPage`, `toFilterRequest`, `serializeFilters` (§ 3·§ 5) |
+| 3 | `src/pages-v2/EventList/hooks.ts` | 신 | ~130 | `useEventListFilters` (§ 4), `useEvents` 기본 구조 + LRU 캐시 + `AbortController` (§ 5). 키보드/추천 hook은 후속 PR에서 추가. |
+| 4 | `src/pages-v2/EventList/EventList.tsx` | 신 | ~30 | placeholder 컨테이너 — gutter/editor-body 스캐폴드 + `<div>EventList v2 — WIP</div>` |
+| 5 | `src/pages-v2/EventList/index.tsx` | 신 | ~30 | URL → 필터 초기화, `useEvents` 결합, `EventList.tsx`에 props 주입 |
+| 6 | `src/App.tsx` | 수 | +2 | `EventListV2 = lazy(() => import('./pages-v2/EventList'))` + `<Route path="/" element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />` (§ 8) |
+
+**의존**: PR 0 (공용 컴포넌트는 거의 미사용 — placeholder라 직접 의존 적음).
+**LOC 합계**: ~310.
+**검증**: `/?v=2` 진입 → 빈 placeholder 표시 + Network 탭에 `GET /events` 1회 + 응답 정상이면 콘솔에 변환된 `EventVM[]` 길이 로그(개발 빌드 한정).
+**커밋 메시지**: `feat(events-v2): scaffold EventList route + data layer`
+
+---
+
+### PR 2 — Hero + SearchAndFilters (URL 동기화 시각화)
+
+**목표**: 헤더와 필터 영역이 노출되고, chip / 검색어 토글이 URL을 바꾸는 것을 화면으로 확인.
+
+**파일 (생성 순서)**
+
+| 순서 | 파일 | 신/수 | LOC | 내용 |
+|---|---|---|---|---|
+| 1 | `src/pages-v2/EventList/components/Hero.tsx` | 신 | ~60 | eyebrow + h1 + 서브카피 + kbd 힌트 (§ 2) |
+| 2 | `src/pages-v2/EventList/components/SearchAndFilters.tsx` | 신 | ~140 | 검색 인풋(controlled, ref) + 카테고리/스택 chip row. 카테고리·스택 리스트는 정적 상수. |
+| 3 | `src/pages-v2/EventList/EventList.tsx` | 수 | +30 | placeholder 제거, Hero/SearchAndFilters mount, props wiring |
+| 4 | `src/pages-v2/EventList/hooks.ts` | 수 | +30 | 검색어 디바운스 effect (§ 4·§ 5의 300ms) 추가 |
+
+**의존**: PR 1.
+**LOC 합계**: ~260.
+**검증**:
+- `/?v=2` 진입 → Hero 노출.
+- 카테고리 chip 클릭 → URL `?cat=컨퍼런스` 추가 + Network에 새 요청.
+- 검색어 입력 → 300ms 후 URL `?q=react` 추가, 한 글자씩 history 안 쌓임.
+- 뒤로가기 → 직전 URL 상태 + 카드 자리는 비어 있어도 hook 호출은 정상.
+- 다크 토글 시 토큰 적용 확인.
+
+**커밋 메시지**: `feat(events-v2): add Hero and SearchAndFilters with URL sync`
+
+---
+
+### PR 3 — EventCard 그리드 + 상태 (loading/empty/error)
+
+**목표**: 실제 카드 데이터가 그리드에 깔리고, loading/empty/error UI 분기가 작동.
+
+**파일 (생성 순서)**
+
+| 순서 | 파일 | 신/수 | LOC | 내용 |
+|---|---|---|---|---|
+| 1 | `src/pages-v2/EventList/components/MetaLine.tsx` | 신 | ~20 | (§ 2) — EventCard에서 import할 작은 row |
+| 2 | `src/pages-v2/EventList/components/EventCard.tsx` | 신 | ~170 | accent bar + chrome 헤더 + 본문 + 푸터, hover/focus, native focusable. § 9 결정 따라 location/host 라인은 일단 빼고 일시만(B안). |
+| 3 | `src/pages-v2/EventList/components/ResultHeader.tsx` | 신 | ~25 | "이벤트 N개 / 전체 M개 중" |
+| 4 | `src/pages-v2/EventList/components/EventCardSkeleton.tsx` | 신 | ~55 | pulse 애니메이션 placeholder (§ 6.1) |
+| 5 | `src/pages-v2/EventList/components/EmptyStackTrace.tsx` | 신 | ~50 | `hasActiveFilters` 분기 (§ 6.3) |
+| 6 | `src/pages-v2/EventList/components/ErrorState.tsx` | 신 | ~45 | 재시도 버튼 (§ 6.2) |
+| 7 | `src/pages-v2/EventList/EventList.tsx` | 수 | +60 | 그리드 mount + 상태 분기 (§ 6 매트릭스) |
+
+**의존**: PR 2.
+**LOC 합계**: ~425. (5개 PR 중 가장 큼 — 상태 분기 시각이 한 PR에 모이는 게 리뷰 효율적.)
+**검증**:
+- 정상 응답: 카드 N개 그리드. 데스크탑/모바일 폭에서 1100px 컨테이너 안 minmax(280px, 1fr) 정상 작동.
+- 빈 결과: 검색어 `xxxxxxx` → `EmptyStackTrace` "검색 결과 없음" + 필터 초기화 버튼 → 클릭 시 모든 필터 리셋.
+- 네트워크 에러: 개발자 도구 offline → `ErrorState` + 재시도 → 복구.
+- 로딩: 새 필터 토글 시 직전 데이터 유지 + 상단 progress bar.
+- 초기 로딩(첫 진입 캐시 X): skeleton 8개 표시.
+- 다크 모드, 호버, 키보드 Tab 진입 시 `:focus-visible` outline 표시.
+
+**커밋 메시지**: `feat(events-v2): add EventCard grid and loading/empty/error states`
+
+---
+
+### PR 4 — 페이지네이션 + 빈 상태 추천
+
+**목표**: 페이지 이동이 가능해지고(§ 5/§ 6.4), 빈 결과 화면 아래 추천 이벤트가 노출(§ 9).
+
+**파일 (생성 순서)**
+
+| 순서 | 파일 | 신/수 | LOC | 내용 |
+|---|---|---|---|---|
+| 1 | `src/pages-v2/EventList/components/Pagination.tsx` | 신 | ~85 | 윈도우 5칸 + 화살표, `totalPages <= 1` 시 미렌더 (§ 6.4) |
+| 2 | `src/pages-v2/EventList/hooks.ts` | 수 | +50 | `useRecommendedEvents` 추가 — `recommendEvents`(`src/api/events.api.ts:103`) 호출, 빈 상태 진입 시점에 lazy fetch + 캐시 |
+| 3 | `src/pages-v2/EventList/components/RecommendedEvents.tsx` | 신 | ~50 | EventCard 재사용, 4개 가로 그리드. 비로그인 폴백은 § 9 열린 결정 따라 빈 배열 허용. |
+| 4 | `src/pages-v2/EventList/EventList.tsx` | 수 | +25 | Pagination mount, EmptyStackTrace 아래 RecommendedEvents 노출, 페이지 변경 시 상단 스크롤 |
+
+**의존**: PR 3.
+**LOC 합계**: ~210.
+**검증**:
+- 마지막 카드 아래 페이지네이션 노출. 클릭 → URL `?page=2` push, 그리드 상단 스크롤, 직전 데이터 dim 후 새 데이터.
+- 첫 페이지 `‹` disabled, 마지막 페이지 `›` disabled.
+- `totalPages <= 1`인 검색 결과에선 페이지네이션 자체 미노출.
+- 의도적 빈 결과 → `EmptyStackTrace` 아래 추천 4장 노출. 추천 카드 클릭 → 상세로 이동.
+- 비로그인 상태에서 빈 결과 → 추천 fetch 동작 확인 (백엔드 응답 형태 따라 § 9에 결과 기록).
+
+**커밋 메시지**: `feat(events-v2): wire pagination and empty-state recommendations`
+
+---
+
+### PR 5 — 키보드 인터랙션 + a11y 마무리
+
+**목표**: `/`, `j`, `k`, `Enter`, `Esc`가 동작하고, 카드 Tab 사이클 + ARIA 속성이 정리. 팔레트(`⌘K`)는 별 PR이 머지되어 있다는 전제하에 결선만.
+
+**파일 (생성 순서)**
+
+| 순서 | 파일 | 신/수 | LOC | 내용 |
+|---|---|---|---|---|
+| 1 | `src/pages-v2/EventList/hooks.ts` | 수 | +70 | `useEventListKeyboard` (§ 7 핵심 흐름) — `onOpenPalette?` 옵션 |
+| 2 | `src/pages-v2/EventList/components/EventCard.tsx` | 수 | +15 | `tabIndex={0}` + `role="link"` + `aria-label` + `Enter`/`Space` 핸들러 |
+| 3 | `src/pages-v2/EventList/components/SearchAndFilters.tsx` | 수 | +10 | 인풋에 `Esc` → 비우기/blur 핸들러 |
+| 4 | `src/pages-v2/EventList/EventList.tsx` | 수 | +15 | hook mount + `searchInputRef`/`cardRefs` 결선, `aria-keyshortcuts` |
+| 5 | `src/pages-v2/EventList/index.tsx` | 수 | +5 | 팔레트 PR이 머지된 경우 `onOpenPalette={openPalette}` 주입, 아니면 미주입(§ 9) |
+| 6 | a11y 점검 패스 | — | — | axe-core devtools 또는 수동 검토. role/aria 누락만 수정. |
+
+**의존**: PR 4. 팔레트 PR(별 시퀀스)이 머지되어 있으면 onOpenPalette 결선까지, 아니면 hook만 도입.
+**LOC 합계**: ~115.
+**검증**:
+- `/` 누름 → 검색 인풋 포커스 + 텍스트 select.
+- 검색 인풋 안에서 `j`/`k` → 그대로 입력됨(패스스루).
+- `Tab` → 검색 → category chip → stack chip → 첫 카드 → 페이지네이션 순.
+- `j`/`k` → 카드 포커스 이동, 마지막 카드에서 `j` 추가는 그대로 유지.
+- `Enter`(카드 포커스) → 상세 페이지로 이동.
+- `Esc`(검색 인풋 포커스) → 인풋 비움 + blur.
+- `prefers-reduced-motion` 시 `scrollIntoView` smooth 제거.
+- 스크린 리더(VoiceOver/NVDA): 카드 aria-label 읽힘, `aria-keyshortcuts` 안내됨.
+
+**커밋 메시지**: `feat(events-v2): add keyboard navigation and a11y polish`
+
+---
+
+### 후속 PR (본 5개 시퀀스 밖)
+
+| PR | 트리거 | 내용 |
+|---|---|---|
+| **EventList +sort** | 백엔드 `sort` 파라미터 합의 완료 | `components/SortSelect.tsx` 신규, `types.ts`/`adapters.ts`/URL 키 추가, hook에 sort 반영 |
+| **EventList location/host A안** | 백엔드 `EventListResponse.content[*]`에 두 필드 추가 | `adapters.ts` 매핑 복원, `EventCard` 메타 라인 3개로 복원 |
+| **EventList 카테고리 카운트 A안** | 카운트 집계 API 추가 | `useCategoryCounts` hook + `SearchAndFilters` chip 라벨에 숫자 |
+| **EventList 무한스크롤 전환** | 사용자 피드백 / 디자인 변경 | `Pagination.tsx` → `InfiniteScrollSentinel.tsx` 교체, 컨테이너만 변경 |
+| **빠른 검색 팔레트** | EventList와 별 시퀀스 (Layout PR과 협의) | 팔레트 컴포넌트 + 글로벌 mount. EventList PR 5의 `onOpenPalette` 슬롯이 채워짐. |
+
+### 머지 순서 그래프
+
+```
+[PR 0: 공용 컴포넌트, VersionedRoute] ───┐
+                                         ▼
+                        [PR 1: 골격 + 데이터 레이어 + 라우터 등록]
+                                         │
+                                         ▼
+                        [PR 2: Hero + SearchAndFilters]
+                                         │
+                                         ▼
+                        [PR 3: EventCard + 그리드 + 상태]
+                                         │
+                                         ▼
+                        [PR 4: 페이지네이션 + 빈 상태 추천]
+                                         │
+                                         ▼
+                        [PR 5: 키보드 + a11y 마무리]
+                                         │
+              ┌──────────────────────────┼──────────────────────────┐
+              ▼                          ▼                          ▼
+   [후속: 정렬]              [후속: location/host A]      [후속: 카테고리 카운트]
+   (백엔드 합의 후)          (백엔드 응답 확장 후)        (집계 API 추가 후)
+
+          [별 시퀀스: 빠른 검색 팔레트] ─→ (EventList PR 5와 병행 또는 직전, 결선만 PR 5에서)
+```
+
+- PR 1~5는 **순차 의존** (각 PR이 직전 PR의 골격/wiring을 전제).
+- 후속 PR들은 PR 5 머지 후 순서 무관하게 **독립적**으로 들어갈 수 있음.
+- 팔레트는 EventList 외부 작업이라 시퀀스 밖에서 관리. 결선(`onOpenPalette`)만 PR 5에 한 줄.
