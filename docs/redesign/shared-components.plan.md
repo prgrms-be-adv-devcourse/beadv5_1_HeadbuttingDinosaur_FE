@@ -873,7 +873,103 @@ export interface KbdProps extends HTMLAttributes<HTMLElement> {
 
 ---
 
-> **다음 턴**: § 4.8 Card, § 4.9 SectionHead (PR 3). 이후 § 4.10~ PR 4 composite.
+### 4.8 Card
+
+#### variant
+
+| variant | border / bg | radius | prototype 사용처 |
+|---|---|---|---|
+| `solid` (default) | `1px solid var(--border)` / `var(--surface)` | 12 (`.flat-card` 토큰) | Login(폼), Cart(아이템·요약), EventDetail(info·purchase), MyPage(티켓·orders·wallet) |
+| `dashed` | `1px dashed var(--border-2)` / `linear-gradient(135deg, var(--brand-light) 0%, transparent 70%)` | 12 | Landing 페이지 하단 CTA 박스 |
+
+> **`dashed` variant 도입 사유**: prototype 의 Landing CTA 박스(`Landing.jsx:248-267`) 가 `.flat-card` 클래스 없이 인라인으로 구성됐지만, 시각 역할이 "강조용 카드 컨테이너"로 동일 → Card variant 로 통합. 그라디언트 끝점(`70%`) 은 토큰화 검토(§ 5).
+
+#### size (= padding)
+
+| size | px | prototype 사용처 |
+|---|---|---|
+| `none` | 0 | EventDetail purchase 패널(외곽 0, 내부에서 padding), MyPage 티켓 카드(stripe 위해 0), MyPage orders 테이블 wrapper |
+| `sm` | 16 | Cart 아이템 카드 |
+| `md` (default) | 20 | Cart 주문 요약 |
+| `lg` | 28 | Login 폼, MyPage wallet 카드 |
+
+> **EventDetail info 카드 (`padding: '4px 0'`)**: 인라인의 비대칭 padding 은 각 `InfoRow` 가 `12px 16px` 자체 padding 을 가지기 때문 → v2 에서는 `padding="none"` + InfoRow(MetaLine) 자체 padding 으로 동등 처리.
+>
+> **Landing CTA (`padding: '28px 32px'`)**: `lg` 와 약간 다름. v2 phase 1 에서는 `lg` 토큰으로 흡수(28×28). 디자인 검토 후 필요시 별도 토큰.
+
+#### state
+
+| state | 트리거 | 시각 | prototype |
+|---|---|---|---|
+| `default` | - | base border + bg | 모든 사용처 |
+| `hover` | mouse over (when `interactive=true`) | border → `text-2`, translateY `-2px`, shadow soft | prototype 의 `.flat-card` 사용처에는 미적용 — interactive 카드는 모두 bespoke (CategoryTile / FeaturedRow / EventCard) |
+| `focus-visible` | 키보드 포커스 (when `interactive=true`) | brand outline ring | prototype 미구현 → v2 신규 |
+
+> **prototype 의 `.flat-card` 는 인터랙션 없음**: prototype 에서 hover-able 한 카드형 UI(CategoryTile / FeaturedRow / EventCard)는 모두 `.flat-card` 가 아닌 자체 인라인 스타일. 본 Card 컴포넌트의 `interactive` 모드는 § 1.5 메모대로 페이지 전용 컴포넌트로 흡수되므로 PR 3 시점에는 **사용처 0**. 그러나 § 3.3 시그니처에 정의된 prop 이므로 spec 으로 유지.
+
+#### modifier
+
+| modifier | 효과 | prototype |
+|---|---|---|
+| `interactive` (default `false`) | hover lift + cursor pointer + focus-visible ring | (사용처 0, 향후 페이지 전용 컴포넌트가 필요 시 활용) |
+| `style.overflow` 등 native style | `...rest` 로 통과 | EventDetail purchase / MyPage 티켓 (`overflow: hidden` 으로 stripe 잘림 방지) |
+| `onClick` | `HTMLAttributes` 로 통과 | (사용처 0 — `interactive=true` 와 함께 사용 권장) |
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 사용처 | variant | padding | interactive | overflow hidden | 비고 |
+|---|---|---|:---:|:---:|---|
+| Login 폼 | solid | lg | - | - | 폼 전체를 감쌈 |
+| Cart 아이템 카드 | solid | sm | - | - | flex row 레이아웃 (children 인라인) |
+| Cart 주문 요약 | solid | md | - | - | sticky (외부에서 `style.position` 부여) |
+| EventDetail info | solid | none | - | - | InfoRow 가 자체 padding 보유 |
+| EventDetail purchase | solid | none | - | O | sticky, 내부 div 에서 padding 20 |
+| MyPage 티켓 카드 | solid | none | - | O | 좌측 stripe 그라디언트 위해 overflow hidden |
+| MyPage orders 테이블 | solid | none | - | O | `<table>` wrapper |
+| MyPage wallet | solid | lg | - | - | 38px 큰 숫자 표시 |
+| Landing CTA | dashed | lg | - | - | brand-light 그라디언트 |
+
+---
+
+### 4.9 SectionHead
+
+#### variant
+- 변종 없음 (단일 외형). h2 20px / mono `// hint` / caption / 우측 action 슬롯 / `border-bottom 1px solid var(--border)`.
+
+> **CTA 미니헤드(`Landing.jsx:255-262`) 통합 검토**: prototype 의 Landing 페이지 하단 CTA 박스 안에 `// get started` + h3 + p 패턴이 있지만, h3 사이즈와 border-bottom 부재로 SectionHead 와 시각이 명확히 다름. **PR 3 범위에선 별도 패턴으로 두고 통합 안 함** (Landing page plan 의 CTA 컴포넌트로 흡수). 향후 사용처 1곳 더 등장 시 `variant: 'compact'` 도입 재검토.
+>
+> **EventList 결과 카운트 헤더(`EventList.jsx:243-250`) 통합 검토**: 동일하게 border-bottom + 2-column 패턴이지만 h2 가 없고 `font-size: 14` 작은 라벨 → SectionHead 의 축소 변종 후보지만 props 차이가 커 통합 안 함. `MetaLine` / `Eyebrow` 와 별개의 "result-count header" 패턴으로 페이지 plan 에서 처리.
+
+#### size
+- 단일 사이즈. CSS 토큰 hint mono 11px / title 20px semibold / caption 13px text-3 / pb 12 / mb 16.
+- (낮은 우선순위) v2 에서 `level?: 2 | 3` 도입 가능 — 시맨틱 마크업 변경용 (`<h2>` ↔ `<h3>`). 시각은 유지. **PR 3 범위에선 h2 고정**.
+
+#### state
+- 자체 state 없음 (콘텐츠 컨테이너 헤더).
+- action 슬롯 안의 `<a>` / `<Button>` 은 자체 hover/focus 를 가짐 (SectionHead 가 관여 안 함).
+
+#### modifier (모두 옵셔널 슬롯)
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `hint` | h2 위에 mono `// {hint}` 작은 라벨 | Landing 카테고리(`category`), Landing Featured(`featured`) |
+| `caption` | h2 아래 13px text-3 부제 1줄 | Landing 카테고리("관심 있는 포맷을 선택해보세요"), Landing Featured("마감 임박 및 신규 오픈 순") |
+| `action` | 우측 슬롯 (링크 / 버튼 / Eyebrow / Kbd 등 ReactNode) | Landing Featured(`<a>전체 보기 →</a>`) |
+
+> `hint`, `caption`, `action` 모두 옵셔널이므로 셋 다 없으면 사실상 단순 h2. prototype 에는 그런 사용처 없음.
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 사용처 | title | hint | caption | action |
+|---|---|---|---|---|
+| Landing 카테고리 섹션 | "카테고리별 이벤트" | "category" | "관심 있는 포맷을 선택해보세요" | - |
+| Landing Featured 섹션 | "이번 주 주목할 이벤트" | "featured" | "마감 임박 및 신규 오픈 순" | `<a>전체 보기 →</a>` |
+
+> **사용처 빈도 메모**: prototype 사용 2회. § 1.4 의 분류 기준(2회 이상 또는 2개 페이지 이상)을 가까스로 만족. SPEC § 0 의 명시 항목이라 PR 3 에 포함하되, 페이지 분포가 Landing 한 곳에 쏠려 있어 **컴포넌트 승격 vs Landing 전용** 검토 여지 있음 → SPEC 명시이므로 공용으로 결정 (단, action 슬롯에 `<Eyebrow>` / `<Kbd>` 가 들어가는 케이스가 phase 2 에서 나올 것을 가정).
+
+---
+
+> **다음 턴**: § 4.10~ PR 4 composite (TermDot, Avatar, AccentMediaBox, QuantityStepper, MetaLine, EmptyState).
 
 
 ## 5. 파일 구조 / 명명 규칙
