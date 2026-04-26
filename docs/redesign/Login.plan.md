@@ -108,7 +108,75 @@ INVENTORY § 4 / `src/contexts/AuthContext.tsx:65` 기준.
 - **요청 헤더 주입**: `src/api/client.ts:36` 의 request 인터셉터가 `accessToken` → `Authorization: Bearer …`, `userId` → `X-User-Id` 자동 주입. Login 페이지에서 추가 작업 없음.
 
 ## 4. 데이터 페칭 / 폼 처리 전략
-(작성 예정)
+
+### 결론 (한 줄)
+
+**기존 패턴 그대로 따른다. 신규 라이브러리 도입 없음.** `useState` 로 폼/에러/로딩 관리, 정규식+커스텀 함수로 검증, axios 직접 호출 + `try/catch` 로 제출. 모두 `src/pages-v2/Login/hooks.ts` 의 단일 훅 `useLoginForm()` 에 캡슐화.
+
+### 1) 폼 라이브러리 — **직접 (`useState`)**
+
+- **사용할 훅 / API**: `useState` 만. 폼 상태 1개 + 에러 상태 1개.
+- **기존 패턴 따라야 하는 이유 (일관성)**: INVENTORY § 5 — `react-hook-form`, `formik` 미도입. 모든 기존 페이지(Login/Signup/Cart/Payment/MyPage)가 `useState` 로 폼 관리. SPEC § 9 「데이터 페칭 라이브러리 — 추가 라이브러리 미도입 확정」 의 정신을 폼에도 동일 적용. 새로 들이면 v2 단일 페이지만 다른 컨벤션이 되어 혼란.
+- **신규 도입 없음**.
+- **코드 구조 (3~5줄)**:
+  ```ts
+  // src/pages-v2/Login/hooks.ts
+  const [form, setForm] = useState<LoginFormState>({ email: '', password: '' });
+  const [errors, setErrors] = useState<LoginFieldErrors>({});
+  const [loading, setLoading] = useState(false);
+  const onChangeEmail = (v: string) => { setForm(f => ({ ...f, email: v })); setErrors(e => ({ ...e, email: undefined })); };
+  ```
+
+### 2) 검증 — **직접 (정규식 + 커스텀 함수)**
+
+- **사용할 훅 / API**: `validate(form): LoginFieldErrors` 순수 함수. 정규식 `/\S+@\S+\.\S+/` 로 이메일, 빈 값 체크.
+- **기존 패턴 따라야 하는 이유 (일관성)**: INVENTORY § 5 — `zod`, `yup` 미도입. 기존 `src/pages/Login.tsx:18-25` 가 동일하게 인라인 함수로 처리. 422 응답에 따른 서버 측 필드 에러 매핑은 §3 표 참조 — 클라 검증과 같은 `LoginFieldErrors` 형태로 통합되므로 별도 스키마 라이브러리 가치 낮음.
+- **신규 도입 없음**.
+- **코드 구조 (3~5줄)**:
+  ```ts
+  function validate(form: LoginFormState): LoginFieldErrors {
+    const e: LoginFieldErrors = {};
+    if (!form.email) e.email = '이메일을 입력하세요';
+    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = '올바른 이메일 형식이 아닙니다';
+    if (!form.password) e.password = '비밀번호를 입력하세요';
+    return e;
+  }
+  ```
+
+### 3) 데이터 페칭 — **직접 axios 호출 (`useApi` 미사용)**
+
+- **사용할 훅 / API**: `src/api/auth.api.ts` 의 `login(body)` 직접 호출 + `unwrapApiData()` (`src/api/client.ts`) 로 응답 언랩 + `useAuth().login(accessToken, refreshToken)` 으로 토큰 저장 + `useNavigate()` 로 리다이렉트.
+- **기존 패턴 따라야 하는 이유 (일관성)**: INVENTORY § 5 — React Query / SWR 미도입. SPEC § 9 「데이터 페칭 라이브러리 — 추가 라이브러리 미도입 확정」.
+- **`useApi` 를 쓰지 않는 이유**: `src/hooks/useApi.ts:23` 의 `useApi` 는 **GET 조회 + mount 즉시 실행** 용도의 read-only 훅이다 (`immediate=true` 기본값, mount 시 1회 실행). Login 의 submit 은 사용자 클릭 트리거의 mutation 이라 `useApi` 의 사용 모델과 맞지 않음. 기존 `src/pages/Login.tsx:27-41` 도 `useApi` 미사용 — 같은 판단을 따른다.
+- **신규 도입 없음**. (mutation 훅 신설도 하지 않음 — 한 페이지에서만 쓰면 추상화 가치 없음.)
+- **코드 구조 (3~5줄)**:
+  ```ts
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const fieldErrors = validate(form);
+    if (Object.keys(fieldErrors).length) { setErrors(fieldErrors); return; }
+    setLoading(true);
+    try {
+      const { accessToken, refreshToken } = unwrapApiData(await loginApi(form));
+      await auth.login(accessToken, refreshToken);
+      navigate(returnTo ?? '/', { replace: true });
+    } catch (err) {
+      setErrors(mapLoginError(err));   // §3 의 HTTP 상태 → 메시지 매핑
+    } finally {
+      setLoading(false);
+    }
+  };
+  ```
+
+### 요약 표
+
+| 항목 | 선택 | 위치 / 함수 | 신규 도입 | 사유 |
+|---|---|---|---|---|
+| 폼 | `useState` 직접 | `hooks.ts` 의 `useLoginForm` | X | INVENTORY § 5: 폼 라이브러리 미도입 / 기존 페이지 전반 동일 |
+| 검증 | 정규식 + 순수 함수 | `hooks.ts` 의 `validate` | X | INVENTORY § 5: zod/yup 미도입 / 기존 Login 과 동일 |
+| 페칭 | axios 직접 호출 | `src/api/auth.api.ts#login` + `unwrapApiData` | X | INVENTORY § 5 + SPEC § 9 확정 / `useApi` 는 GET 즉시 실행용이라 부적합 |
+| 토큰 저장 | `useAuth().login()` | `src/contexts/AuthContext.tsx:65` | X | §3 참조. localStorage 직접 접근 금지 |
+| 리다이렉트 | `useNavigate()` | `react-router-dom` | X | INVENTORY § 5 기존 도입 |
 
 ## 5. 신규 상태 처리 (로딩/에러/empty/권한)
 (작성 예정)
