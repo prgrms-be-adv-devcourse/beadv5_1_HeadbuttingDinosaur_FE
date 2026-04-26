@@ -5,9 +5,11 @@
  * 화면 컴포지션으로 변환. 데이터 페치/뮤테이션/네비게이션은 모두 컨테이너
  * (`index.tsx`)가 담당하며, 본 컴포넌트는 props 만 받아 렌더한다.
  *
- * PR 1 한정:
- * - 결제 버튼은 항상 disabled (`useCheckout` 도입은 PR 3).
- * - 에러 분기는 minimal 메시지. PR 2 에서 `onRetry`/`describeError` 패턴 도입.
+ * PR 2 부터:
+ * - `useCheckout` 도입 → 결제 버튼 disabled 강제 해제 (`submitting` 상태만 반영).
+ * - `pendingItemIds` 는 `useCartMutations` 가 채움 → row 단위 가드 활성.
+ *
+ * PR 3 예정: 에러 분기에 `onRetry` 버튼 + `describeError` 패턴 도입.
  */
 
 import type { ReactNode } from 'react';
@@ -104,8 +106,6 @@ export function Cart({
           total={cart.total}
           onCheckout={onCheckout}
           submitting={checkoutState === 'submitting'}
-          /* PR 1: 결제 흐름 미도입 → 항상 disabled. PR 3 에서 제거. */
-          disabled
         />
       </div>
     </PageShell>

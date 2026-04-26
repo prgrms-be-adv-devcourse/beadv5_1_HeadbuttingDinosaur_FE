@@ -1,35 +1,77 @@
 /**
  * Cart 페이지 컨테이너 — 라우트 진입점.
  *
- * 책임 (Cart.plan.md § 1):
- * - 데이터 페치: `useCart()` (PR 1 placeholder; PR 2 에서 실제 GET /cart 로 교체)
- * - 네비게이션: `useNavigate` 보유 → `onBrowse`/(PR 2 이후) `onQuantityChange/onRemove/onCheckout` 콜백을 leaf 페이지에 주입
- * - 인증 가드: `App.tsx` 의 `<RequireAuth>` 가 라우트 진입 차단 (§ 8.2) → 본 컨테이너는 무지
+ * Cart.plan.md § 1 / § 5 / § 10.2 step 7.
  *
- * **PR 1 한정**: `useCart()` 가 항상 `loading` 을 반환하므로 mutation 콜백
- * (`onQuantityChange/onRemove/onCheckout`) 은 사용자에게 도달하지 않음.
- * 시그니처 보장을 위해 no-op 으로 박아두며, PR 2/3 에서 실제 mutation 으로 교체.
+ * - 데이터 페치 / 뮤테이션 / 결제 트리거: `useCart` + `useCartMutations` + `useCheckout`
+ * - 인증 가드: `App.tsx` 의 `<RequireAuth>` 가 라우트 진입 차단 (§ 8.2) → 본 컨테이너는 무지
+ * - QuantityStepper 는 절대 next quantity (`(itemId, next)`) 를 보내지만 mutation 훅은
+ *   delta 기반(`setQuantityDelta(id, ±1)`) 이라 본 컨테이너에서 변환.
+ *
+ * **PR 2 한정 — v1 PaymentModal 임시 브리지**
+ * `import PaymentModal from '@/components/PaymentModal'` 한 줄을 PR 3 에서 v2
+ * 모달로 교체. 그 외 로직은 그대로 유지된다.
+ *
+ * 결제 성공(`onSuccess`)은 v1 PaymentModal 의 WALLET-only 즉시 결제 경로에서만
+ * 발화. PG 경로는 SDK 가 브라우저를 redirect 시키므로 Cart 자체는 unmount.
+ * `/payment/complete` 의 state shape 은 v1 Cart 와 동일하게 `{ orderId, amount }`
+ * 로 맞춘다 (PaymentComplete 페이지가 그 키를 읽음).
  */
 
 import { useNavigate } from 'react-router-dom';
 
-import { Cart } from './Cart';
-import { useCart } from './hooks';
+import PaymentModal from '@/components/PaymentModal';
 
-const noop = () => {};
+import { Cart } from './Cart';
+import { useCart, useCartMutations, useCheckout } from './hooks';
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const query = useCart();
+  const cart = useCart();
+  const mut = useCartMutations(cart);
+  const items = cart.status === 'success' ? cart.data.items : [];
+  const co = useCheckout(items, cart.refetch);
+
+  const handleQuantityChange = (itemId: string, next: number) => {
+    if (cart.status !== 'success') return;
+    const item = cart.data.items.find((i) => i.cartItemId === itemId);
+    if (!item) return;
+    const delta = next - item.quantity;
+    if (delta === 1 || delta === -1) {
+      void mut.setQuantityDelta(itemId, delta);
+    }
+  };
+
+  const target = co.paymentTarget;
 
   return (
-    <Cart
-      query={query}
-      onQuantityChange={noop}
-      onRemove={noop}
-      onCheckout={noop}
-      onBrowse={() => navigate('/events')}
-      checkoutState="idle"
-    />
+    <>
+      <Cart
+        query={cart}
+        onQuantityChange={handleQuantityChange}
+        onRemove={(id) => {
+          void mut.removeItem(id);
+        }}
+        onCheckout={() => {
+          void co.submit();
+        }}
+        onBrowse={() => navigate('/events')}
+        checkoutState={co.checkoutState}
+        pendingItemIds={mut.pendingItemIds}
+      />
+      {target && (
+        <PaymentModal
+          open
+          orderId={target.orderId}
+          totalAmount={target.totalAmount}
+          onClose={co.closeModal}
+          onSuccess={() =>
+            navigate('/payment/complete', {
+              state: { orderId: target.orderId, amount: target.totalAmount },
+            })
+          }
+        />
+      )}
+    </>
   );
 }
