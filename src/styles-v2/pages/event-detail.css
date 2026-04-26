@@ -87,3 +87,24 @@
   white-space: pre-wrap;
   margin: 0;
 }
+
+/* PriceSummary (§2 PriceSummary) — 합계 한 줄. price=0 / 매진 시 component 가 null 반환 */
+.ed-price-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0 0;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.ed-price-summary__label {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-2);
+}
+.ed-price-summary__value {
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
