@@ -226,3 +226,103 @@
   border-radius: var(--r-md);
   margin-top: 16px;
 }
+
+/* ── Recommended section (§2 RecommendedSection / PR 4) ─────────────
+   Mounts under cart-grid. Heading uses Phase 0 SectionHead. Card grid
+   adapts: 5 cards on wide, 2 on tablet, 1 on mobile. Each card pairs
+   a clickable Link region with a Phase 0 Button (RecommendedCard.tsx
+   markup). */
+.cart-rec-section {
+  margin-top: 32px;
+}
+.cart-rec-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 960px) {
+  .cart-rec-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 540px) {
+  .cart-rec-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cart-rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: border-color var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
+}
+.cart-rec-card:hover {
+  border-color: var(--text-2);
+  transform: translateY(-2px);
+}
+
+.cart-rec-card__link {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+.cart-rec-card__link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+.cart-rec-card__category {
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--brand);
+  letter-spacing: 0.02em;
+}
+.cart-rec-card__title {
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cart-rec-card__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.cart-rec-card__price {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.cart-rec-card__price.is-free {
+  color: var(--brand);
+}
+
+/* Skeleton variant — locks the slot at the same height to avoid shift
+   when ready cards swap in. Height tuned to a 2-line title + meta +
+   button layout. */
+.cart-rec-card--skeleton {
+  min-height: 148px;
+  background: var(--surface-3);
+  border-color: transparent;
+  animation: cart-skel-shimmer 1.4s ease-in-out infinite;
+}
