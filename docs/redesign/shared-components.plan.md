@@ -759,7 +759,121 @@ export interface KbdProps extends HTMLAttributes<HTMLElement> {
 
 ---
 
-> **다음 턴**: § 4.6 Button, § 4.7 Input (PR 2). § 4.8 Card, § 4.9 SectionHead (PR 3). 이후 § 4.10~ PR 4 composite.
+### 4.6 Button
+
+#### variant
+
+| variant | bg / text / border | prototype 사용처 |
+|---|---|---|
+| `primary` (default) | bg `brand` / text `#fff` / border 없음 | Login("로그인"), Cart("결제하기" / 빈 상태 "이벤트 둘러보기"), EventDetail("바로 구매하기"), MyPage("충전하기"), Landing(Hero "이벤트 둘러보기" / CTA "시작하기"), EventList 빈 상태("필터 초기화") |
+| `ghost` | bg transparent / text `text-2` / border `border-2` | EventDetail("장바구니에 담기" / "매진된 이벤트입니다"), Cart("삭제"), MyPage("프로필 수정" / "출금 요청"), Landing("빠른 검색") |
+
+> **`danger` variant**: prototype 미사용. v2 phase 1 PR 2 범위에서 도입 안 함. 환불/탈퇴 등 위험 액션이 등장하면 후속 PR 에서 추가.
+
+#### size
+
+| size | 높이 / padding / 폰트 | prototype 사용처 |
+|---|---|---|
+| `sm` | h 28 / `0 10px` / 12.5px | Cart "삭제", MyPage "프로필 수정", EventList "필터 초기화" |
+| `md` (default) | h 36 / `0 14px` / 13.5px | Cart 빈 상태 "이벤트 둘러보기", MyPage "충전하기" / "출금 요청" |
+| `lg` | h 44 / `0 18px` / 14px | Login "로그인", EventDetail "바로 구매하기" / "매진된 이벤트입니다", Cart "결제하기", Landing Hero CTA / 페이지 하단 CTA |
+
+#### state
+
+| state | 트리거 | 시각 |
+|---|---|---|
+| `default` | - | variant 기본 |
+| `hover` | mouse over | primary: bg `brand-hover`, ghost: bg `surface-2` |
+| `active` | mouse down | bg 추가 darken / scale 0.98 (CSS 토큰 결정) |
+| `focus-visible` | 키보드 포커스 | brand outline ring (prototype 미구현 → v2 신규) |
+| `disabled` | `disabled` prop | opacity 0.5 + cursor not-allowed | EventDetail "매진된 이벤트입니다", Login 로그인 중 |
+| `loading` | `loading` prop | iconStart 자리에 회전 스피너 (`◐`), 텍스트 children 그대로, 자동 `disabled` | Login (회전 애니메이션 `@keyframes spin`) |
+
+> **disabled 와 loading 구분**: prototype Login 은 `disabled={loading}` + 텍스트 변경(`로그인 중...`) 으로 처리. v2 에서는 `<Button loading>로그인</Button>` 한 줄로 동등 동작 (children 텍스트는 그대로, 스피너 자동, disabled 자동).
+
+#### modifier
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `full` | width 100% | Login "로그인", EventDetail "바로 구매하기" / "장바구니에 담기" / "매진된 이벤트입니다", Cart "결제하기" |
+| `iconStart` | 좌측 슬롯 | EventDetail 장바구니(`cart`), Cart 삭제(`trash`), MyPage 충전(`plus`) / 출금(`wallet`), Landing 빠른 검색(`search`) |
+| `iconEnd` | 우측 슬롯 | Landing 빠른 검색의 `<Kbd>⌘K</Kbd>` (kbd 도 ReactNode 슬롯에 들어감) |
+
+> Landing Hero "이벤트 둘러보기 →" / CTA "시작하기 →" 의 `→` 는 prototype 에서 인라인 텍스트(`<span style={{ opacity: 0.7 }}>→</span>`). v2 에서는 children 안에 텍스트로 유지하거나 `iconEnd` 에 화살표 아이콘 — **children 텍스트 유지** 채택 (단순 글리프).
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 라벨 | variant | size | full | iconStart | state |
+|---|---|---|:---:|---|---|
+| 로그인 | primary | lg | O | (loading 시 스피너) | loading 가능 |
+| 로그인 중... | primary | lg | O | 스피너 | loading + disabled |
+| 결제하기 | primary | lg | O | - | default |
+| 바로 구매하기 | primary | lg | O | - | default |
+| 장바구니에 담기 | ghost | md | O | `cart` | default |
+| 매진된 이벤트입니다 | ghost | lg | O | - | disabled |
+| 이벤트 둘러보기 (Cart 빈 상태) | primary | md | X | - | default |
+| 이벤트 둘러보기 (Landing Hero) | primary | lg | X | - | default |
+| 빠른 검색 ⌘K | ghost | lg | X | `search` | default (+ iconEnd Kbd) |
+| 시작하기 → | primary | lg | X | - | default |
+| 충전하기 | primary | md | X | `plus` | default |
+| 출금 요청 | ghost | md | X | `wallet` | default |
+| 삭제 | ghost | sm | X | `trash` | default |
+| 프로필 수정 | ghost | sm | X | - | default |
+| 필터 초기화 | primary | sm | X | - | default |
+
+---
+
+### 4.7 Input
+
+#### variant
+
+| variant | 외형 | prototype 사용처 |
+|---|---|---|
+| `default` (default) | 단정한 폼 인풋. h 42 / radius 8 / border `border-2`. label + error 슬롯 표준 사용 | Login 이메일 / 비밀번호 |
+| `code` | 검색바 / 터미널 톤. h 44 / `.code-input` 패턴 / iconStart + hintEnd 슬롯 표준 | EventList 검색바 |
+
+> **`palette` variant**: CommandPalette 의 `.palette-input` 은 모달 chrome 의 일부로 본 § 4 Input 에 통합 안 함. `layout.plan.md` 에서 다룸.
+>
+> **variant 도입 사유**: prototype 의 두 인풋이 단순 modifier 차이가 아니라 **shape · 사용 맥락 · 슬롯 활용 패턴이 모두 다름**. variant 로 분리하는 편이 default 케이스의 props 표면을 단순하게 유지함.
+
+#### size
+- 단일 사이즈 (variant 가 사실상 사이즈 토큰을 결정 — default 42 / code 44).
+- `size?: 'md' | 'lg'` 는 PR 2 범위에서 도입 안 함 (prototype 두 사용처 모두 ~42~44 안에 수렴).
+
+#### state
+
+| state | 트리거 | 시각 | prototype |
+|---|---|---|---|
+| `default` | - | border `border-2` | 모든 사용처 기본 |
+| `focus` | input focus | border `brand` + soft glow (box-shadow `brand` 0.1 alpha) | Spec § 1 명시 (prototype CSS 토큰에 정의) |
+| `error` | `error` prop 존재 | border `danger`, 하단에 `× {error}` 12px danger 텍스트 | Login 이메일 형식 오류 ("올바른 이메일 형식이 아닙니다") |
+| `disabled` | `disabled` prop | opacity 0.5 + bg `surface-2` + cursor not-allowed | prototype 미사용 → v2 신규 (필요 시) |
+| `readonly` | `readOnly` prop (HTML attr) | 동일 외형, caret 없음 | prototype 미사용 |
+
+> **focus + error 동시**: 에러 상태에서도 focus 시 border 는 `danger` 유지하되 glow 만 추가 (Spec § 1 의 "focus 시 border brand + soft glow" 는 default state 한정으로 해석).
+
+#### modifier
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `label` | 인풋 위 13px text-2 라벨 + 자동 `htmlFor` 연결 | Login "이메일" / "비밀번호" |
+| `error` | 인풋 아래 12px danger 메시지 (`× {error}` 형식) | Login 이메일 검증 실패 시 |
+| `iconStart` | 인풋 내부 좌측 (variant `code` 표준) | EventList 검색바 (`search` 16px) |
+| `hintEnd` | 인풋 내부 우측 (variant `code` 표준) | EventList 검색바 (`<Kbd>/</Kbd>`) |
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 사용처 | variant | label | error | iconStart | hintEnd | placeholder |
+|---|---|---|---|---|---|---|
+| Login 이메일 | default | "이메일" | (조건부) "올바른 이메일 형식이 아닙니다" | - | - | "you@example.com" |
+| Login 비밀번호 | default | "비밀번호" | - | - | - | (없음) |
+| EventList 검색바 | code | - | - | `search` | `<Kbd>/</Kbd>` | "이벤트명이나 기술 스택으로 검색" |
+
+> **외부 ref 호출**: EventList 의 `/` 단축키가 `window.__focusSearch = () => inputRef.current?.focus()` 로 input ref 에 직접 접근. v2 에서는 `forwardRef` 적용된 `<Input variant="code" ref={searchRef} />` 로 동등 동작 보장 (§ 3.2 시그니처대로).
+
+---
+
+> **다음 턴**: § 4.8 Card, § 4.9 SectionHead (PR 3). 이후 § 4.10~ PR 4 composite.
 
 
 ## 5. 파일 구조 / 명명 규칙
