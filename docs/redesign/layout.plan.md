@@ -525,7 +525,138 @@ export function useGlobalShortcuts(opts: UseGlobalShortcutsOptions): void;
 
 
 ## 4. 데이터 의존성 (라우터, 인증, 테마)
-(작성 예정)
+
+INVENTORY.md §4·§5 와 `src/contexts/` 실제 파일 기준. 기존 자산(✅ 재사용) / 신규 작성(🆕) 표기.
+
+### 4-1. 라우터
+
+**자산** — INVENTORY §5 라우팅: `react-router-dom` v6.22.3, 라우트 정의는 `src/App.tsx`.
+
+| 용도 | API | 위치 | 비고 |
+|---|---|---|---|
+| ✅ 현재 경로 인지 | `useLocation()` → `pathname` | `react-router-dom` | Layout 내부에서 `pathname` → `RouteKey` 매핑 |
+| ✅ 라우트 이동 | `useNavigate()` | `react-router-dom` | `NavigateFn` 어댑터로 래핑하여 sub 컴포넌트에 주입 |
+| ✅ children 슬롯 | `<Outlet />` | `react-router-dom` | `Layout` 의 `editor` grid-area 내부 |
+| 🆕 pathname → RouteKey 매핑 | `routeFromPath(pathname): RouteKey` | `Layout/utils.ts` (신규) | `/` → `home` (Landing 도입 후) 또는 `events`, `/events/:id` → `detail`, `/cart` → `cart`, `/mypage` → `mypage`, `/login` → `login`. 미매칭은 `home`. **Landing 라우트 정책 의존** (SPEC §9 보류) |
+| 🆕 RouteKey + params → path | `pathFromRoute(key, params): string` | `Layout/utils.ts` (신규) | `nav('detail', { id })` → `/events/${id}`, `nav('events', { category })` → `/events?category=${category}` 등 |
+
+**라우트 정보가 필요한 컴포넌트** (§3 props 기준):
+
+| 컴포넌트 | 사용 |
+|---|---|
+| `ActivityBar` | `currentRoute` 로 active 아이콘 표시. `events` ↔ `detail` 은 같은 묶음으로 active |
+| `Sidebar` / `SidebarMenu` | `currentRoute` active 표시 (좌측 보더 + bg). 메뉴 트리 항목별 비교 |
+| `TabBar` | `activeKey` 로 상단 인디케이터 |
+| `Minimap` | `route` 로 syntax 패턴 선택 |
+| `StatusBar` | `currentRoute` 로 라벨 표시 ("이벤트 목록", "장바구니" 등) |
+| `useGlobalShortcuts` | `g h/e/c/m` 시퀀스로 `onNavigate` 호출 |
+| `usePaletteCommands` | 정적 명령의 `action: () => navigate(...)` |
+
+**Active 표시 로직**:
+- `ActivityBar`: `events` 항목은 `currentRoute ∈ {'events','detail'}` 일 때 active (Layout.jsx:30 동일)
+- `Sidebar`: 단순 1:1 비교. 카테고리 클릭(`onNavigate('events', { category })`)은 active 판정에 영향 없음(`events` active 만 유지)
+- `TabBar`: `activeKey === t.key` 단순 비교. 6개 탭 항상 표시 (프로토타입과 동일 — 고정 라우트 셋)
+
+### 4-2. 인증
+
+**자산** — INVENTORY §4 + 실제 파일(`src/contexts/AuthContext.tsx`).
+
+| 용도 | API | 위치 | 형태 |
+|---|---|---|---|
+| ✅ 로그인 상태 | `useAuth()` → `isLoggedIn: boolean` | `src/contexts/AuthContext.tsx` | Provider 는 `src/main.tsx` 에 마운트됨 |
+| ✅ 사용자 정보 | `useAuth()` → `user: GetProfileResponse \| null` | 동일 | 닉네임은 `user.nickname` 사용 (SidebarSession, StatusBar) |
+| ✅ 로딩 상태 | `useAuth()` → `isLoading: boolean` | 동일 | 초기 마운트 동안 `<Loading fullscreen />` 처리는 라우트 가드 책임 — Layout 은 이미 가드 통과 후 렌더되므로 별도 처리 불필요 |
+| ✅ 로그아웃 | `useAuth()` → `logout(): void` | 동일 | 토큰 3종 제거 + 상태 초기화. CommandPalette "로그아웃" 항목에서 호출 |
+| ✅ 로그인 가드 | `<RequireAuth>` (`src/App.tsx:48`) | 라우트 단 | Layout 내부에서 가드 다시 작성하지 않음. Layout 은 비인증 라우트(`/`, `/events/:id`, `/login`)에서도 렌더되므로 `isLoggedIn=false` 케이스를 항상 지원해야 함 |
+
+**로그인 / 비로그인 표시 차이**:
+
+| 컴포넌트 | 비로그인 | 로그인 |
+|---|---|---|
+| `ActivityBar` | `cart` / `mypage` 클릭 → `nav('login')` 가드. 카트 배지 미표시(카운트=0) | 정상 nav. 카트 배지 표시 |
+| `SidebarMenu` | 메뉴 트리에 "로그인" 항목 추가(맨 아래). `cart`/`mypage` 클릭 → `nav('login')` | "로그인" 항목 숨김. `cart`/`mypage` 정상 nav |
+| `SidebarSession` | 섹션 자체 미렌더 | 닉네임 + ● 온라인 표시 |
+| `StatusBar` | 우측에 "비회원" 텍스트 | "${nickname} 님" 표시 |
+| `CommandPalette` | "로그인" 항목 표시. `cart`/`mypage` 검색 → 클릭 시 login 으로 가드 | "로그아웃" 항목 표시. `cart`/`mypage` 정상 이동 |
+
+**isLoggedIn 이 필요한 컴포넌트**: `Layout`(prop drilling 진원지), `ActivityBar`, `Sidebar`, `SidebarMenu`, `SidebarSession`(렌더 게이트), `StatusBar`, `CommandPalette`/`usePaletteCommands`, `useGlobalShortcuts` (g c / g m 시퀀스 가드).
+
+### 4-3. 테마
+
+**자산** — `src/contexts/ThemeContext.tsx` 실제 시그니처:
+
+```ts
+type Theme = 'light' | 'dark' | 'system';
+interface ThemeContextValue {
+  theme: Theme;
+  resolvedTheme: 'light' | 'dark';   // 'system' 해석 결과
+  setTheme: (t: Theme) => void;
+  toggleTheme: () => void;
+}
+export function useTheme(): ThemeContextValue;
+```
+
+- Provider 는 `src/main.tsx` 에서 앱 루트에 마운트(예상). `data-theme` 속성을 `document.documentElement` 에 자동 부착(L21) → `ide-theme.css`의 `[data-theme="dark"]` 셀렉터가 자동 동작.
+- 영속화 키: `'devticket-theme'` (`STORAGE_KEY`).
+
+**Layout 에서의 사용**:
+
+| 위치 | 사용 |
+|---|---|
+| `Layout` (index.tsx) | `useTheme()` → `resolvedTheme` 을 `TitleBar` 에 prop 전달 (sun/moon 아이콘 분기). `toggleTheme` 은 `LayoutChromeProvider` 의 `onToggleTheme` 으로 주입 |
+| `TitleBar` | `theme: ThemeMode` prop (`'light'\|'dark'`) — 아이콘 분기. **`'system'`은 도달하지 않음** (`resolvedTheme` 만 받기 때문) |
+| `LayoutChromeContext` | `toggleTheme()` 을 `ChromeContextValue.toggleTheme` 으로 노출 → `CommandPalette` "테마 전환" 명령에서 호출 |
+
+**테마 토글 버튼 위치** — 프로토타입과 동일하게 **TitleBar 우측 끝** 1곳. 추가 토글 버튼은 두지 않음 (ActivityBar/StatusBar 에는 없음). CommandPalette 의 "테마 전환" 명령이 두 번째 진입점.
+
+**3-state(`'system'`) 처리**:
+- `TitleBar` 는 `resolvedTheme` 만 받으므로 `'light'\|'dark'` 만 보임 — 아이콘 표시 일관성 확보.
+- `setTheme('system')` UI는 Layout 책임 아님 (마이페이지 설정 등에 위임). Layout 의 토글 버튼은 `toggleTheme()` 만 호출.
+
+### 4-4. 기타
+
+**카트 카운트** — 🆕 **신규 컨텍스트 필요**.
+
+INVENTORY §5: 기존 코드에 `CartContext` / `CartProvider` / `useCart` **없음**(grep 결과 0건). 카트는 페이지(`Cart.tsx`) 안에서만 `getCart()` 호출. ActivityBar 배지를 위해 전역 카트 카운트가 필요하므로 신규 작성.
+
+| 항목 | 설계 | 위치 |
+|---|---|---|
+| 🆕 `CartContext` | `{ count: number, refresh: () => Promise<void>, isLoading: boolean }` | `src/contexts/CartContext.tsx` (v2 규칙: 재사용 가능한 전역 상태이므로 `contexts-v2/` 가 아닌 `contexts/` 가 자연스럽지만, **기존 폴더 수정 금지 절대 규칙**(CLAUDE.md)에 따라 `src/contexts-v2/CartContext.tsx` 로 신설 — Layout 작업과 분리된 별도 PR 권장) |
+| 🆕 `useCart()` | `useContext(CartContext)` | 동일 |
+| `CartProvider` 위치 | `<AuthProvider>` 내부, `<ThemeProvider>` 와 형제 (또는 안쪽) | `src/main.tsx` 추가 마운트 |
+| 데이터 소스 | `cart.api` `getCart()` → `response.items.length` (또는 `quantity` 합) | INVENTORY §2 |
+| 갱신 트리거 | (a) `isLoggedIn` true 전이 시 1회 (b) Cart 페이지에서 `addCartItem`/`clearCart` 후 명시적 `refresh()` (c) 페이지 라우트 진입 시 옵션 |
+| 비로그인 시 | `count = 0`, API 호출 안 함 |  |
+
+**대안** (Layout PR 단독으로 진행하고 싶을 때): Layout 안에서 직접 `getCart()` 호출하는 `useCartCount()` 훅을 `Layout/hooks/useCartCount.ts` 로 작성. 단점은 카트 페이지에서 추가/비우기 직후 카운트가 즉시 반영되지 않음(라우트 변경 시점에만 갱신). 1차에는 이 방식으로 가고, 후속 PR에서 `CartContext` 로 격상 권장.
+
+**알림 / Toast** — INVENTORY §5 에 `ToastContext` 존재 명시.
+
+| 항목 | 위치 | Layout 사용 |
+|---|---|---|
+| ✅ `useToast()` | `src/contexts/ToastContext.tsx` | Layout 본체는 직접 사용하지 않음. 단 `LayoutChromeContext.logout()` 후 안내 토스트, CommandPalette "테마 전환" 후 안내 토스트 등 향후 hook 내부에서 호출할 여지만 명시 |
+
+**Icon / fmtDate** — 프로토타입의 `window.Icon` / `window.fmtDate` 대체.
+
+| 항목 | 처리 |
+|---|---|
+| 🆕 `Icon` 컴포넌트 | `src/components-v2/Icon/index.tsx` (이 plan 의 §7 `prerequisite`. Layout 작업 직전 PR로 분리). 프로토타입 `common.jsx` 의 Icon 셋을 SVG 컴포넌트로 이식 |
+| 🆕 `fmtDate(iso): string` | `src/utils-v2/format.ts` (단일 함수). `SidebarUpcoming` 의 `dateText` 는 어댑터 단에서 미리 포맷하여 VM에 박는 것이 §0 규칙(adapters → VM)에 부합 — Layout 안에서 fmtDate 직접 호출 안 함 |
+
+### 4-5. 의존성 요약
+
+| 자원 | 종류 | 위치 | Layout 사용처 |
+|---|---|---|---|
+| ✅ `useLocation` / `useNavigate` / `Outlet` | 라이브러리 | `react-router-dom` | `Layout` |
+| ✅ `useAuth` | 기존 컨텍스트 | `src/contexts/AuthContext.tsx` | `Layout` (→ sub 에 prop 주입) |
+| ✅ `useTheme` | 기존 컨텍스트 | `src/contexts/ThemeContext.tsx` | `Layout` |
+| ✅ `useToast` | 기존 컨텍스트 | `src/contexts/ToastContext.tsx` | (선택) `LayoutChromeProvider` 내부 |
+| 🆕 `LayoutChromeContext` / `useChrome` | 신규 컨텍스트 | `src/components-v2/Layout/LayoutChromeContext.tsx` | `Layout` 내부에 한정 — 외부 페이지 노출 X |
+| 🆕 `useCartCount` (1차) → `CartContext` (후속) | 신규 훅/컨텍스트 | `Layout/hooks/useCartCount.ts` → `src/contexts-v2/CartContext.tsx` | `Layout` |
+| 🆕 `routeFromPath` / `pathFromRoute` | 신규 유틸 | `Layout/utils.ts` | `Layout` |
+| 🆕 `Icon` | 신규 공용 컴포넌트 | `src/components-v2/Icon/` | 거의 모든 sub 컴포넌트 (사전 PR로 분리) |
+| 🆕 어댑터 (categories, upcoming) | 신규 | `Layout/adapters.ts` 또는 페이지 어댑터 | `Sidebar` 입력 — `getEvents()` → `CategoryCount[]` + `UpcomingEventVM[]` |
+
 
 ## 5. ide-chrome.css 토큰 및 클래스 목록
 (작성 예정)
