@@ -102,6 +102,13 @@
   color: var(--text-3);
 }
 
+/* Theme toggle reuses .act-btn but must fit inside the 36px title bar. */
+.ide-title .act-btn {
+  width: 30px;
+  height: 26px;
+  border-left: 0;
+}
+
 /* ─── Activity bar (left icon rail) ───────────────────── */
 .ide-activity {
   background: var(--sidebar-bg);
