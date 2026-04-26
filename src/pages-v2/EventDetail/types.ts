@@ -26,5 +26,5 @@ export type EventDetailQuery =
   | { status: 'loading'; previous?: EventDetailVM }
   | { status: 'success'; data: EventDetailVM; fetchedAt: number }
   | { status: 'not-found' }
-  | { status: 'forbidden' }
+  | { status: 'forbidden'; message?: string }
   | { status: 'error'; error: unknown; previous?: EventDetailVM };
