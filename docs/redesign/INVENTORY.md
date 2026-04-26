@@ -354,4 +354,79 @@ src/api/
 (작성 예정)
 
 ## 8. SPEC.md 갱신 제안
-(작성 예정)
+
+`docs/redesign/Spec.md` 의 § 9, § 10 표를 INVENTORY 기준으로 다음과 같이 갱신할 것을 제안. (실제 수정은 별도 PR.)
+
+### § 9 — "범위 밖 페이지 / 항목" 갱신 제안
+
+**현재 § 9 「프로토타입에 없는 기존 페이지」 표** — 큰 골자는 맞지만 다음 두 가지를 명확화:
+
+| 변경 포인트 | 제안 |
+|---|---|
+| `seller/*`, `admin/*` 표기 | 단순 "현행 유지" 대신 §7 분류대로 **"리뉴얼 1차 SKIP, 별도 콘솔 트랙"** 으로 명시. 5+6=11개 라우트 전체를 개별 행으로 풀어쓸지(가시성↑) 그룹으로 둘지(간결성↑) 합의 |
+| `/payment*`, `/wallet/charge/*` 결과 페이지 | "기존 결제 플로우 유지" 대신 **"신규 디자인 필수 — 단순 안내 페이지 6종"** 으로 격상 (§7 분류) |
+| `/seller-apply` | "기존 유지" → **"신규 디자인 필요 (MyPage 톤 참고)"** 로 격상 |
+
+**현재 § 9 「기존에 없는 프로토타입 항목」 표** — 다음 행 추가 제안:
+
+| 추가 항목 | 처리 제안 근거 |
+|---|---|
+| `prototype/tokens.css` | §6: `src/styles-v2/` 토큰 표준 출발점. v2 토큰 정책의 단일 소스로 채택 |
+| `prototype/ide-theme.css` | §6: 테마 변형. 적용 범위(전역/페이지) 합의 후 `src/styles-v2/` 이식 |
+| `prototype/common.jsx` | §6: 단위 컴포넌트로 분해해 `src/components-v2/` 로 이식. 분해 단위 = SPEC 의 페이지별 컴포넌트 표와 정합 필요 |
+| `prototype/Layout.jsx` | 이미 § 7 / § 9 에 `IDE Layout chrome` 으로 반영됨. **출처 파일명 명시** 권장 |
+
+**현재 § 9 「의사결정 보류」 표** — INVENTORY 와 일치하므로 추가 결정 사항만 보강:
+
+| 추가 항목 | 제안 상태 |
+|---|---|
+| 테스트/린트/포매터 도입 | INVENTORY §5: 현재 의존성 0개. v2 시작 시점에 도입 여부 결정 필요 (Vitest/ESLint/Prettier) |
+| Landing 라우트 정책 | INVENTORY §6: 현재 `/` = `EventList`. Landing 을 `/` 로 옮기고 EventList 는 `/events` 로 갈지, Landing 을 별도 경로로 둘지 결정 |
+| `src/api/types.ts` 중복 정의 정리 | INVENTORY §3: `ParticipantItem` (272행/288행), `SellerApplicationListResponse` (109행/781행) 중복. v2 작업 전 정리 필요 |
+
+### § 10 — "API 재활용 가이드" 갱신 제안
+
+**§ 10 「페이지별 의존 API」 표 정정** — INVENTORY §2 의 실제 import 기준으로 다음 행을 수정:
+
+| 페이지 | 현재 SPEC 기재 | 제안 (실제 코드 기준) |
+|---|---|---|
+| EventList | `getEvents`, `searchEvents`, `getCategorySummary`, `recommendEvents`, `getTechStacks`, `extractTechStacks` | `getEvents`, `searchEvents`, **`filterEvents`**, `getTechStacks`, `extractTechStacks` <br>(`getCategorySummary` 는 코드에 **존재하지 않음**, `recommendEvents` 는 EventList 가 아니라 **Cart 가 사용**) |
+| Cart | `getCart`, `addCartItem`, `clearCart`, `createOrder`, `recommendEvents` | `getCart`, `addCartItem`, `clearCart`, `createOrder`, `recommendEvents`, **`getEventDetail`**, **`unwrapApiData`** 추가 |
+| EventDetail | `getEventDetail`, `addCartItem` | 동일 (정확함) |
+| Login | `login` | 동일 (정확함). 단 OAuth 는 별도로 `OAuthCallback` 행 추가 권장 |
+| MyPage | (장문) | INVENTORY §2 표와 1:1 일치 — 정확함 |
+| Landing | `getEvents` 기반 (TBD) | 신규 페이지: `getEvents` + `getEventRecommendations`(현재 미사용 모듈 `ai.api.ts`) 활용 후보 |
+| Layout | `logout` (+ 인증 컨텍스트) | `logout` + `useAuth()` (위치: `src/contexts/AuthContext.tsx`). 인증 컨텍스트 위치 명시 권장 |
+
+**§ 10 「어댑터 예시」 코드 정정**:
+
+| 위치 | 현재 SPEC | 제안 |
+|---|---|---|
+| `import type { ApiEvent } from '@/types/api';` | — | INVENTORY §3: `src/types/` 폴더는 **존재하지 않음**. 실제 타입은 `@/api/types`. 예시 코드를 `import type { EventItem } from '@/api/types';` 로 정정 |
+| 어댑터 입력 타입 | `ApiEvent` (가상) | 실제 도메인 타입명인 `EventItem` 으로 통일. 그래야 v2 페이지가 import 시점에 typo 없음 |
+
+**§ 10 「데이터 페칭 훅」 코드 정정**:
+
+| 항목 | 현재 SPEC | 제안 |
+|---|---|---|
+| `useQuery` 예시 | React Query 가정 | INVENTORY §5 + § 9 의사결정 보류: **React Query 미도입 확정**. 예시를 `usePagedApi` / `useApi` (`src/hooks/`) 기반으로 교체. SPEC 본문과 코드 예시가 어긋나지 않게 정렬 |
+
+**§ 10 「API 매핑」 템플릿 보강**:
+
+INVENTORY §2 에서 발견한 함수 시그니처를 기준으로 `EventItem` (`src/api/types.ts:132`) 의 실제 필드와 프로토타입 mock 의 차이를 채울 수 있도록, 페이지별 plan 템플릿에 **"실제 타입 위치(`src/api/types.ts:LINE`)"** 컬럼을 추가 제안. 예:
+
+```markdown
+## API 매핑
+| 프로토타입 mock 필드 | 실제 API 필드 | 실제 타입 위치 | 비고 |
+|---|---|---|---|
+| event.eventId | event.id | src/api/types.ts:132 (EventItem) | 필드명 차이 |
+```
+
+### § 0 (공통 규칙) 부수 갱신 제안
+
+INVENTORY §4 (인증) 발견 사항을 § 0 에 명시 권장:
+
+- 토큰 저장 위치: `localStorage` 키 3종 (`accessToken`, `refreshToken`, `userId`) — v2 페이지에서 직접 접근 금지, 반드시 `useAuth()` 경유.
+- 401 자동 재발급은 `apiClient` 인터셉터가 처리하므로 **페이지 어댑터는 401 분기 작성 금지**.
+- 403 + `code: PROFILE_NOT_COMPLETED` 는 인터셉터가 `/social/profile-setup` 으로 강제 이동시키므로 페이지에서 별도 처리 불필요.
+- `idempotencyConfig()` 는 결제/주문 등 멱등성 필요한 호출에서 명시적으로 사용 — § 10 에 사용 가이드 추가 권장.
