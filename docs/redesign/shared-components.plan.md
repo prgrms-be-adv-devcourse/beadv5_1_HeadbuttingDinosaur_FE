@@ -969,7 +969,224 @@ export interface KbdProps extends HTMLAttributes<HTMLElement> {
 
 ---
 
-> **다음 턴**: § 4.10~ PR 4 composite (TermDot, Avatar, AccentMediaBox, QuantityStepper, MetaLine, EmptyState).
+### 4.10 TermDot
+
+#### variant (tone)
+
+| tone | 색 | prototype 사용처 |
+|---|---|---|
+| `term-green` (default) | `var(--term-green)` | EventList Hero(eyebrow 안), Landing Hero(eyebrow 안), MyPage 프로필(`●` 문자로 인라인), LY Sidebar 세션 행, LY StatusBar 사용자 행 |
+| `brand` | `var(--brand)` | (prototype 미사용 — 향후 확장) |
+| `danger` | `var(--danger)` | (prototype 미사용 — 향후 확장) |
+
+#### size
+
+| size | 사용 |
+|---|---|
+| `6` (default) | prototype 의 모든 사용처 |
+| `4` | (낮은 우선순위) MyPage 의 ONLINE `●` 문자 통합 시 활용 가능 |
+
+→ `size?: number` 자유 입력. 시각적으로 자연스러운 값은 `4` ~ `8`.
+
+#### state
+- 자체 state 없음 (시각 표시).
+
+#### modifier
+- 없음.
+
+> **Eyebrow / StatusChip 의 dot 과의 관계**: Eyebrow 와 StatusChip 은 자체 dot 을 인라인 또는 CSS 의사요소로 가짐. TermDot 은 그 외 위치(헤더 / 사이드바 / 상태바)에서 단독으로 점만 표시할 때 쓰는 독립 컴포넌트. § 6.1 에 따라 PR 4 머지 후 Eyebrow 의 인라인 dot 을 TermDot 으로 치환하는 후속 정리는 옵셔널.
+
+---
+
+### 4.11 Avatar
+
+#### variant
+- 변종 없음 (단일 외형 — brand bg + 흰 모노 글자).
+- v2 phase 2 에서 이미지 URL 지원 시 `variant: 'initial' | 'image'` 도입 가능.
+
+#### size
+
+| size | px | font-size | prototype 사용처 |
+|---|---|---|---|
+| `sm` | 36 | mono 14px / 700 | Login 페이지 상단 "DT" 브랜드 마크 |
+| `md` (default) | 52 | mono 20px / 700 | MyPage 프로필 헤더 닉네임 이니셜 |
+| `lg` | 72 | mono 28px / 700 | (prototype 미사용 — 향후 확장) |
+| `number` | 임의 px | 자동 비율 | escape hatch |
+
+#### state
+- 자체 state 없음 (정적 표시).
+- 클릭 가능 아바타가 필요해지면 호출자가 `<button>` 으로 감쌈 (Avatar 자체에 onClick 미통합).
+
+#### modifier
+- 없음 (initial 만).
+
+#### prototype 에서 실제 사용된 케이스
+
+| 사용처 | size | initial |
+|---|---|---|
+| Login 브랜드 마크 | sm (36) | "DT" (2글자 — brand 약자) |
+| MyPage 프로필 | md (52) | 닉네임 첫글자 (`user.nickname.charAt(0).toUpperCase()`) |
+
+> **2글자 케이스 처리**: Login "DT" 는 2글자. `initial: string` 그대로 받고 컴포넌트 내부에서 길이 제한 안 걸음. `toUpperCase()` 만 적용. font-size 는 size 가 결정.
+
+---
+
+### 4.12 AccentMediaBox
+
+#### variant
+
+| variant | 형태 | 그라디언트 방향 | prototype 사용처 |
+|---|---|---|---|
+| `box` (default) | 정사각 / 직사각 (size 가 결정) | `linear-gradient(135deg, ...)` | Cart thumb, EventDetail hero, Landing FeaturedRow |
+| `stripe` | 폭 고정 + 높이 100% (부모 flex 행 안에서 세로 stripe) | `linear-gradient(180deg, ...)` | MyPage 티켓 카드 좌측 stripe |
+
+> **`stripe` variant 도입 사유**: prototype 의 MyPage 티켓 stripe(`width: 56`, `linear-gradient(180deg, accent22, accent44)`)는 단일 정사각 박스 패턴이 아니라 부모 flex 의 세로 strip → axis(가로/세로) 가 다름. size + 그라디언트 방향이 함께 묶이는 별개 패턴이라 variant 로 분리.
+
+#### size
+
+| size | px | 그라디언트 alpha | glyph 폰트 | prototype 사용처 |
+|---|---|---|---|---|
+| `xs` (`box`) | 48×48 | `accent20` → `accent45` | mono 16px | Landing FeaturedRow |
+| `sm` (`stripe`) | 56×100% | `accent22` → `accent44` (180deg) | size 결정 후 호출자 정함 | MyPage 티켓 카드 stripe |
+| `md` (`box`, default) | 72×72 | `accent18` → `accent38` | mono 22px | Cart 아이템 thumb |
+| `lg` (`box`) | 120×120 | (미정 — 사용처 생기면 결정) | (미정) | (prototype 미사용) |
+| `hero` (`box`) | full×240 | `accent15` → `accent35` | mono 72px | EventDetail hero banner |
+
+> **alpha 토큰**: prototype 이 사용한 hex alpha(`15`/`18`/`20`/`22`/`35`/`38`/`44`/`45`)는 size 별로 자동 결정. 호출자가 alpha 를 prop 으로 지정하지 않음. 컴포넌트 내부에 size→alpha 매핑 상수.
+>
+> **`size`/`variant` 조합 제약**: `stripe` variant 는 size `sm` 만 허용 (현재). 타입 차원에서 강제할지(discriminated union)는 § 3.4 시그니처 보강 시 결정 — 본 § 4 에선 표만 명시.
+
+#### state
+- 자체 state 없음 (정적 미디어 박스).
+- hover/focus 가 필요한 케이스(Landing FeaturedRow, MyPage 티켓 카드)는 부모에서 처리 — AccentMediaBox 자체는 상태 없음.
+
+#### modifier (slot)
+
+| modifier | 효과 | prototype |
+|---|---|---|
+| `glyph` | 가운데 표시 콘텐츠. default `</>` (string) | Cart/Landing/EventDetail = `</>` 또는 `❯_`. MyPage 티켓 = `<Icon name="ticket" />` |
+| `accent` (필수) | 그라디언트 베이스 색 hex | 호출자가 `accent(eventId)` 결과 전달 (§ 1.2 utility) |
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 사용처 | variant | size | accent | glyph |
+|---|---|---|---|---|
+| Cart 아이템 thumb | box | md (72) | `accent(item.eventId)` | `</>` mono 22px |
+| EventDetail hero banner | box | hero (240) | `accent(event.eventId)` | `❯_` mono 72px (opacity 0.35) |
+| MyPage 티켓 stripe | stripe | sm (56×100%) | `accent(t.id)` | `<Icon name="ticket" size={20} />` |
+| Landing FeaturedRow | box | xs (48) | `accent(ev.eventId)` | `</>` mono 16px |
+
+> **EventDetail hero 의 opacity 0.35**: glyph 의 opacity 도 size 별로 자동 결정 (`hero` 는 0.35, 나머지는 0.8). 호출자가 지정 안 함.
+
+---
+
+### 4.13 QuantityStepper
+
+#### variant
+- 변종 없음 (단일 외형 — `−` / 숫자 / `+` 사각 버튼 묶음).
+
+#### size
+
+| size | 버튼 px | 라벨 폰트 | prototype 사용처 |
+|---|---|---|---|
+| `sm` | 28×28 / radius 6 / Icon 11 | font 14 / minWidth 20 | Cart 아이템 카드 (수량 변경) |
+| `md` (default) | 34×34 / radius 6 / Icon 13 | font 16 / minWidth 28 | EventDetail 구매 패널 (수량 변경) |
+
+#### state
+
+| state | 트리거 | 시각 |
+|---|---|---|
+| `default` | - | 두 버튼 활성 |
+| `at-min` | `value <= min` | `−` 버튼 disabled (opacity 0.5 + cursor not-allowed) |
+| `at-max` | `value >= max` | `+` 버튼 disabled |
+| `disabled` | `disabled` prop | 두 버튼 모두 disabled, 숫자 dim |
+| (per-button) `hover` / `active` | mouse | 사각 버튼 자체 hover (border → text-2 등) |
+
+> **min / max 경계 처리**: prototype 의 EventDetail 은 `Math.max(1, q-1)` / `Math.min(event.remainingQuantity, q+1)` 로 클램프. v2 컴포넌트에서는 `min` (default 1), `max` (옵셔널) 받아 컴포넌트가 클램프 + 경계 도달 시 해당 버튼 disabled 처리.
+>
+> **controlled 강제** (§ 3.0): `value` + `onChange` 필수. `defaultValue` 미지원.
+
+#### modifier
+- 없음 (size + min/max + disabled 만).
+
+#### prototype 에서 실제 사용된 케이스
+
+| 사용처 | size | min | max | 추가 조건 |
+|---|---|---|---|---|
+| EventDetail 구매 패널 | md | 1 | `event.remainingQuantity` | `event.price > 0 && canBuy` 일 때만 렌더 (호출자 책임) |
+| Cart 아이템 카드 | sm | 1 | 무제한 (max prop 미지정) | (Cart 는 잔여 좌석 검증을 별도) |
+
+---
+
+### 4.14 MetaLine
+
+#### variant
+- 변종 없음 (단일 외형 — mono 라벨 + 값 한 줄).
+
+#### size
+- 단일 사이즈. 폰트 라벨 mono 10.5px / 값 12.5~14px (prototype 두 사용처 모두 비슷).
+
+#### state
+- 자체 state 없음.
+
+#### modifier
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `compact` (default `true`) | 라벨 width 30 / 라벨 mono uppercase / icon 슬롯 미사용 | EventList EventCard 의 메타 3행 (일시 / 장소 / 주최) |
+| `compact: false` | 라벨 minWidth 66 / 라벨 일반 케이스 / icon 슬롯 활성 (이모지 또는 Icon) | EventDetail InfoRow 4행 (📅 일시 / 📍 장소 / 👤 주최 / 🎫 잔여 좌석) |
+| `icon` | 좌측 이모지/Icon 슬롯 (`compact: false` 일 때 의미 있음) | EventDetail InfoRow 의 이모지 4종 |
+| `truncate` (default `true`) | 값에 `whitespace-nowrap` + `text-overflow: ellipsis` | EventList EventCard (장소 등 긴 텍스트). EventDetail InfoRow 는 `truncate=false` |
+
+> **prototype 의 두 인라인 컴포넌트(EL `MetaLine` + ED `InfoRow`)를 통합**: 시각·역할이 같지만 라벨 폭과 icon 슬롯 유무가 다름 → `compact` 단일 modifier 로 두 모드 분기. § 3.4 시그니처에 `compact?: boolean` 추가.
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 사용처 | compact | icon | truncate | 라벨 예 |
+|---|:---:|---|:---:|---|
+| EventList EventCard - 일시 | O | - | O | "WHEN" + "{d} · {t}" |
+| EventList EventCard - 장소 | O | - | O | "WHERE" + 장소 앞 3단어 |
+| EventList EventCard - 주최 | O | - | O | "WHO" + 호스트명 |
+| EventDetail InfoRow - 일시 | X | "📅" | X | "일시" + 풀 datetime |
+| EventDetail InfoRow - 장소 | X | "📍" | X | "장소" + 전체 주소 |
+| EventDetail InfoRow - 주최 | X | "👤" | X | "주최" + 호스트명 |
+| EventDetail InfoRow - 잔여 좌석 | X | "🎫" | X | "잔여 좌석" + 좌석 수 (또는 매진 노출) |
+
+> **§ 3.4 시그니처 보강**: `compact?: boolean` modifier 를 추가해야 함. 본 § 4.14 결정에 따라 § 3 업데이트는 PR 4 작업 시 함께 진행.
+
+---
+
+### 4.15 EmptyState
+
+#### variant
+- 변종 없음 (단일 surface — `.stack-trace` 톤 흡수). v2 에서는 `empty-state.css` 안에 자체 surface.
+
+#### size
+- 단일 사이즈. padding 40 / 이모지 40px / title 17px / message 14px (prototype 3개 사용처 모두 동일).
+
+#### state
+- 자체 state 없음 (정적).
+- `action` 슬롯 안의 `<Button>` 은 자체 state 가짐.
+
+#### modifier (모두 옵셔널)
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `emoji` | 큰 이모지 (40px). 미지정 시 미렌더 | EventList = 🔍, Cart = 🛒, MyPage 환불 = 💳 |
+| `title` (필수) | 17px 본문 톤 헤드라인 | EventList = "검색 결과가 없습니다", Cart = "장바구니가 비어있습니다", MyPage = "환불 내역이 없습니다" |
+| `message` | 14px text-3 본문 (`ReactNode` — `<strong>` 강조 등 가능) | EventList / Cart / MyPage 모두 사용 |
+| `action` | 하단 액션 슬롯 (보통 `<Button>`) | EventList = "필터 초기화", Cart = "이벤트 둘러보기". MyPage 환불 = action 없음 |
+
+#### prototype 에서 실제 사용된 조합 매트릭스
+
+| 사용처 | emoji | title | message 특이사항 | action |
+|---|---|---|---|---|
+| EventList 빈 결과 | 🔍 | "검색 결과가 없습니다" | 일반 텍스트 + 추가 hint 텍스트 (한 줄 더) | `<Button variant="primary" size="sm">필터 초기화</Button>` |
+| Cart 빈 상태 | 🛒 | "장바구니가 비어있습니다" | 일반 텍스트 | `<Button variant="primary">이벤트 둘러보기</Button>` |
+| MyPage 환불 빈 상태 | 💳 | "환불 내역이 없습니다" | `<strong>` 강조 포함 ("내 티켓") | (없음) |
+
+> **EventList 의 hint 추가 줄**: prototype 은 `.hint` 클래스로 한 줄 더 추가. v2 에서는 `message` 가 `ReactNode` 이므로 호출자가 `<>{...}<br/>{...}</>` 또는 `<div>` 묶음으로 표현. EmptyState 자체에 별도 슬롯 추가 안 함.
+
 
 
 ## 5. 파일 구조 / 명명 규칙
@@ -1450,13 +1667,135 @@ src/pages-v2/_Showcase/
 
 ---
 
-### 7.4 PR 4 — Composite (참조)
+### 7.4 PR 4 — Composite (선결: PR 1 머지 완료)
 
-**상태**: § 4.10~ (TermDot / Avatar / AccentMediaBox / QuantityStepper / MetaLine / EmptyState 의 variant·state) 가 미작성. § 4 PR 4 작성 완료 후 본 § 7 에 § 7.4 로 추가.
-**선결**: PR 1 머지. PR 2/3 머지 전이라도 시작 가능 (§ 6.5 결론 5).
-**예상 LOC**: ≈ 320 (§ 2.4)
+**목표**: 페이지 인라인 반복 패턴 6종 흡수.
+**브랜치**: `claude/components-v2-pr4-composite` (예시)
+**전체 LOC**: ≈ 320 + 마무리 35 = **≈ 355**
+**선결**: **PR 1** (Icon — QuantityStepper 직접 import). PR 2/3 머지 전이라도 시작 가능 (§ 6.5 결론 5).
+**호출자 의존**: EmptyState 의 `action` 슬롯에는 보통 Button 이 들어감 → 페이지 통합 PR 은 PR 2 머지 후. 본 PR 4 자체는 Button 없이도 머지 가능 (showcase 에서 Button 사용 시 PR 2 와 순서 조정).
 
-> § 4.10~ 작성 시점에 ① 컴포넌트별 step ② QuantityStepper → Icon 직접 의존 commit 순서 ③ Composite Showcase 섹션 ④ Eyebrow → TermDot 후속 치환 (옵셔널 별도 PR 또는 본 PR 의 마지막 commit) 까지 정의.
+#### 작업 순서 근거 (§ 6.1 + § 6.2)
+
+1. 직접 import 의존이 있는 QuantityStepper 는 Icon (PR 1) 머지 확인 후 진행
+2. 나머지 5개는 PR 1 토큰만 있으면 됨 → leaf 부터 작업 (TermDot → Avatar → AccentMediaBox → MetaLine)
+3. EmptyState 는 호출자 의존(Button) 이 있으므로 마지막. showcase 에서 PR 2 의 Button 을 import 하므로 **본 PR 4 머지 시점에는 PR 2 도 머지되어 있는 것이 자연스러움** — 그러나 컴포넌트 자체 의존은 없으므로 강제는 아님
+
+#### Step 4.1 — TermDot
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/TermDot/index.tsx`, `TermDot/TermDot.tsx`, `src/styles-v2/components/term-dot.css` |
+| LOC | ~20 (`TermDot.tsx` 12 / `index.tsx` 3 / `term-dot.css` 5). 타입 동거 |
+| commit 권장 | **1 commit**: `feat(components-v2): add TermDot primitive` |
+| 검증 | smoke test (tone 3종 × size 3개 — 6 케이스 className 확인) |
+| 의존 | 없음 |
+
+#### Step 4.2 — Avatar
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Avatar/index.tsx`, `Avatar/Avatar.tsx`, `src/styles-v2/components/avatar.css` |
+| LOC | ~50 (`Avatar.tsx` 25 / `index.tsx` 3 / `avatar.css` 22). 타입 동거 |
+| commit 권장 | **1 commit**: `feat(components-v2): add Avatar with size variants` |
+| 검증 | smoke test (size sm/md/lg + initial 1글자/2글자, `toUpperCase()` 적용 확인) |
+| 의존 | 없음 |
+
+#### Step 4.3 — AccentMediaBox
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/AccentMediaBox/index.tsx`, `AccentMediaBox/AccentMediaBox.tsx`, `AccentMediaBox/AccentMediaBox.types.ts`, `src/styles-v2/components/accent-media-box.css` |
+| LOC | ~60 (`AccentMediaBox.tsx` 30 / `AccentMediaBox.types.ts` 10 / `index.tsx` 3 / `accent-media-box.css` 17) |
+| commit 권장 | **2 commits**: ① `feat(components-v2): add AccentMediaBox box variant with size→alpha mapping` (box variant + xs/md/hero size + 그라디언트 alpha 매핑 상수) → ② `feat(components-v2): add AccentMediaBox stripe variant` (stripe variant + sm size + 180deg) |
+| 검증 | smoke test (box × xs/md/hero / stripe × sm / glyph 슬롯에 string + Icon 모두 받기) |
+| 의존 | 없음 (accent 는 prop). § 1.2 utility (`accent()`) 는 호출자 책임 |
+
+> § 4.12 에서 정리한 size→alpha / size→glyph fontSize / size→glyph opacity 매핑 상수는 `AccentMediaBox.tsx` 내부 상수로. 호출자가 override 안 하도록 prop 으로 노출 안 함.
+
+#### Step 4.4 — MetaLine
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/MetaLine/index.tsx`, `MetaLine/MetaLine.tsx`, `src/styles-v2/components/meta-line.css` |
+| LOC | ~40 (`MetaLine.tsx` 20 / `index.tsx` 3 / `meta-line.css` 17). 타입 동거 |
+| commit 권장 | **1 commit**: `feat(components-v2): add MetaLine with compact modifier` |
+| 검증 | smoke test (compact true (EventCard 모드) / compact false + icon (InfoRow 모드) / truncate on/off) |
+| 의존 | 없음 (icon 슬롯은 호출자 ReactNode) |
+
+> § 3.4 시그니처 보강 (`compact?: boolean` 추가) 도 본 commit 에 포함.
+
+#### Step 4.5 — QuantityStepper
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/QuantityStepper/index.tsx`, `QuantityStepper/QuantityStepper.tsx`, `QuantityStepper/QuantityStepper.types.ts`, `src/styles-v2/components/quantity-stepper.css` |
+| LOC | ~70 (`QuantityStepper.tsx` 35 / `QuantityStepper.types.ts` 12 / `index.tsx` 3 / `quantity-stepper.css` 20) |
+| commit 권장 | **1 commit**: `feat(components-v2): add QuantityStepper with min/max bounds` |
+| 검증 | smoke test (size sm/md / min·max 클램프 / 경계 도달 시 해당 버튼 disabled / disabled prop 시 둘 다 비활성 / onChange 호출) |
+| 의존 | **PR 1 의 Icon (직접 import)** — `<Icon name="plus" />` / `<Icon name="minus" />` 컴포넌트 내부 렌더 |
+
+#### Step 4.6 — EmptyState
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/EmptyState/index.tsx`, `EmptyState/EmptyState.tsx`, `src/styles-v2/components/empty-state.css` |
+| LOC | ~80 (`EmptyState.tsx` 30 / `index.tsx` 3 / `empty-state.css` 47). 타입 동거 |
+| commit 권장 | **1 commit**: `feat(components-v2): add EmptyState with stack-trace surface` |
+| 검증 | smoke test (3 prototype 사용처 재현 — 🔍/🛒/💳 + 각각 title/message/action 조합. action 없는 케이스 확인) |
+| 의존 | 없음 (action 슬롯은 호출자 ReactNode). showcase 에서 Button 사용 시 PR 2 머지 필요 |
+
+#### Step 4.F — PR 4 마무리 commit
+
+| 항목 | 값 |
+|---|---|
+| 작업 | ① 배럴에 6개 컴포넌트 + 타입 추가 ② `src/styles-v2/index.css` 에 신규 CSS 6개 import ③ `src/pages-v2/_Showcase/sections/CompositeSection.tsx` 추가 (variant × size × state 매트릭스) ④ § 3.4 의 `MetaLine.compact`, `AccentMediaBox.variant` 시그니처 업데이트 (이미 본 PR 의 step commit 에 포함됐다면 생략) |
+| LOC | ~35 |
+| commit 권장 | **1 commit**: `chore(components-v2): wire PR 4 and add showcase composite section` |
+| 검증 | `/_showcase` 에서 Composite 섹션 시각 확인 |
+
+#### Step 4.G — Eyebrow → TermDot 후속 치환 (옵셔널)
+
+| 항목 | 값 |
+|---|---|
+| 작업 | `Eyebrow.tsx` 내부의 인라인 dot `<span style={...}>` 을 `<TermDot tone={tone} size={size === 'sm' ? 4 : 6} />` 로 치환 |
+| LOC | ~5 (실코드) + smoke 테스트 변경 ~5 |
+| commit 권장 | **1 commit (옵셔널)**: `refactor(components-v2): use TermDot inside Eyebrow` |
+| 검증 | 기존 Eyebrow smoke 테스트 통과 + showcase 시각 동등성 |
+| 의존 | 본 PR 4 의 TermDot 머지 후. 본 PR 4 마지막 commit 으로 포함하거나 후속 정리 PR 로 분리 — 양쪽 모두 허용 |
+
+> **분리 권장 사유**: 이 치환은 시각·동작 변화 없는 순수 내부 리팩터. 별도 PR 로 분리하면 PR 4 의 신규 컴포넌트 리뷰와 분리되어 부담이 줄음. 단, PR 4 가 작은 편(355 LOC)이라 합쳐도 무방.
+
+---
+
+### 7.6 전체 PR 1~4 요약 (§ 7.5 갱신)
+
+```
+주차    │ PR 1               │ PR 2               │ PR 3               │ PR 4
+────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────
+W1      │ Icon + Kbd (병렬)  │                    │ Card 작업 시작 가능 │
+W1 후반 │ Eyebrow / Status   │                    │                    │
+        │ Chip / Chip + 통합 │                    │                    │
+        │ → 머지 ✓           │                    │                    │
+────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────
+W2      │                    │ Input → Button     │ SectionHead + 통합 │ TermDot / Avatar
+        │                    │ + 통합 → 머지 ✓    │ → 머지 ✓ (병렬)    │ AccentMediaBox 시작
+────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────
+W3      │                    │                    │                    │ MetaLine /
+        │                    │                    │                    │ QuantityStepper /
+        │                    │                    │                    │ EmptyState + 통합
+        │                    │                    │                    │ → 머지 ✓
+        │                    │                    │                    │ Eyebrow 치환 (옵션)
+```
+
+| PR | 누적 LOC | 누적 컴포넌트 수 |
+|---|---|---|
+| PR 1 ✓ | ~370 | 5 (+ 옵션 FileIcon, utils 이전) |
+| PR 2 ✓ | ~595 | 7 |
+| PR 3 ✓ (병렬) | ~750 | 9 |
+| PR 4 ✓ | ~1105 | **15** (= SPEC § 0 명시 9 + composite 6) |
+
+각 페이지 plan PR (Login / EventList / EventDetail / Cart / MyPage / Landing) 은 본 § 7 의 **PR 1~3 머지 후 시작**, EmptyState 가 필요한 페이지(EventList 빈 결과 / Cart 빈 상태 / MyPage 환불 탭)는 **PR 4 머지 대기**.
 
 ---
 
