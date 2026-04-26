@@ -788,7 +788,123 @@ PR 4 (CTA + 통합 + 라우터, § 12.4) 검수 시:
 
 
 ## 10. 라우터 등록
-(작성 예정)
+
+### 10.1 현재 라우트 상태 (`src/App.tsx:95`)
+
+```tsx
+<Route path="/" element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />
+<Route path="/events/:id" element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
+```
+
+- 현재 **`/?v=2` → `EventListV2`**. INVENTORY §6 가 이미 짚은 충돌 지점.
+- `/events` (목록) 라는 별도 경로는 **존재하지 않음**.
+- `/` 와 `/events/:id` 는 `Layout` 하위, 가드 없음 (공개).
+
+### 10.2 최종 (cutover) 목표
+
+| 경로 | v1 | v2 |
+|---|---|---|
+| `/` | `EventList` (현행 유지) | **`LandingV2` (변경)** |
+| `/events` | (없음) | **`EventListV2` (이동)** |
+| `/events/:id` | `EventDetail` | `EventDetailV2` (현행 유지) |
+
+`/` 가 비로그인 첫 화면(Landing)으로 바뀌고, EventList 는 `/events` 로
+이동. § 7·§ 8 의 모든 내부 링크 (`/events?v=2&cat=…`) 가 이 가정을
+이미 따르고 있음.
+
+### 10.3 이번 PR (PR 4) 의 변경 범위
+
+PR 4 = "CTA + 통합 + 라우터" (§ 12.4). 본 PR 에서 라우터에 닿는
+변경은 **3 줄 수정 + 1 줄 추가**:
+
+```tsx
+// src/App.tsx (변경 후 발췌)
+<Route path="/"        element={<VersionedRoute v1={<EventList />}    v2={<LandingV2 />} />} />
+<Route path="/events"  element={<VersionedRoute                         v2={<EventListV2 />} />} />
+<Route path="/events/:id" element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
+```
+
+| 변경 | 내용 | 영향 |
+|---|---|---|
+| 수정 | `/` 의 `v2` prop 을 `<EventListV2 />` → `<LandingV2 />` | `/?v=2` 사용자가 EventListV2 대신 LandingV2 를 보게 됨 |
+| 추가 | `/events` 경로 신규 등록, `v2={<EventListV2 />}` 만 | `/events?v=2` 로 EventListV2 접근 가능. v1 prop 미지정 → router-toggle.plan §2-4 의 자동 fallback 동작 (v1 페이지 없음, EventList 는 `/` v1 에 그대로 있으므로 의도된 동작) |
+| 미변경 | `/events/:id` (디테일) | 그대로 |
+| 미변경 | `Layout` 가드 / `RequireAuth` | Landing 은 `Layout` 하위 + 가드 없음. § 10.5 |
+
+> v1 사용자(`?v=1` 또는 sticky 미설정)는 영향 없음. `/?v=1` 은 그대로
+> EventList. `/events` 는 v1 prop 이 없어 router-toggle.plan §2-4 에 의해
+> v2 강제 (단, v1 사용자는 `/events` 를 외부에서 진입할 동기가 없음 —
+> 모든 v1 내부 링크는 `/` 그대로).
+
+### 10.4 Phase 0 router-toggle 동작 검증
+
+router-toggle.plan §2 의 우선순위:
+1. URL 쿼리 (`?v=2`/`?v=1`) — 명시적 입력은 무조건 승.
+2. `localStorage['ui.version']` — sticky.
+3. 기본값 = v1.
+
+| 검증 케이스 | 입력 | 기대 |
+|---|---|---|
+| 1 | `/?v=2` 첫 방문 | `LandingV2` 렌더 + `localStorage.ui.version === '2'` |
+| 2 | `/` (sticky=2 상태) | `LandingV2` 렌더 |
+| 3 | `/?v=1` | `EventList` (v1) 렌더 + `localStorage.ui.version` 제거 |
+| 4 | `/` (sticky 없음) | `EventList` (v1) — 기본값 |
+| 5 | `/events?v=2` | `EventListV2` 렌더 (v1 미정 fallback) |
+| 6 | `/events?v=1` | router-toggle.plan §2-4 — v1 미주입 시 v2 강제 또는 빈 화면 (해당 헬퍼 동작 확인 후 § 11 에 정정) |
+| 7 | Landing 의 "이벤트 둘러보기" 클릭 | `/events?v=2` 로 이동 → `EventListV2` |
+| 8 | Landing 의 카테고리 타일 클릭 | `/events?v=2&cat=컨퍼런스` → `EventListV2` 가 카테고리 chip active |
+
+> 케이스 6 은 router-toggle.plan §2-4 의 "v1 미존재 자동 fallback"
+> 동작 정의(라인 258 부근)와 정합 확인 필요 — § 11 결정 항목 추가.
+
+### 10.5 인증 상태별 표시 차이
+
+| 상태 | Landing 표시 | 비고 |
+|---|---|---|
+| 비로그인 | 현재 `prototype/Landing.jsx` 그대로 — Hero CTA 두 개, CTA 카드 "시작하기 →" 모두 그대로 노출 | 가드 없음 (`Layout` 하위, `RequireAuth` 미적용) |
+| 로그인 | 동일 — v1 은 카피 분기 없음 | § 6.5 에서 "v1 단일 카피 유지" 결정. 향후 "이어서 둘러보기" / "추천 이벤트 보기" 등 분기 가능 |
+| Hero CTA "이벤트 둘러보기" | 모두 `/events?v=2` | 인증 무관 |
+| Hero CTA "⌘K 빠른 검색" | 팔레트 PR 머지 전엔 `onBrowseEvents` fallback (§ 7.2) | 인증 무관 |
+| Categories 타일 | 모두 `/events?v=2&cat=…` | 인증 무관 |
+| Featured 행 | 모두 `/events/:id?v=2` (router-toggle sticky 가 없으면 명시) | 인증 무관 |
+| CTA "시작하기 →" | `/events?v=2` (v1 단일 카피) | § 11 에서 "로그인 시 카피 변경" 재논의 가능 |
+
+> **결정 (§ 11 입력)**: v1 은 인증 분기 없음. 로그인/비로그인 동일 화면.
+> 추후 개인화(추천 이벤트 위 노출 등) 도입 시 분기.
+
+### 10.6 라우트 가드 / 레이아웃
+
+| 항목 | 처리 |
+|---|---|
+| `Layout` v2 chrome | Landing 은 `<Layout>` 하위 — `Layout` v2 (Phase 0) 가 이미 머지된 상태 가정. 사이드바 / 탭 / 상태바 그대로 |
+| `RequireAuth` | **미적용** (비로그인 첫 화면) |
+| `RequireSeller` / `RequireAdmin` | 무관 |
+| 스크롤 복원 | `react-router-dom` 기본 + Layout 의 `editor-scroll` 컨테이너 |
+
+### 10.7 Cutover 시점 영향 (PR 4 외)
+
+PR 4 는 `?v=2` 토글로만 검증. cutover 시점에 다음이 함께 일어남:
+
+| 작업 | 위치 | PR |
+|---|---|---|
+| `VersionedRoute` 헬퍼 제거, 모든 `v1` prop 삭제 | `src/App.tsx` 전체 | cutover PR (Landing 외) |
+| `src/pages/EventList.tsx` 삭제, import 제거 | `src/App.tsx` 의 v1 import | cutover PR |
+| `/events` 의 v1 미주입 라인을 단일 컴포넌트로 정리 | `<Route path="/events" element={<EventListV2 />} />` | cutover PR |
+| 외부 SEO 영향 | **`/` 가 EventList → Landing 으로 바뀜** — 검색엔진 색인 변화 발생. 사이트맵 업데이트 + `/events` 신규 등록 필요 | cutover 직전 |
+| 기존 북마크 | `/` → 이전엔 EventList, 이후엔 Landing. 기존 사용자 동선 변화 — 릴리즈 노트 필요 | cutover 직전 |
+
+PR 4 단계에서는 위 영향이 **`?v=2` 사용자에게만** 한정. v1 사용자는
+영향 받지 않음 (안전 검증).
+
+### 10.8 PR 4 라우터 변경 체크리스트
+
+- [ ] `src/App.tsx:95` 의 `/` 의 `v2` prop 을 `<LandingV2 />` 로 교체
+- [ ] `<Route path="/events" element={<VersionedRoute v2={<EventListV2 />} />} />` 한 줄 추가 (위치: `/` 라인 바로 아래)
+- [ ] `import LandingV2 from './pages-v2/Landing'` 추가 (`React.lazy` + `Suspense` — § 9.3 와 정합)
+- [ ] `/?v=2` 수동 검증 8 케이스 (§ 10.4) 모두 통과
+- [ ] 콘솔 경고 0 (특히 `<Route>` v6 시그니처 경고)
+- [ ] router-toggle.plan §2-4 fallback 동작과 일치 확인
+
 
 ## 11. 의사결정 필요 지점
 (작성 예정)
