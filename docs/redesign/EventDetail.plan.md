@@ -347,7 +347,107 @@ export function useEventDetail(eventId: string): EventDetailQuery & { refetch: (
 plan 에서는 형태만 명시.
 
 ## 5. 신규 상태 처리 (로딩/에러/404/권한)
-(작성 예정)
+
+§ 4 에서 정의한 `EventDetailQuery` union 의 각 상태 + 도메인 파생 상태 (매진 /
+비로그인 / 잔여 0) 를 컨테이너 (`EventDetail.tsx`) 에서 어떻게 렌더하고 어떤
+사용자 액션을 노출하는지 정리. 트리거 → 표시 → 액션 3-컬럼 구조.
+
+### 1) 로딩
+
+| 항목 | 내용 |
+|---|---|
+| 트리거 | `EventDetailQuery.status === 'loading'`. (a) 첫 진입 + 캐시 miss, (b) `refetch()` 호출 직후. |
+| 표시 (기본) | `<EventDetailSkeleton />` — Hero(240px 회색 박스) / 카테고리·title 라인 / 기술 스택 chip placeholder / InfoCard 4행 placeholder / Description 3-line placeholder / 우측 PurchasePanel placeholder (가격 라인 + 버튼 2개 placeholder) 의 **부분별 스켈레톤**. 페이지 전체 스피너는 사용 안 함 (정보 밀도 낮아짐). |
+| 표시 (placeholder 채택 시) | § 4 (3)-B 채택 시 — `query.previous` 가 있으면 그 값으로 Hero / Header / InfoCard 의 일시·좌석 / Panel 의 가격 즉시 렌더하고, `description` / `location` / `sellerNickname` 등 누락 필드만 inline placeholder (3-line shimmer). 우측 CTA 버튼은 `disabled` + 텍스트 "불러오는 중..." 로 표기 (구매 액션을 placeholder 데이터로 트리거하면 안 됨). |
+| 사용자 액션 | 없음. 취소 (뒤로가기) 시 `useEffect` cleanup 의 `AbortController.abort()` 가 in-flight 요청 정리. |
+
+스켈레톤 컴포넌트는 § 2 의 `EventDetailSkeleton` 한 곳에서 위 부분별 placeholder
+를 모두 정의. 페이지 컨테이너는 분기만:
+
+```tsx
+if (query.status === 'loading') {
+  return query.previous
+    ? <EventDetail.Stale data={query.previous} />   // placeholder 채택 시
+    : <EventDetailSkeleton />;
+}
+```
+
+### 2) 에러
+
+§ 3 표 3 의 HTTP 분류를 컨테이너 분기 단위로 좁힌 결과. hook 에서 이미
+`'not-found'` / `'forbidden'` / `'error'` 로 분류해서 내려주므로 컨테이너는
+HTTP 코드를 직접 보지 않는다.
+
+| 트리거 | 표시 | 사용자 액션 |
+|---|---|---|
+| `status === 'not-found'` (HTTP 404) | 페이지 본문을 통째로 인라인 NotFound 카드로 대체. 카드: 이모지 `🔍` + 헤드라인 "이벤트를 찾을 수 없습니다" + 서브카피 "이미 종료되었거나 존재하지 않는 이벤트입니다." | "이벤트 목록으로" (primary, `/events-v2`) + "메인으로" (ghost, `/`). **재시도 버튼 없음** (id 가 잘못된 케이스라 재시도 의미 없음). |
+| `status === 'forbidden'` (HTTP 403, `PROFILE_NOT_COMPLETED` 외) | 인라인 카드. 헤드라인 "이 이벤트에 접근할 수 없습니다" + 서브카피 (서버 메시지 있으면 그대로, 없으면 "비공개 이벤트이거나 접근 권한이 없습니다."). | "이벤트 목록으로" (primary). 재시도 없음. (`PROFILE_NOT_COMPLETED` 403 은 client 인터셉터가 가로채 프로필 페이지로 이동시키므로 hook 까지 도달하지 않음.) |
+| `status === 'error'` (5xx / 422 / 400) | 인라인 ErrorState 카드. 헤드라인 "이벤트 정보를 불러올 수 없습니다" + 서브카피 ("일시적인 오류입니다. 잠시 후 다시 시도해주세요." 기본 / 서버 `message` 가 있고 5xx 가 아니면 그 메시지 우선). | "다시 시도" (primary, `refetch()` 호출) + "이벤트 목록으로" (ghost). |
+| 네트워크 끊김 / 타임아웃 (axios `ERR_NETWORK` / `ECONNABORTED`) | 위와 같은 ErrorState. 헤드라인 "네트워크 연결을 확인해주세요". | "다시 시도" (primary) + "이벤트 목록으로" (ghost). |
+
+> 모든 에러 분기에서 좌측 `Breadcrumb` 는 **그대로 노출** (사용자가 잘못 들어간
+> 경우 빠져나갈 수 있어야 함). breadcrumb 의 제목 슬롯은 placeholder text
+> ("이벤트") 로.
+
+### 3) 매진 (status === 'SOLD_OUT' 또는 잔여 0)
+
+`success` 분기 내부의 도메인 상태. § 3 표 2 에서 정의한 파생 플래그
+`isSoldOut` / `canBuy` 로 판단.
+
+| 항목 | 내용 |
+|---|---|
+| 트리거 | `vm.isSoldOut === true` 또는 `vm.canBuy === false`. 정의: `isSoldOut = remainingQuantity === 0 \|\| status !== 'ON_SALE'`. (5)의 엣지를 같이 흡수.) |
+| 표시 (좌측 본문) | 프로토타입 그대로. `EventHeader` 의 `StatusChip` 이 `sold` variant ("매진") 또는 status 별 라벨 ("판매 종료" / "취소됨" / "종료") 표시. `InfoCard` 의 "잔여 좌석" 행은 0이면 danger 색 텍스트 "매진되었습니다", `SOLD_OUT` 상태인데 잔여 > 0 (예: 판매 중지) 이면 그대로 "N석" + 상단 chip 으로 의미 전달. |
+| 표시 (우측 PurchasePanel) | 가격 라인은 그대로. 수량 컨트롤 / 합계 행 **숨김**. CTA 영역은 `Button` 1개 (ghost lg full disabled) — 라벨은 status 별: `SOLD_OUT` → "매진된 이벤트입니다" / `SALE_ENDED` → "판매 종료된 이벤트입니다" / `ENDED` → "종료된 이벤트입니다" / `CANCELLED` → "취소된 이벤트입니다". |
+| 사용자 액션 | 본 페이지에서는 없음. 안내 박스 (brand 좌측 bar) 는 그대로 노출 (환불/즉시 발급 안내) — 매진이라도 정보 가치는 유지. |
+
+### 4) 비로그인 — 구매 액션 차단
+
+데이터 페칭은 공개라 비로그인 상태에서도 페이지는 정상 렌더된다. 차단은 CTA
+클릭 시점에서만 발생.
+
+| 항목 | 내용 |
+|---|---|
+| 트리거 | `useAuth().isLoggedIn === false` 상태에서 "바로 구매하기" 또는 "장바구니에 담기" 클릭. (인증 컨텍스트는 기존 `src/lib/auth` 재사용.) |
+| 표시 | 즉시 로그인 페이지로 이동. 토스트는 띄우지 않음 (액션 결과로 페이지가 바뀌므로 redundant). |
+| 사용자 액션 | 로그인 후 자동으로 본 detail 로 복귀. 리다이렉트 URL: `/login-v2?returnTo=${encodeURIComponent(현재 path + search)}`. 현재 path 는 `/events-v2/:eventId` 이며 search 는 비어있는 게 보통. 로그인 페이지에서 `returnTo` 를 검증 후 적용. |
+
+> CTA 가 클릭 직전에 호출하므로 비로그인 상태에서도 버튼은 **활성화**된 채로
+> 노출 (회색 처리 안 함). 로그인 유도는 클릭 후 알게 됨 — 프로토타입과 동일.
+> 만약 비로그인 시 버튼에 자물쇠 아이콘 / "로그인 후 구매" 라벨로 사전 노출
+> 하고 싶으면 § 8 의사결정.
+
+### 5) 잔여 좌석 0 엣지 (status === 'ON_SALE' 인데 stock === 0)
+
+서버가 매진 갱신을 즉시 못 해서 발생할 수 있는 엣지. (3) 에 흡수되도록
+`isSoldOut` / `canBuy` 정의를 둠:
+
+```ts
+isSoldOut = remainingQuantity === 0 || status !== 'ON_SALE';
+canBuy    = status === 'ON_SALE' && remainingQuantity > 0;
+```
+
+따라서 `ON_SALE && remaining === 0` 케이스는 자동으로 (3) 의 매진 분기로
+들어간다. 다만 `StatusChip` 은 백엔드가 보낸 `status` 를 표시하므로 chip 은
+"판매중" 으로 보이고 잔여 좌석 행은 "매진되었습니다" 로 보이는 모순이 생길 수
+있음. 컴포넌트 처리:
+
+- `EventHeader` 의 chip 은 **파생 상태 우선** — `isSoldOut` 이면 chip 도 강제로
+  `sold` variant ("매진") 로 표시. (백엔드 status 는 다음 응답에서 따라잡을
+  것으로 가정.)
+- 위 동작이 너무 적극적인지 (UI 가 서버 진실을 가린다) 는 § 8 결정 항목에
+  추가. 기본은 위 정책.
+
+### 상태 우선순위 (요약)
+
+컨테이너 분기 순서는 단순 분기 체인:
+
+1. `loading` (placeholder 유무에 따라 두 형태)
+2. `not-found`
+3. `forbidden`
+4. `error`
+5. `success` → 내부에서 `isSoldOut` / `canBuy` / 비로그인 액션 분기
+   (모두 `success` 의 sub-state)
 
 ## 6. 구매 플로우 (장바구니 / 바로 구매)
 (작성 예정)
