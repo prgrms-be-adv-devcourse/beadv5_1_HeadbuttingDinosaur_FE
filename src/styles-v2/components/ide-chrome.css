@@ -527,6 +527,8 @@ button.side-header {
   display: flex;
   gap: 16px;
 }
+/* Trailing "N개 결과" pushed to the right edge of the hint footer. */
+.palette-hint-count { margin-left: auto; }
 .palette-hint kbd {
   padding: 1px 5px;
   background: var(--editor-bg);
