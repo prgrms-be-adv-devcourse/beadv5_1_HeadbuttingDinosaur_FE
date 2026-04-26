@@ -141,7 +141,80 @@ type PaginationProps = {
 | **`EventCardSkeleton` 내부 라인 placeholder** | **인라인 유지** | 단일 카드 스켈레톤만으로 충분. 라인별 분해는 § 6에서 셰이프 확정 후 결정. |
 
 ## 3. API 매핑 테이블
-(작성 예정)
+
+### 사용하는 API (실제 시그니처)
+
+`src/api/events.api.ts`의 세 함수가 모두 같은 엔드포인트(`GET /events`)를 다른 파라미터 셰이프로 호출한다.
+
+```ts
+// src/api/events.api.ts
+getEvents(params?: EventListRequest)        // { page?, size? }
+searchEvents(params: EventSearchRequest)    // { keyword, page?, size? }
+filterEvents(params: EventFilterRequest)    // { category?, techStacks? (number[]), page?, size? }
+// 모두 같은 응답: EventListResponse = { content: EventItem[], page, size, totalElements, totalPages }
+```
+
+세 함수가 한 엔드포인트로 합쳐지므로 `hooks.ts`에서 **활성 필터 조합에 따라 분기**한다 (keyword 있으면 `searchEvents`, category/stack 있으면 `filterEvents`, 둘 다 없으면 `getEvents`). 동시에 keyword + category가 함께 들어오는 경우는 백엔드가 단일 엔드포인트 한 콜로 받는지 확인 필요 → § 9 결정 항목.
+
+기술 스택 필터는 `number[]` (ID)이라 `src/api/auth.api.ts#getTechStacks` (또는 `techStacks.ts#extractTechStacks`)로 마스터 목록을 한 번 받아 **이름 → ID 매핑 캐시**를 둔다. 어댑터는 이 매핑을 받아 변환한다.
+
+### 표 1 — 요청 파라미터 매핑
+
+| 프로토타입 필터 | API 파라미터 | 호출 함수 | 비고 |
+|---|---|---|---|
+| 검색어 (`keyword`) | `keyword: string` | `searchEvents` | 빈 문자열이면 호출 분기에서 제외. 디바운스(§ 5)는 hook에서. |
+| 카테고리 (`cat`, `'전체' \| '컨퍼런스' \| ...`) | `category?: string` | `filterEvents` | `'전체'`면 파라미터 자체를 빼고 보낸다. 카테고리 카운트 표시는 응답으로는 못 받음 → 클라이언트에서 현재 페이지 분포로 계산하거나 별도 집계 API 필요 (§ 9). |
+| 기술 스택 (`stack: string`, 단일 선택) | `techStacks?: number[]` | `filterEvents` | API는 **다중**(`number[]`) 지원. 프로토타입은 단일 토글이지만 v2도 단일 선택 유지(§ 9에서 확정). 이름 → ID 변환 필요 — `getTechStacks` 마스터로 매핑. |
+| 페이지 | `page?: number`, `size?: number` | 모든 함수 공통 | **0-base** 또는 **1-base** 백엔드 컨벤션 확인 필요 (응답이 `page`/`totalPages` 반환 → 그대로 컨트롤). 기본 `size`는 24(그리드 8×3) 가정 — § 5에서 확정. |
+| 정렬 | (API 미노출) | — | 프로토타입에 정렬 UI 없음. 서버 기본 정렬 그대로 수용. 정렬 필요 시 백엔드 추가 요청 → § 9. |
+
+### 표 2 — 응답 필드 매핑 (mock event → API event)
+
+소스: `src/api/types.ts#EventItem` (목록 응답의 단일 항목).
+
+| MOCK_EVENTS 필드 | 실제 API 필드 (`EventItem`) | 변환 로직 |
+|---|---|---|
+| `eventId` | `eventId: string` | 그대로. |
+| `title` | `title: string` | 그대로. |
+| `category` | `category: string` | 그대로. (카테고리 enum/한글 라벨 정규화는 § 9.) |
+| `price` | `price: number` | 그대로. `price === 0`이면 카드 푸터 "무료" + status chip "무료" 분기 (어댑터에서 파생 플래그 `isFree` 노출). |
+| `remainingQuantity` | `remainingQuantity: number` | 그대로. `< 10 && > 0`이면 "low stock" 파생 플래그 `isLowStock` 추가. |
+| `status` (`'ON_SALE' \| 'SOLD_OUT'`) | `status: string` | API는 free-form `string`. 실제 값은 기존 코드 기준 `'ON_SALE' \| 'SOLD_OUT' \| 'SALE_ENDED' \| 'CANCELLED' \| 'ENDED'`(`src/pages/seller/*`, `src/components-v2/Layout/index.tsx` 사용 사례). 어댑터에서 union으로 좁히고, 카드는 `'ON_SALE'` / `'SOLD_OUT'` / 기타("판매 종료")로 표시 분기. |
+| `eventDateTime` | `eventDateTime: string` (ISO) | 그대로 받고, 어댑터에서 `dateLabel`(`YYYY.MM.DD`) + `timeLabel`(`HH:mm`) 파생 필드 노출. 카드 chrome 헤더와 메타 line이 같은 포맷 사용. |
+| `techStacks` (`string[]`) | `techStacks: string[]` | 그대로. (목록 응답은 이름 배열, 상세는 `TechStackItem[]`로 다름 — 본 페이지는 목록만 사용.) `slice(0, 3)` + `+N` 표시는 `EventCard` 내부 책임. |
+| `location` | **API 미존재** | `EventItem`엔 없음 (`EventDetailResponse`에만 있음). 카드에서 노출하던 라인을 어떻게 할지 § 9 결정 — **A안**: 백엔드에 `location`을 `EventListResponse`에 포함 요청 / **B안**: 카드에서 `location` 메타 라인 제거 / **C안**: 호버 시 lazy detail 호출. **기본 가정 B안**(B 채택 시 메타 라인은 `일시`만 남김). |
+| `host` | **API 미존재** | 마찬가지. `EventDetailResponse`엔 `sellerNickname`이 대응. § 9 결정 — 기본 가정 B안(카드에서 host 라인 제거). |
+| (없음) | `thumbnailUrl?: string` | 프로토타입은 글리프 그라디언트만 씀. v2도 기본 그라디언트 유지하되 `thumbnailUrl`이 있으면 카드 좌측 썸네일 슬롯에 사용 — § 9 옵션. |
+
+> **메모**: `location` / `host` 가용성에 따라 `EventCard`의 `MetaLine` 행 수가 1~3개로 달라진다. § 2에서 정의한 `MetaLine` props는 그대로 두고, 어댑터가 사용 가능한 메타만 채워서 카드가 `Array<{label, value}>`로 받도록 변경하는 옵션도 § 9에서 같이 정리.
+
+### 어댑터 위치
+
+```
+src/pages-v2/EventList/adapters.ts
+```
+
+- `toEventVM(api: EventItem, opts?: { ... }) => EventVM` — 위 변환 + 파생 플래그(`isFree`, `isLowStock`, `dateLabel`, `timeLabel`).
+- `toEventListPage(res: EventListResponse) => EventListPage` — `{ items: EventVM[], page, size, totalElements, totalPages, hasNext }`. `hasNext`는 `page < totalPages - 1` 등 백엔드 0/1-base 컨벤션 확정 후 적용 (§ 5).
+- `toFilterRequest(filters: EventListFilters, stackNameToId: Map<string, number>) => { kind: 'list' | 'search' | 'filter', params }` — 어떤 API 함수를 부를지/파라미터 셰이프까지 어댑터에서 결정해서 hook은 그대로 호출.
+- 컴포넌트는 `EventVM` / `EventListPage`만 알고 `EventItem`/`EventListResponse`는 전혀 모른다.
+
+### 표 3 — 에러 응답
+
+`apiClient`(`src/api/client.ts`)의 axios 응답 형태(`ApiResponse<T>`)를 hook에서 try/catch로 잡고, 아래 매핑으로 UI 분기.
+
+| HTTP | 의미 | UI 처리 |
+|---|---|---|
+| **200, `content: []`** | 정상이지만 결과 없음 | `EmptyStackTrace` (검색어/필터 적용 여부에 따라 카피·"필터 초기화" 버튼 분기). |
+| **400** | 파라미터 형식 오류 (예: `techStacks` ID가 음수) | `ErrorState` "요청 형식이 잘못되었습니다." + 필터 초기화 권유 + 재시도. (정상 사용에서 나오면 안 됨 — 발생 시 콘솔에 원본 메시지 로깅.) |
+| **401** | 인증 만료/누락 | 이벤트 목록은 **공개**라 정상 호출에서 401 안 나오는 게 맞음. 발생 시 `src/lib/auth`의 401 인터셉터가 토큰 정리 → 페이지는 비로그인 상태로 그대로 표시. UI는 일반 `ErrorState`로 폴백. |
+| **403** | 접근 권한 없음 | 동일. 공개 목록에선 비정상. `ErrorState` 폴백. |
+| **404** | 엔드포인트 자체 부재 | 빌드/배포 사고. `ErrorState` "이벤트 목록을 불러올 수 없습니다." + 재시도. |
+| **422** | 비즈니스 검증 실패 | 동일하게 `ErrorState`. 메시지는 서버가 주는 `message` 우선 표시(있을 때). |
+| **5xx** | 서버 오류 | `ErrorState` "일시적인 오류입니다. 잠시 후 다시 시도해주세요." + 재시도 버튼. |
+| **네트워크 끊김 / 타임아웃** | axios `error.code === 'ERR_NETWORK'` 등 | `ErrorState` "네트워크 연결을 확인해주세요." + 재시도. |
+
+> 재시도 버튼은 hook이 노출한 `refetch`를 호출. 디바운스/페이지 등 모든 입력 상태는 보존(URL 동기화 덕에 새로고침으로도 같은 결과 재현 가능).
 
 ## 4. URL 쿼리스트링 ↔ 상태 동기화
 (작성 예정)
