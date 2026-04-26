@@ -1028,5 +1028,145 @@ const CartV2 = lazy(() => import('./pages-v2/Cart'))
 - [ ] tsc --noEmit
 ```
 
-## 10.3 PR 간 의존성
-(작성 예정)
+## 10.3 PR 간 의존성 / 머지 순서
+
+§ 10.1·§ 10.2 + § 9.4(추가 PR)에서 갈라진 PR 5종을 한 화면에 정리.
+
+### 10.3.1 PR 목록
+
+| PR | 이름 | 출처 | 상태 |
+|---|---|---|---|
+| 1 | Cart 골격 + 시각 컴포넌트 (mock) | § 10.1 | 본 plan 작성 대상 |
+| 2 | 상태 + API + v1 PaymentModal 브리지 | § 10.2 | 본 plan 작성 대상 |
+| 3 | PaymentModal v2 리스킨 | § 9.1-7, § 9.2-15·16 | 본 plan 작성 대상 |
+| 4 | Cart 추천 카드 (`recommendEvents`) | § 10.2 분할 표 | 본 plan 작성 대상 |
+| 5 | 결제 콜백 페이지 v2 (`/payment/{success,fail,complete}`) | § 9.1-8 | 후속 plan 문서로 분리 권장 (별도 paymentCallback.plan.md). 머지 순서만 본 § 10.3에서 다룸 |
+
+### 10.3.2 의존성 그래프
+
+```
+                 [공용 선행 — 모두 이미 머지됨]
+                 ─────────────────────────────────
+                  • EventDetail v2 (PR #18)        — usePurchaseActions, /cart 진입 동선
+                  • QuantityStepper 공용 컴포넌트   — Cart PR 1에서 import만
+                  • VersionedRoute / router-v2     — Cart PR 1에서 사용
+                  • _shared/eventFormat.ts         — Cart adapters에서 import
+                                │
+                                ▼
+   ┌────────────────────────────────────────────────────────┐
+   │  PR 1  Cart 골격 + 시각 (mock)                         │  반드시 직렬
+   │   • App.tsx /cart 라우트 element 교체                  │
+   │   • RecommendedCardVM → _shared/recommendation 승격    │  ◄─── PR 4가 의존
+   └────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+   ┌────────────────────────────────────────────────────────┐
+   │  PR 2  상태 + API + v1 PaymentModal 브리지             │  반드시 PR 1 다음
+   │   • useCart / useCartMutations / useCheckout           │
+   │   • createOrder + Idempotency-Key                      │
+   │   • <PaymentModal v1>를 index.tsx에 마운트 (임시)     │
+   └────────────────────────────────────────────────────────┘
+                  │                                  │
+                  ▼                                  ▼
+   ┌────────────────────────────────┐   ┌────────────────────────────────┐
+   │  PR 3  PaymentModal v2 리스킨  │   │  PR 4  추천 카드               │
+   │   • src/components-v2/         │   │   • _shared/recommendation 사용 │
+   │     PaymentModal/ 신설         │   │   • useRecommendedEvents       │
+   │   • Cart/index.tsx의 import 1줄│   │   • RecommendedSection 마운트   │
+   │     v1 → v2 교체               │   │   • Cart.tsx 하단 영역 추가     │
+   │   • npm SDK 마이그레이션 동시  │   │                                │
+   │   • readyPayment에 idempotency │   │                                │
+   └────────────────────────────────┘   └────────────────────────────────┘
+                                ▼
+   ┌────────────────────────────────────────────────────────┐
+   │  PR 5  결제 콜백 페이지 v2 (별도 plan 문서)            │  PR 3 직후 권장
+   │   • /payment/success, /payment/fail, /payment/complete │
+   │   • VersionedRoute 적용                                │
+   │   • SPEC § 9 결정 갱신 동반                            │
+   └────────────────────────────────────────────────────────┘
+```
+
+### 10.3.3 직렬 / 병렬 매트릭스
+
+| 쌍 | 관계 | 사유 |
+|---|---|---|
+| PR 1 → PR 2 | **직렬** | PR 2는 PR 1의 컴포넌트·types·라우트 진입에 의존 |
+| PR 2 → PR 3 | **직렬** | PR 3은 PR 2가 마운트한 v1 모달을 v2로 *교체*. PR 2 없이 PR 3만 있으면 결제가 끊김 |
+| PR 2 → PR 4 | **직렬** | PR 4는 PR 2의 `useCart` 결과 + cart eventId Set으로 "이미 담긴 항목" 표시. PR 2 없이는 동작 미정 |
+| **PR 3 ⟷ PR 4** | **병렬 가능** ✅ | 서로 코드 영역이 겹치지 않음(PR 3=PaymentModal·결제, PR 4=추천 영역). 충돌은 `Cart/index.tsx` 한 곳 — PR 3는 모달 import 줄, PR 4는 추천 마운트 줄. 충돌 시 trivial merge |
+| PR 3·4 → PR 5 | **PR 3 직후 권장 (PR 4와 무관)** | PR 5의 콜백 페이지에서 "장바구니로 돌아가기" CTA를 v2 라우트로 보낼 때 PR 3의 결제 종단 톤이 통일돼 있어야 시각적 일관. PR 4와는 무관 |
+| PR 5 vs PR 3 | **PR 3 머지 후** | 결제 진입(PR 3) 톤이 정해진 후 콜백 톤 매핑 |
+
+**병렬 가능한 작업조합**: `PR 3 ⟷ PR 4`만. 그 외는 모두 직렬.
+
+### 10.3.4 외부 PR 의존성 (Cart 시리즈 외)
+
+| 외부 자산 | 상태 | 영향 |
+|---|---|---|
+| **EventDetail v2** (`pages-v2/EventDetail/`) | **머지 완료** (PR #18, commit `9d7fd4f`) | `usePurchaseActions`가 `addCartItem` 후 `navigate('/cart')` → Cart v2 토글이면 v2 마운트. 추가 작업 없음. **단**, PR 1의 `RecommendedCardVM` 승격 시 EventDetail의 import 경로 갱신 필요 — PR 1에 포함됨 |
+| **QuantityStepper 공용** (`components-v2/QuantityStepper/`) | **머지 완료** (commit `f1174b4` — `feat(QuantityStepper): add controlled +/- stepper (PR 4 §3.4/§4.13)`) | Cart PR 1에서 그대로 import. 별도 PR 의존 없음 |
+| **VersionedRoute / router-v2** | **머지 완료** (router-toggle.plan PR) | Cart PR 1에서 그대로 사용 |
+| **공용 컴포넌트 일괄** (`Button`, `Card`, `EmptyState`, `AccentMediaBox`, `Icon`, `EmptyState`) | **머지 완료** (Phase 0) | Cart PR 1·4에서 그대로 import |
+| **`_shared/eventFormat.ts`** (`toStatus / toDateTimeLabels / isFree / isLowStock`) | **머지 완료** (EventList/EventDetail 작업분) | Cart PR 2 adapters에서 import |
+
+> 결론: **Cart 시리즈는 외부 PR을 더 기다릴 필요 없이 PR 1부터 즉시 시작 가능.**
+
+### 10.3.5 PR 간 충돌 가능 지점
+
+| 파일 | PR 영향 | 머지 전략 |
+|---|---|---|
+| `src/App.tsx` | PR 1(`/cart` 토글), PR 5(`/payment/*` 토글 3개) | PR 5 시점에 PR 1이 머지된 상태라 충돌 거의 없음. 라우트 element만 추가 |
+| `src/pages-v2/Cart/index.tsx` | PR 2(모달 마운트), PR 3(모달 교체), PR 4(추천 마운트) | PR 3·4가 병렬일 때 한 줄 단위 충돌 가능 — trivial. 늦게 머지되는 쪽이 rebase |
+| `src/pages-v2/Cart/Cart.tsx` | PR 1(틀), PR 2(콜백 연결), PR 4(하단 추천 영역 prop 추가) | PR 4 머지 시 rebase로 충분 |
+| `src/pages-v2/EventDetail/adapters.ts` | PR 1(`RecommendedCardVM` 승격으로 import 경로 변경) | PR 1에 동기 변경 포함. 외부 PR 영향 없음 |
+| `src/components/PaymentModal.tsx` (v1) | **수정 금지** (SPEC § 0) | 모든 PR에서 read-only |
+
+### 10.3.6 각 PR 별 검증 시나리오 (요약)
+
+상세 체크리스트는 각 PR plan(§ 10.1·§ 10.2 + 후속 PR 문서)에 있음. 본 § 10.3은 **PR 머지 시점에 회귀를 잡는 핵심 시나리오만** 정리.
+
+| PR | 핵심 시나리오 | 결과 판정 |
+|---|---|---|
+| **PR 1** | `/cart?v=2&cartFixture=success` 진입 | 3개 mock 아이템 + 우측 sticky `OrderSummary` 렌더. 결제 버튼 disabled. 콘솔 에러 없음 |
+| **PR 1** | `/cart?v=2&cartFixture=empty` | `EmptyCart` 카드(🛒 + CTA) 렌더. CTA 클릭 → `/events` |
+| **PR 1** | `/cart?v=1` | v1 회귀 없음 |
+| **PR 2** | EventDetail v2 → "장바구니 담기" → `/cart?v=2` | 새로 담은 항목 노출 (`getCart()` 1회 호출 확인) |
+| **PR 2** | `+`/`−`/삭제 | `PATCH`/`DELETE` 호출 + 낙관적 갱신 + 실패 시 롤백 |
+| **PR 2** | 결제하기 → v1 PaymentModal → WALLET 결제 종단 | `/payment/complete` 도달, `Idempotency-Key` 헤더 부착 확인 |
+| **PR 2** | 결제하기 → v1 PaymentModal → PG → Toss 테스트 결제 | `/payment/success` → confirm → `/payment/complete` |
+| **PR 3** | PR 2와 동일한 결제 시나리오를 v2 모달로 재실행 | UI/톤 차이만 있고 종단 동작은 PR 2와 동일. WALLET·PG·WALLET_PG 3종 모두 정상 |
+| **PR 3** | npm SDK 전환 회귀 | 외부 스크립트 로드 제거 + `tossPayments.requestPayment` 호출 정상. 토큰/clientKey env 처리 확인 |
+| **PR 3** | `readyPayment`에 `Idempotency-Key` 부착 | devtool에서 헤더 확인 |
+| **PR 4** | `/cart?v=2`에서 추천 카드 영역 마운트 | 5개 카드 렌더, "이미 담긴 항목" 카드는 "담긴 이벤트" 비활성, 미담긴 카드는 "빠르게 담기" → `addCartItem` → 즉시 리스트 반영 |
+| **PR 4** | 추천 페치 실패 | 메인 카트 영향 없음(추천 영역만 숨김 또는 fallback 메시지) |
+| **PR 5** | PG 결제 후 `/payment/success?v=2` 도달 | v2 톤 적용된 페이지에서 `confirmPayment` 호출 → `/payment/complete` |
+| **PR 5** | 결제 실패로 `/payment/fail?v=2` 도달 | v2 톤 페이지에서 사유 표시, "장바구니로 돌아가기" CTA → `/cart?v=2` 정상 |
+| **PR 5** | `?v=1` 회귀 | 기존 결제 콜백 페이지 그대로 |
+
+### 10.3.7 권장 머지 일정 (러프)
+
+> 작업 인원 1명 가정. 코드 리뷰 1~2일 포함.
+
+| 주차 | 작업 |
+|---|---|
+| W1 | PR 1 작성·리뷰·머지 (시각 + 토글) |
+| W2 | PR 2 작성·리뷰. § 9.3 백엔드 검증 V1·V3·V4 선행 |
+| W3 | PR 2 머지. PR 3·4 **병렬 시작** |
+| W4 | PR 3·4 리뷰·머지 (충돌 시 늦게 머지되는 쪽 rebase) |
+| W5 | PR 5 (별도 plan 문서 작성 → 작업) |
+
+> PR 3·4 병렬은 작업자 2명일 때만 의미 있음. 1명이면 PR 3 → PR 4 직렬이 단순.
+
+### 10.3.8 롤백 전략
+
+각 PR는 독립 revert 가능하도록 작성됨:
+
+| PR revert | 영향 | 회복 |
+|---|---|---|
+| PR 1 revert | `/cart?v=2`가 빈 페이지(VersionedRoute fallback로 v1 렌더) | v1 정상. 사용자 영향 0 |
+| PR 2 revert | `/cart?v=2`가 mock 화면으로 회귀(결제 안 됨) | `?v=1`로 우회. 토글 기본값 빠르게 v1로 환원 가능 |
+| PR 3 revert | v2 카트가 v1 PaymentModal로 회귀 | 결제 정상 동작. UI 톤만 어긋남 |
+| PR 4 revert | 추천 영역만 사라짐 | 핵심 동작 영향 없음 |
+| PR 5 revert | 결제 콜백 v1로 회귀 | 정상 동작 |
+
+> `VITE_UI_DEFAULT_VERSION` env로 환경 단위 빠른 비활성화도 가능 (router-toggle § 2-1).
