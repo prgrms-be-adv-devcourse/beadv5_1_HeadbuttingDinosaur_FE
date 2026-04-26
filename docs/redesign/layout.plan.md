@@ -211,7 +211,318 @@ src/components-v2/Layout/
 
 
 ## 3. 각 서브 컴포넌트 props 시그니처
-(작성 예정)
+
+원칙:
+- 라우트/인증/테마/카트는 컨테이너(`Layout`) 또는 `useChrome`/router/auth/cart 훅에서 끌어 쓰고, 서브 컴포넌트는 **prop 주입** 받음 (테스트 용이성 + `window.*` 제거 — § 2-4 결정).
+- 모든 컴포넌트는 `className?: string` 받음 (외부에서 spacing/override 가능). 다만 `Layout` 자체는 grid 셸이라 받지 않음.
+- 콜백은 `onX` 네이밍, 동기 함수 시그니처. 비동기는 hook 안에서 처리.
+
+### 3-1. 공통 타입 (`types.ts`)
+
+```ts
+export type RouteKey =
+  | 'home'
+  | 'events'
+  | 'detail'
+  | 'cart'
+  | 'mypage'
+  | 'login';
+
+export type ActivityKey = RouteKey | 'search' | 'settings';
+
+export interface ActivityItem {
+  key: ActivityKey;
+  icon: string;          // Icon 이름 (예: 'terminal', 'folder', 'cart')
+  label: string;         // tooltip + 접근성 라벨
+  badge?: number;        // 0 이상이면 표시
+  action?: 'palette';    // 'palette' 면 nav 대신 팔레트 오픈
+}
+
+export interface TabDef {
+  key: RouteKey;
+  label: string;
+  icon: string;
+}
+
+export interface PaletteItem {
+  key: string;
+  label: string;
+  hint: string;
+  icon: string;
+  shortcut?: string;     // 'g h' 같은 표시용 — 동작은 useGlobalShortcuts 가 담당
+  action: () => void;
+}
+
+export interface UpcomingEventVM {
+  eventId: string;
+  title: string;
+  dateText: string;      // 사전 포맷 ("2026-05-12")
+  priceText: string;     // "무료" | "49,000원"
+}
+
+export interface CategoryCount {
+  name: string;
+  count: number;
+}
+
+export interface SessionUser {
+  nickname: string;
+}
+
+export type ThemeMode = 'light' | 'dark';
+
+export type NavParams = { id?: string; category?: string };
+export type NavigateFn = (key: RouteKey, params?: NavParams) => void;
+```
+
+### 3-2. `LayoutChromeContext.tsx`
+
+```ts
+export interface ChromeContextValue {
+  openPalette: () => void;
+  closePalette: () => void;
+  toggleTheme: () => void;
+  logout: () => void;
+  focusSearch: () => void;
+  registerSearchInput: (el: HTMLInputElement | null) => void;
+}
+
+export interface LayoutChromeProviderProps {
+  children: React.ReactNode;
+  onToggleTheme: () => void;          // App-level 테마 store 의 토글
+  onLogout: () => void;               // auth context 의 logout
+}
+
+export function LayoutChromeProvider(
+  props: LayoutChromeProviderProps,
+): JSX.Element;
+
+// throw 시 Provider 누락 — 명시적 에러
+export function useChrome(): ChromeContextValue;
+```
+
+### 3-3. `index.tsx` — `Layout`
+
+```ts
+export interface LayoutProps {
+  /** 미지정 시 React Router <Outlet/> 렌더 */
+  children?: React.ReactNode;
+}
+
+export default function Layout(props: LayoutProps): JSX.Element;
+```
+
+내부에서 끌어 쓰는 것: `useLocation` (현재 라우트), `useNavigate`, `useAuth`(isLoggedIn/user/logout), `useTheme`, `useCart`(count), `useGlobalShortcuts`. props 는 `children` 하나뿐.
+
+### 3-4. `TitleBar.tsx`
+
+```ts
+export interface TitleBarProps {
+  theme: ThemeMode;
+  onToggleTheme: () => void;
+  onOpenPalette: () => void;
+  className?: string;
+}
+
+export function TitleBar(props: TitleBarProps): JSX.Element;
+```
+
+기본값 없음 — 모두 필수. `traffic` 마크업은 내부 인라인.
+
+### 3-5. `ActivityBar.tsx`
+
+```ts
+export interface ActivityBarProps {
+  currentRoute: RouteKey;
+  cartCount: number;          // 0 이면 배지 미표시
+  isLoggedIn: boolean;
+  onNavigate: NavigateFn;     // cart/mypage 미인증 시 내부에서 'login' 으로 가드
+  onOpenPalette: () => void;  // search 항목 클릭 시
+  className?: string;
+}
+
+export function ActivityBar(props: ActivityBarProps): JSX.Element;
+```
+
+`items: ActivityItem[]` 은 컴포넌트 내부 상수. settings 버튼은 현재 클릭 동작 미정 — onClick 미연결.
+
+### 3-6. `Sidebar/index.tsx`
+
+```ts
+export interface SidebarProps {
+  currentRoute: RouteKey;
+  isLoggedIn: boolean;
+  user: SessionUser | null;
+  totalEventCount: number;
+  categories: CategoryCount[];   // adapter 에서 계산해서 주입
+  upcoming: UpcomingEventVM[];   // 상위 4개 (slice 는 호출자 책임)
+  onNavigate: NavigateFn;
+  className?: string;
+}
+
+export function Sidebar(props: SidebarProps): JSX.Element;
+```
+
+내부 상태: `[menuOpen, setMenuOpen]`, `[upcomingOpen, setUpcomingOpen]` (둘 다 `useState(true)`). 세션 섹션은 항상 펼침 (토글 없음 — 프로토타입 동일).
+
+### 3-7. `Sidebar/SidebarMenu.tsx`
+
+```ts
+export interface SidebarMenuProps {
+  currentRoute: RouteKey;
+  isLoggedIn: boolean;
+  open: boolean;
+  onToggle: () => void;
+  totalEventCount: number;
+  categories: CategoryCount[];
+  onNavigate: NavigateFn;        // events + category 클릭 시 { category } 전달
+}
+
+export function SidebarMenu(props: SidebarMenuProps): JSX.Element;
+```
+
+### 3-8. `Sidebar/SidebarUpcoming.tsx`
+
+```ts
+export interface SidebarUpcomingProps {
+  open: boolean;
+  onToggle: () => void;
+  events: UpcomingEventVM[];
+  onSelectEvent: (eventId: string) => void;
+}
+
+export function SidebarUpcoming(props: SidebarUpcomingProps): JSX.Element;
+```
+
+### 3-9. `Sidebar/SidebarSession.tsx`
+
+```ts
+export interface SidebarSessionProps {
+  user: SessionUser;            // null 체크는 부모(Sidebar) 책임 — 비로그인이면 렌더 안 함
+}
+
+export function SidebarSession(props: SidebarSessionProps): JSX.Element;
+```
+
+### 3-10. `TabBar.tsx`
+
+```ts
+export interface TabBarProps {
+  tabs: TabDef[];
+  activeKey: RouteKey;
+  onSelect: (key: RouteKey) => void;
+  /** 미지정 또는 tabs.length === 1 이면 close 버튼 미표시 */
+  onClose?: (key: RouteKey) => void;
+  className?: string;
+}
+
+export function TabBar(props: TabBarProps): JSX.Element;
+```
+
+### 3-11. `Minimap.tsx`
+
+```ts
+export interface MinimapProps {
+  route: RouteKey;
+  className?: string;
+}
+
+export function Minimap(props: MinimapProps): JSX.Element;
+```
+
+라인 패턴(`Record<RouteKey, string[]>`)은 내부 상수. 인터랙션 없음.
+
+### 3-12. `StatusBar.tsx`
+
+```ts
+export interface StatusBarProps {
+  currentRoute: RouteKey;
+  isLoggedIn: boolean;
+  user: SessionUser | null;
+  onOpenPalette: () => void;
+  className?: string;
+}
+
+export function StatusBar(props: StatusBarProps): JSX.Element;
+```
+
+라우트 → 라벨 매핑(`Record<RouteKey, string>`)과 "한국어"·"정상" 등은 내부 상수.
+
+### 3-13. `CommandPalette/index.tsx`
+
+```ts
+export interface CommandPaletteProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function CommandPalette(props: CommandPaletteProps): JSX.Element | null;
+```
+
+내부에서 `usePaletteCommands(query)`로 항목 빌드. `open=false` 면 `null` 반환(프로토타입과 동일).
+
+### 3-14. `CommandPalette/PaletteList.tsx`
+
+```ts
+export interface PaletteListProps {
+  items: PaletteItem[];
+  selectedIndex: number;
+  onHover: (index: number) => void;
+  onRun: (index: number) => void;
+}
+
+export function PaletteList(props: PaletteListProps): JSX.Element;
+```
+
+빈 결과("검색 결과가 없습니다") 처리는 이 컴포넌트 책임.
+
+### 3-15. `CommandPalette/usePaletteCommands.ts`
+
+```ts
+export interface UsePaletteCommandsResult {
+  items: PaletteItem[];
+  loading: boolean;
+}
+
+/**
+ * 정적 명령(라우트 6개 + 테마 + 로그인/로그아웃) + 이벤트 검색 결과를 합쳐 반환.
+ * query 가 비면 정적 명령만, 비어 있지 않으면 이벤트 API 검색 결과 머지.
+ */
+export function usePaletteCommands(query: string): UsePaletteCommandsResult;
+```
+
+### 3-16. `hooks/useGlobalShortcuts.ts`
+
+```ts
+export interface UseGlobalShortcutsOptions {
+  isLoggedIn: boolean;
+  onOpenPalette: () => void;
+  onClosePalette: () => void;
+  onFocusSearch: () => void;
+  onNavigate: NavigateFn;
+  /** 페이지에서 카드 포커스 이동(j/k) 을 지원할 때만 주입 */
+  onCardNav?: (delta: 1 | -1) => void;
+  /** 현재 포커스된 카드 열기(Enter) — 미지정 시 무동작 */
+  onCardOpen?: () => void;
+}
+
+export function useGlobalShortcuts(opts: UseGlobalShortcutsOptions): void;
+```
+
+`document.addEventListener('keydown', ...)` 를 `useEffect`로 등록/해제. 입력 필드(`INPUT`/`TEXTAREA`/`contentEditable`) 안에서는 ⌘K/Esc 만 처리.
+
+### 3-17. props 패턴 요약
+
+| 카테고리 | prop 패턴 |
+|---|---|
+| 라우트 | `currentRoute: RouteKey` (읽기) / `onNavigate: NavigateFn` (쓰기) |
+| 인증 | `isLoggedIn: boolean` + `user: SessionUser \| null` |
+| 토글 상태 | `open: boolean` + `onToggle: () => void` (controlled) |
+| 카운트/배지 | `cartCount: number`, `totalEventCount: number`, `categories: CategoryCount[]` |
+| 콜백 | `onSelect`, `onClose`, `onOpenPalette`, `onToggleTheme`, `onSelectEvent`, `onRun`, `onHover` |
+| 표준 | `className?: string` (Layout 제외 전 컴포넌트). `children` 은 `Layout` 만 받음 |
+| 기본값 | 없음(모두 필수) — 옵셔널은 `onClose`(TabBar), `onCardNav`/`onCardOpen`(shortcuts), `badge`(ActivityItem), `shortcut`(PaletteItem), `className` 만 |
+
 
 ## 4. 데이터 의존성 (라우터, 인증, 테마)
 (작성 예정)
