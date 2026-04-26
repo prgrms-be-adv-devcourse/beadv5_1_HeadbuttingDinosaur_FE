@@ -687,7 +687,105 @@ plan §4 라인 166 에서 검증됨. Landing 신규 합의 사항 없음 — §
 
 
 ## 9. SEO / 메타 태그 / 성능
-(작성 예정)
+
+Landing 은 비로그인 첫 화면이자 트래픽이 가장 많은 페이지. 정보
+밀도가 큰 만큼 LCP / 폰트 / 번들 / a11y 가 SEO 신호로 직결.
+
+### 9.1 메타 태그
+
+INVENTORY §5 확인: `react-helmet` / `react-helmet-async` 등 메타 태그
+라이브러리 **미도입**. `index.html` 에 `<title>DevTicket</title>` +
+description meta 만 정적 선언 (`index.html:7-8`). 앱 코드 어디에도
+`document.title` 동적 변경 없음.
+
+| 항목 | 현재 (index.html) | Landing v2 처리 |
+|---|---|---|
+| `<title>` | `DevTicket` | **유지**. Landing 은 첫 화면이라 글로벌 타이틀이 그대로 적합 |
+| `<meta name="description">` | `개발자 컨퍼런스·밋업 티케팅 플랫폼` | **유지**. 이미 Landing 카피와 부합 |
+| `og:type`, `og:title`, `og:description`, `og:image`, `og:url` | **부재** | v1 범위 내 추가 권장. 단 정적 SPA 라 페이지별 OG 가 필요한 게 아니라 **`index.html` 에 정적 추가**. 이미지는 `public/og/landing.png` 1280×640 |
+| `twitter:card` | 부재 | `summary_large_image` 1줄. og 이미지 재사용 |
+| `<html lang="ko">` | 이미 있음 | 유지 |
+| 라이브러리 도입 | — | **미도입 유지** (SPEC § 9 "추가 라이브러리 미도입" 결정과 정합). 다른 페이지에서 동적 메타 필요해질 때 다시 결정 — § 11 |
+
+> **결정 (§ 11 입력)**: v1 은 정적 메타만. 페이지별 동적 메타가 필요한
+> 시점(예: EventDetail 의 이벤트별 OG)이 오면 그때 `react-helmet-async`
+> 도입을 SPEC § 9 에 정식 등록. Landing PR 에는 `index.html` 의 og /
+> twitter 메타 추가만 포함.
+
+### 9.2 폰트 / 이미지 최적화
+
+| 항목 | 현재 | Landing 처리 |
+|---|---|---|
+| Geist / Geist Mono | Google Fonts CDN, `display=swap` (`index.html:12`) | 유지. swap 덕분에 FOIT 없음 (FOUT 만 있음) |
+| `<link rel="preconnect">` | `fonts.googleapis.com` + `fonts.gstatic.com crossorigin` 이미 존재 | 유지 |
+| `<link rel="preload">` | 없음 | Geist Regular 만 `preload as="font" type="font/woff2" crossorigin` 추가 검토 — 다만 Google Fonts 의 woff2 URL 은 시간이 지나면 변경 가능성 있어 **미적용** 권장. swap + preconnect 로 충분 |
+| 로고 / 아이콘 | `/favicon.svg`, `prototype/assets/logo-mark.svg` 등 | Landing 본문에는 큰 비트맵 이미지 없음 (배경/일러스트 없음). Hero 우측은 TypedTerminal 로 텍스트 기반. 카테고리 아이콘은 약자 텍스트 (`CF`, `MT`) — 이미지 최적화 부담 거의 없음 |
+| 이미지 lazy | — | Featured 행에 `thumbnailUrl` 이 있는 경우(현재는 그라디언트 박스로 대체 — 프로토타입 L131) `<img loading="lazy" decoding="async">` 부착. v1 은 그라디언트 박스만 사용 가능성 높음 |
+| 이미지 사이즈 정의 | — | `aspect-ratio` 또는 명시적 width/height 로 CLS 방지 |
+
+### 9.3 JS 번들 최적화
+
+| 대상 | 처리 |
+|---|---|
+| Landing 페이지 자체 | `src/App.tsx` 의 라우트 정의에서 `lazy(() => import('./pages-v2/Landing'))` + `<Suspense>` 적용. 비로그인 첫 화면이라 결국 항상 로드되긴 하지만 Vite chunk 분리로 캐시 hit 율 향상 |
+| `TypedTerminal` | Hero 의 시각 데모. 마운트 직후 보이긴 하지만 텍스트 기반이라 무겁지 않음. **lazy 미적용**. § 3 의 reducer 도입 후에도 LOC 작음. 단 라이브러리 의존(예: typed.js)이 추가되면 그때 lazy 검토 |
+| `FeaturedSection` (below-the-fold) | 페이지 1뷰포트 안에 들어오므로 Hero/Stats/Categories 다음에 자연스럽게 보임. 현재 마크업 가벼워서 lazy 안 함. 미래에 Featured 가 차트/지도 등으로 커지면 그때 `IntersectionObserver` + lazy mount |
+| 코드 스플리팅 | Landing 디렉토리 전체를 1개 chunk 로 묶어 1차 import 비용 최소화 |
+| 외부 SDK | Toss Payments / Kakao Maps 모두 Landing 에서 미사용. `index.html` 의 `tosspayments/v1/payment` 스크립트는 Landing 에서 비효율 — **별 개선** (`async` 또는 결제 페이지에서 동적 import) 은 § 11 입력 |
+
+### 9.4 첫 페인트 (FCP) / LCP
+
+| 메트릭 | 타깃 | Landing 전략 |
+|---|---|---|
+| LCP 후보 | h1 "개발자의 다음 한 줄을…" 44px | **즉시 렌더 가능**. Hero 카피는 정적 컨텐츠라 데이터 페치 불필요. `Landing.tsx` 마운트 1차 렌더에 노출 |
+| FCP | Hero eyebrow + h1 일부 | 동일 — 정적 |
+| 폰트 swap | Geist 다운로드 전엔 시스템 폰트로 즉시 그림. 다운로드 완료 시 swap | 유지. FOUT 짧아 사용자 인지 거의 없음 |
+| 데이터 의존 LCP 제거 | Hero / CTA / TypedTerminal 정적, Stats/Categories/Featured 만 fetch | 데이터 섹션 로딩 중에도 Hero/CTA 그대로 보이도록 § 6.6 의 "전체 페이지 스피너 미사용" 정책 유지 |
+| 스켈레톤 CLS | § 6 의 카드 높이 고정 | 카드/타일/행 모두 슬롯 높이 토큰 고정 (`min-height` 인라인 변수) |
+| Hero 우측 TypedTerminal | LCP 후보 아님 (42px h1 보다 작음) | `min-height: 150` 고정 (§ 3) — 타이핑 진행 중 레이아웃 점프 없음 |
+
+### 9.5 애니메이션 / `prefers-reduced-motion`
+
+| 대상 | 일반 | reduced-motion |
+|---|---|---|
+| TypedTerminal 타이핑 | 38ms 간격 | 모든 라인 즉시 완성 (§ 3) |
+| TypedTerminal 커서 깜빡임 | `@keyframes blink` 1s | 정지 (§ 3) |
+| `CategoryTile` hover | translateY -2 + borderColor accent | translateY 만 0 으로, borderColor 변화는 유지 |
+| `FeaturedRow` hover | borderColor accent + 배경 변경 | 동일하게 transform 만 제거 |
+| CTA 버튼 hover | 기본 토큰 hover | 그대로 (변환 없음) |
+
+`@media (prefers-reduced-motion: reduce)` 셀렉터로 globals 또는 Landing
+페이지 CSS 에 일괄 처리 (Cart/EventDetail 의 `cart.css` 패턴 참고).
+
+### 9.6 접근성
+
+| 항목 | 처리 |
+|---|---|
+| `<h1>` | **단 1개** — Hero 의 "개발자의 다음 한 줄을…". `Landing.tsx` 안에서만 등장 |
+| `<h2>` | 섹션마다 1개 — Categories ("카테고리별 이벤트"), Featured ("이번 주 주목할 이벤트"), CTA ("지금 바로 다음 컨퍼런스를 예약하세요"). Stats 는 SectionHead 미사용 (시각상 헤딩 부재) — **OK**. 헤딩 스킵 (h1 → h3) 발생하지 않게 SectionHead 의 `h2` 그대로 사용 |
+| 헤딩 계층 | h1 → h2 만. h3+ 미사용 |
+| `<main>` | Layout v2 chrome 이 제공. Landing 자체는 `<section>` × 5 만 |
+| 키보드 네비 | 모든 버튼/타일/행이 `<button>` 또는 `<a>` (FeaturedRow 는 `<button>` 권장 — 프로토타입의 `<div onClick>` 은 a11y 위배). `Tab` 으로 Hero CTA 2개 → Categories 6 타일 → Featured 5 행 → CTA 1 버튼 순회 |
+| 포커스 표시 | 토큰 `--focus-ring` 사용 (Layout 공용). 인터랙티브 요소 모두 `outline-offset` 적용 |
+| `Categories` 약자 | 타일의 시각 글리프 (`CF`/`MT`/`HT`/`ST`/`SM`/`WS`) 는 장식. **`aria-hidden="true"`** 로 표시하고 버튼 자체의 라벨은 카테고리명+카운트 텍스트가 충당 ("컨퍼런스 / 8개 이벤트"). 별도 `aria-label` 불필요 |
+| TypedTerminal | `aria-hidden="true"` (§ 3). `<p className="sr-only">개발자 친화적인 검색·예매 동작 데모</p>` 로 의미만 한 줄 요약 |
+| CategoryTile 색상 | hover 시 borderColor 변경뿐 아니라 텍스트 변화도 함께 (색상에만 의존하는 신호 금지) — 디자인 토큰 결선 시 검토 |
+| 색상 대비 | term-green-soft 배경 + term-green-dim 텍스트 (Eyebrow), --text-3 / --text-4 보조 텍스트 모두 4.5:1 충족 확인 (Cart/EventList 토큰 검증과 동일) |
+| `aria-live` | Stats 갱신 시 화면 낭독 과다 방지 — **부착 안 함**. 사용자가 명시적으로 "다시 시도" 누른 경우에만 결과를 polite 영역에 노출 (선택) |
+| `lang` | `<html lang="ko">` 유지 |
+| 스킵 링크 | Layout chrome PR 에서 처리 (Landing 범위 밖) |
+
+### 9.7 Lighthouse / Web Vitals 체크리스트 (PR 4 검수)
+
+PR 4 (CTA + 통합 + 라우터, § 12.4) 검수 시:
+
+- [ ] LCP ≤ 2.5s (로컬 throttled 4G 가정)
+- [ ] CLS < 0.1 (스켈레톤 슬롯 고정 검증)
+- [ ] TBT < 200ms (TypedTerminal reducer 가 메인 스레드 점유 안 하는지)
+- [ ] axe / Lighthouse a11y 100 점 (h1 단일, 헤딩 계층, 색 대비, 인터랙티브 요소 키보드)
+- [ ] `prefers-reduced-motion` ON 상태에서도 모든 정보 접근 가능
+- [ ] 콘솔 에러 0
+
 
 ## 10. 라우터 등록
 (작성 예정)
