@@ -28,3 +28,8 @@
   color: var(--text-2);
   min-width: 0;
 }
+
+/* HeroBanner (§2 HeroBanner) — wraps AccentMediaBox size="hero" with page spacing */
+.ed-hero {
+  margin-bottom: 24px;
+}
