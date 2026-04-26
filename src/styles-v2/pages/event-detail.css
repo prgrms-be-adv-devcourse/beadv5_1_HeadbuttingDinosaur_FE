@@ -33,3 +33,31 @@
 .ed-hero {
   margin-bottom: 24px;
 }
+
+/* InfoRow (§2 InfoRow) — single row inside InfoCard. Last row drops border via :last-child. */
+.ed-info-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ed-info-row:last-child {
+  border-bottom: none;
+}
+.ed-info-row__icon {
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.ed-info-row__label {
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text-3);
+  min-width: 66px;
+}
+.ed-info-row__value {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+}
