@@ -399,7 +399,69 @@ export function useEvents(filters: EventListFilters, stackNameToId: Map<string, 
 - LRU 축출은 `cache.size > 8`일 때 가장 오래된 슬롯 삭제 — 위 골격에서 생략, 실제 구현 시 보강.
 
 ## 6. 신규 상태 처리 (로딩/에러/empty/페이징)
-(작성 예정)
+
+§ 2 컴포넌트와 § 5 상태 머신(`{loading | success | error} × previous?`) 위에서 분기. 모든 상태에서 `Hero` + `SearchAndFilters`는 항상 보이게 둔다(=사용자가 어디서든 필터를 바꿔 다음 시도를 할 수 있어야 함). 변하는 건 **`ResultHeader` 아래 영역**(그리드 자리).
+
+### 1) 로딩
+
+| 케이스 | 트리거 (§ 5 상태) | 표시 | 사용자 액션 |
+|---|---|---|---|
+| **초기 로딩** | `status: 'loading'` & `previous == null` | `EventCardSkeleton × 8` (§ 2). `ResultHeader`는 자리만 잡고 카운트 텍스트는 비우거나 `이벤트 …개` placeholder. `Pagination` 미렌더. | (없음) |
+| **재페칭 (필터/페이지 변경 등)** | `status: 'loading'` & `previous != null` | 직전 그리드 그대로 노출 + 그리드 상단에 얇은 progress bar(2px, brand color, indeterminate) + `aria-busy="true"`. dim 등 카드 자체 transparency는 적용하지 않는다(클릭 차단도 아님). | 그리드 클릭 가능 유지. 새 fetch 중에도 다른 필터 토글하면 즉시 키 변경. |
+| **재시도 (에러 후)** | `refetch()` 호출 → `status: 'loading'` & `previous != null/null` | 직전 데이터 있으면 위 "재페칭"과 동일. 없으면 다시 skeleton 8. | (없음) |
+
+**스켈레톤 카드 개수 = 8** (SPEC § 5 명시 + 280×4 = 1120 → 1100px 컨테이너에서 한 행 3~4개, 2행으로 적당). 그리드 css는 데이터 그리드와 동일한 `auto-fill, minmax(280px, 1fr)`을 그대로 사용해 행이 자연스럽게 늘어남.
+
+**스켈레톤 컴포넌트 위치**: 페이지 전용 (`components/EventCardSkeleton.tsx`, § 1/§ 2). MyPage·EventDetail 등 다른 페이지의 카드 골격이 EventList와 다르므로 공용 추상화는 이르다. 단, 박스/라인 placeholder의 **시각 원자**(`Skeleton`, `SkeletonText`)는 SPEC § 0 공용 컴포넌트로 만든다고 가정하고 `EventCardSkeleton`은 그것을 조립.
+
+**애니메이션**: pulse (`opacity: 0.5 ↔ 1`, 1.2s). shimmer 그라디언트는 dark theme 토큰 충돌 위험 + 구현 비용 → 1차에선 pulse만.
+
+### 2) 에러
+
+- **표시 위치**: 그리드 자리에 인라인 박스 (`ErrorState`, § 2). 토스트 X — 모달/팝업도 X. `Hero`/`SearchAndFilters`는 유지(=다른 필터로 바로 재시도 가능). `ResultHeader`는 숨김(결과를 못 받은 상태에서 카운트가 의미 없음).
+
+| 분기 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| **네트워크 끊김 / 타임아웃** | axios `error.code === 'ERR_NETWORK'` 등 | `ErrorState` "네트워크 연결을 확인해주세요." + 재시도 버튼 | 재시도 → `refetch()`. URL 그대로라 새로고침으로도 재시도 가능. |
+| **5xx / 4xx (401·404 외)** | `error.response.status >= 500` 또는 400/422/403 | `ErrorState` (서버 `message` 우선, 없으면 § 3 표 3의 디폴트 카피) + 재시도 | 재시도. |
+| **404 (엔드포인트 부재)** | `status === 404` | `ErrorState` "이벤트 목록을 불러올 수 없습니다." + 재시도 | 재시도. (정상 사용에선 안 나옴 — 배포 사고 가시화용) |
+| **401** | `status === 401` | EventList는 공개 엔드포인트라 정상에선 발생 X. 발생 시 인터셉터(`src/api/client.ts`)가 토큰 정리 → 페이지는 비로그인으로 정상 표시 시도 (재요청 1회). 그래도 401이면 **로그인 리다이렉트** — `<Navigate to={`/login?returnTo=${encodeURIComponent(pathname + search)}`} replace />`. 추후 보호 모드로 바뀔 때 대비한 분기. | 자동 리다이렉트. |
+
+> 인증 인터셉터 동작(보유 토큰 갱신·로그아웃 처리)은 `src/api/client.ts` 표준 흐름을 그대로 따른다. `useEvents` 훅은 401을 받으면 더 이상 자체 처리 없이 `Navigate`로 위임.
+
+### 3) 빈 결과
+
+| 케이스 | 트리거 | 메시지 | 사용자 액션 |
+|---|---|---|---|
+| **필터 적용 + 0건** | `data.totalElements === 0` & `hasActiveFilters === true` | `EmptyStackTrace` (stack-trace 톤). "🔍 검색 결과가 없습니다" + "적용된 필터에 해당하는 이벤트를 찾지 못했어요." + "필터 초기화" 버튼 | 버튼 → `setFilters({ keyword: '', category: '전체', stack: '', page: 0 })` (push). 또는 chip 직접 토글로 좁힌 필터 해제. |
+| **필터 없음 + 0건** | `data.totalElements === 0` & `hasActiveFilters === false` | "🌱 아직 등록된 이벤트가 없습니다" + 보조 카피 "곧 새 이벤트가 등록될 예정입니다." (리셋 버튼 X — 리셋할 필터가 없음) | (없음) — 추후 랜딩 또는 알림 신청 CTA 추가 시 § 9에서 갱신. |
+
+**hasActiveFilters 판정**:
+```ts
+const hasActiveFilters = filters.keyword !== '' || filters.category !== '전체' || filters.stack !== '';
+// page는 카운트가 0인 시점에서 의미 없으므로 판정에서 제외
+```
+
+`EmptyStackTrace` 단일 컴포넌트가 `hasActiveFilters` props로 두 케이스를 분기 (별 컴포넌트 분리 X — § 2와 일관).
+
+### 4) 페이지네이션 (§ 5 결정)
+
+| 항목 | 처리 |
+|---|---|
+| 컨트롤 | `Pagination` (§ 2). 그리드 하단, 가운데 정렬, 상단 24px 마진. |
+| 형태 | `‹ 1 … 4 5 [6] 7 8 … 20 ›` 윈도우 5칸. 현재 페이지 강조 (brand bg + 흰 텍스트). 화살표는 첫/마지막에서 disabled. |
+| 페이지 변경 동작 | ① `setFilters({ page: next })` (push, replace 아님 — § 4) → ② URL 변경 → ③ `useEvents` key 변경 → ④ "재페칭" 상태(=직전 데이터 그대로 + 상단 progress bar) → ⑤ 응답 도착 시 그리드 교체. 동시에 `window.scrollTo({ top: 0, behavior: 'smooth' })`로 그리드 상단 복귀. |
+| 다음 페이지 로딩 인디케이터 | 위 ④의 progress bar로 충분. `Pagination` 자체엔 spinner 안 붙임. |
+| 마지막 페이지 도달 | `hasNext === false`면 `›` 버튼 disabled. 별도 "끝입니다" 텍스트는 표시 안 함 (페이지 번호로 자명). |
+| `totalPages <= 1` | `Pagination` 자체 미렌더. |
+| 무한스크롤 가능성 | § 5에서 페이지네이션 채택 — IntersectionObserver / scroll handler 미구현. `Pagination` props 인터페이스만 알면 됨. 후속 도입 시 컨테이너만 교체 (§ 9). |
+
+### 5) 검색어 입력 중 (디바운스 진행)
+
+- **트리거**: `localKeyword !== debouncedKeyword` (§ 4의 `useDebounce(localKeyword, 300)` 결과 비교).
+- **표시**: 검색 인풋 우측 `/` kbd **앞**에 11px spinner (`◐` 회전 또는 brand-color 원형 spinner). 디바운스 진행 중에만 노출. 디바운스 종료 후엔 fetch가 시작되지만 그 단계의 인디케이터는 위 1)의 progress bar가 담당.
+- **사용자 액션**: 무시하고 계속 타이핑 가능. ESC 누르면 `localKeyword`를 `''`로 즉시 리셋(키보드 인터랙션 § 7에서 정의).
+- **단순화 옵션**: 너무 noise스러우면 1차에선 생략하고 § 9 의사결정으로 넘김. **기본은 표시(스피너 1개)** — 입력이 반영 중인지 사용자가 알 수 있어야 함.
 
 ## 7. 키보드 인터랙션
 (작성 예정)
