@@ -61,3 +61,12 @@
   color: var(--text);
   font-weight: 500;
 }
+
+/* InfoCard (§2 InfoCard) — flat card wrapping 4 InfoRows */
+.ed-info-card {
+  padding: 4px 0;
+  margin-bottom: 24px;
+}
+.ed-seat-sold {
+  color: var(--danger);
+}
