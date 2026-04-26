@@ -74,6 +74,29 @@ body {
   white-space: nowrap;
 }
 
+/* "Skip to main content" affordance: visually hidden until focused. Used by
+ * Layout's first child to let keyboard users bypass the chrome. */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 2000;
+  padding: 6px 10px;
+  background: var(--brand);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 12px;
+  border-radius: 4px;
+  clip-path: inset(50%);
+  clip: rect(0, 0, 0, 0);
+}
+.skip-link:focus {
+  clip-path: none;
+  clip: auto;
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 /* ── Keyframes (shared across pages) ─────────────────── */
 @keyframes spin {
   to { transform: rotate(360deg); }
