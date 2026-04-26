@@ -181,7 +181,142 @@
 | `--minimap-bg` | `#F8FAFC` | minimap surface |
 
 ## 2. src/styles-v2/global.css 에 들어갈 글로벌
-(작성 예정)
+
+전제: `global.css` 는 `tokens.css` import 후에 로드. 모든 v2 페이지에 무조건 적용되는 "기본값"만 담는다.
+IDE 전용(폭주 모노스페이스, `overflow: hidden` 바디 락 등)은 § 4 의 IDE 레이아웃 스코프로 분리.
+
+### 2-1. 폰트 import (파일 최상단)
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
+```
+
+> 출처: `prototype/tokens.css:7`. v2 에서도 동일하게 `global.css` 1줄째에 둠.
+> tokens.css 가 아닌 global.css 에 두는 이유: `@import` 는 항상 파일 최상단이어야 하고, tokens.css 는 변수만 모아두는 깨끗한 파일로 유지하고 싶기 때문. (§ 6 파일 생성 순서에서 재확인)
+
+### 2-2. 기본 리셋
+
+기존 `src/styles/globals.css:1-5` 의 리셋과 `prototype/ide-theme.css:79` 의 리셋이 사실상 동일. v2 에서도 그대로.
+
+```css
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+ul, ol { list-style: none; }            /* prototype/ide-theme.css:95 */
+img    { max-width: 100%; display: block; } /* 기존 globals.css:91 */
+a      { color: inherit; text-decoration: none; }
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  outline: none;
+}
+```
+
+> `font-family: inherit` 로 둬서 body 의 `var(--font)` 가 자연스럽게 흘러내려가도록. 기존 `globals.css` 는 `var(--font)` 를 다시 박아뒀는데 v2 에서는 IDE 페이지가 `font-mono` 로 갈아탈 수 있어야 하므로 `inherit` 가 더 유연함.
+
+### 2-3. html / body 기본
+
+```css
+html { font-size: 16px; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--fs-base);          /* 14px */
+  line-height: var(--lh-body);        /* 1.6 */
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';  /* Geist 권장 OT 피처 (옵션) */
+}
+```
+
+> `overflow: hidden` 은 body 에 절대 걸지 않음. (`prototype/ide-theme.css:89` 가 거는 건 IDE 셸 전용이므로 § 4)
+> Geist 폰트는 OpenType 피처(`cv11`, `ss01` 등)로 디테일이 변하는데, 프로토타입에는 명시 안 돼있음 → v2 도입 여부는 시각 검수 후 결정 (일단 옵션으로 표기, 도입 시 PR 에서 확정).
+
+### 2-4. ::selection
+
+```css
+::selection {
+  background: var(--brand-light);
+  color: var(--brand);
+}
+```
+
+> 출처: 프로토타입에는 명시 없음. v2 신규 추가. 브랜드 컬러 일관성 확보.
+
+### 2-5. 스크롤바 (전역, IDE 외 페이지용)
+
+```css
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
+```
+
+> 출처: 기존 `globals.css:93-96` 그대로. (IDE 셸용 10px 두꺼운 스크롤바는 `prototype/ide-theme.css:635-645` 에 `.ide-editor::-webkit-scrollbar` 로 스코프돼 있음 → § 4 에서 IDE 컴포넌트 전용으로 유지)
+
+### 2-6. 글로벌 유틸리티 (최소)
+
+```css
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+```
+
+> `.sr-only` 는 기존 `globals.css:99-108` 그대로 유지 (접근성).
+> `.truncate` 는 기존 `globals.css:110` + `prototype/ide-theme.css:747` 양쪽에 동일 정의 — 글로벌로 1번만.
+> `.mono` / `.sans` 같은 IDE 유틸(`ide-theme.css:760-761`)은 IDE 페이지에서만 쓰이므로 글로벌에 두지 않음 → § 4.
+
+### 2-7. @keyframes (글로벌 공유)
+
+프로토타입에서 인라인 `<style>` 로 박혀있는 키프레임을 v2 에서는 글로벌로 끌어올린다 (CLAUDE.md "프로토타입의 인라인 style 은 가져오지 않음" 규칙 대응).
+
+| 키프레임 | 정의 | 출처 (프로토타입) | v2 사용처 |
+|---|---|---|---|
+| `spin` | `to { transform: rotate(360deg); }` | `Login.jsx:69` (인라인) + 기존 `globals.css:333` | 로딩 스피너 (모든 페이지) |
+| `blink` | `50% { opacity: 0; }` | `Landing.jsx:72` (인라인) | 터미널 풍 커서 (Landing/IDE 톤 컴포넌트) |
+| `slideUp` | (기존 `globals.css:366` 참고) | 기존 globals.css | 토스트/모달 진입 (재사용 시) |
+
+> `caret-blink` (`prototype/ide-theme.css:371`) 는 IDE 에디터의 캐럿 전용 → § 4 에서 IDE 스코프로 유지. 글로벌에 올리지 않음.
+
+### 2-8. 다크모드 컬러 스킴 힌트
+
+```css
+:root             { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }   /* 변수 오버라이드는 tokens.css 쪽, 여기는 브라우저 힌트만 */
+```
+
+> 출처: `prototype/tokens.css:119` 의 `color-scheme: dark` 한 줄을 분리해 글로벌로. 이렇게 하면 브라우저 기본 폼 컨트롤/스크롤바 색이 자동 전환됨. (변수 오버라이드 자체는 tokens.css — § 5 에서 다룸)
+
+### 2-9. global.css 에 **들어가지 않는** 항목 (체크리스트)
+
+- ❌ `body { overflow: hidden }` — IDE 셸 전용 (§ 4)
+- ❌ `body { font-family: var(--font-mono) }` — IDE 셸 전용 (§ 4)
+- ❌ `.ide-*`, `.tab`, `.gutter`, `.editor-*`, `.json-card`, `.terminal`, `.palette*`, `.stack-trace`, `.code-input`, `.chip`, `.btn-term`, `.flat-card`, `.form-row`, `.status-chip`, `.mini-line`, `.act-btn`, `.side-*`, `.term-*`, `.kbd`, `.mono`, `.sans` — IDE 컴포넌트 클래스 (§ 4)
+- ❌ `.ds-display`, `.ds-h1` … `.ds-eyebrow` — 시맨틱 타이포 클래스 (`prototype/tokens.css:134-213`). 이건 v2 컴포넌트가 직접 쓸지, 모듈 CSS 로 흡수할지 결정 필요 → § 6 (파일 순서) 에서 다시 판단
+- ❌ 페이지별 레이아웃 (`.ide` grid 정의 등) — 페이지/컴포넌트 CSS 로
 
 ## 3. 기존 토큰과 충돌 / alias 필요 항목
 (작성 예정)
