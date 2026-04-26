@@ -179,7 +179,61 @@ INVENTORY § 4 / `src/contexts/AuthContext.tsx:65` 기준.
 | 리다이렉트 | `useNavigate()` | `react-router-dom` | X | INVENTORY § 5 기존 도입 |
 
 ## 5. 신규 상태 처리 (로딩/에러/empty/권한)
-(작성 예정)
+
+> Login 은 데이터 조회가 없으므로 "empty 상태" 카테고리는 해당 없음. 4개 상태군만 정의.
+
+### 5.1 로딩 (제출 중)
+
+| 항목 | 내용 |
+|---|---|
+| 트리거 | `onSubmit` 진입 → 클라 검증 통과 시 `setLoading(true)`. `loginApi()` Promise 종료까지 유지. `finally` 에서 `setLoading(false)`. |
+| 상태 소스 | `hooks.ts` 의 `useLoginForm` → `loading: boolean` |
+| 표시 (버튼) | `<Button disabled={loading}>` + 자식으로 `<Icon name="spinner" />` 회전 + "로그인 중..." 텍스트. 프로토타입 `◐` 글리프는 `Icon spinner` 로 대체 (§2 표). |
+| 표시 (인풋) | `<Input disabled={loading} />` 두 곳 (이메일/비밀번호). 입력 변경 차단. 스피너/오버레이 없음 — 카드 컴포지션이 작아서 버튼 한 곳만으로 충분. |
+| 표시 (회원가입 링크) | `loading` 동안 `aria-disabled` + `pointer-events: none` 으로 클릭 차단 (페이지 이탈 방지). |
+| 사용자 액션 | 없음 (제출 종료 대기). 제출 종료 후 성공 → 리다이렉트, 실패 → 5.2 로 진입. |
+| 접근성 | `<Button aria-busy={loading}>`. 스크린리더용 `<span className="sr-only">로그인 처리 중</span>` (스피너 옆). |
+
+### 5.2 에러 (제출 후)
+
+`hooks.ts` 의 `mapLoginError(err)` 가 §3 의 HTTP 상태 → `LoginFieldErrors` + `formError`(폼 전체) 두 갈래로 분류해 반환. 표시 위치는 분류에 따라 달라진다.
+
+| 케이스 | 트리거 | 매핑 결과 | 표시 위치 | 사용자 액션 |
+|---|---|---|---|---|
+| 401 INVALID_CREDENTIALS | `loginApi` 응답 401 | `formError = '이메일 또는 비밀번호가 일치하지 않습니다'` (필드별 분리 안 함 — 어느 쪽이 틀렸는지 노출 금지) | 폼 상단 인라인 배너 (`<Card>` 내 `<form>` 위, `var(--danger)` 텍스트 + `×` 글리프). 이메일/비밀번호 인풋 보더는 `var(--danger)` 동시 활성화하되 인풋 하단 메시지는 비움. | 입력값 수정 → onChange 시 `formError` 즉시 클리어 (재제출 가능). |
+| 422 검증 에러 | `loginApi` 응답 422 + body 의 `errors: { email?, password? }` | `fieldErrors = { email?, password? }` 로 어댑팅. body 가 비어있으면 `formError = '입력값을 확인해주세요'` fallback. | 각 인풋 **하단** 12px `var(--danger)` 텍스트 (`× 메시지`). 인풋 보더도 `var(--danger)`. | 해당 필드 수정 → onChange 시 그 필드의 `fieldErrors[field]` 만 클리어. |
+| 403 ACCOUNT_LOCKED / DISABLED | 응답 403 (단, `PROFILE_NOT_COMPLETED` 코드는 인터셉터가 `/social/profile-setup` 으로 강제 리다이렉트하므로 페이지 도달하지 않음 — INVENTORY § 4) | `formError = '계정이 잠겼거나 비활성화되었습니다. 관리자에게 문의하세요.'` | 폼 상단 인라인 배너. 인풋 보더는 정상 색상 유지. | 메시지만 표시. 인풋 수정해도 같은 메시지 반복될 가능성 — onChange 로 클리어해 재시도는 허용. |
+| 429 TOO_MANY_REQUESTS | 응답 429 | `formError = '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'` | 폼 상단 인라인 배너. | 시간 경과 후 재제출. (백오프 표시는 §7 결정) |
+| 5xx 서버 오류 | 응답 5xx | `formError = '일시적인 오류입니다. 잠시 후 다시 시도해주세요.'` | **토스트** (전역 `useToast`) + 폼 상단 배너 동시 노출. 사용자가 토스트를 놓쳐도 카드에 남도록. | 사용자가 [다시 시도] (= 로그인 버튼 재클릭) 또는 페이지 이탈. |
+| 네트워크 / 타임아웃 | `axios.isAxiosError(err) && !err.response` | `formError = '네트워크 연결을 확인해주세요. 연결 후 다시 시도해주세요.'` | 폼 상단 인라인 배너. (토스트 X — 오프라인이면 토스트가 가려질 수 있음) | 네트워크 복구 → 동일 버튼으로 재제출. 인풋 값/검증 결과는 유지. |
+| unknown fallback | 위 분류 미해당 | `formError = '로그인에 실패했습니다. 잠시 후 다시 시도해주세요.'` | 폼 상단 인라인 배너. | 재시도 또는 이탈. |
+
+### 5.3 폼 검증 에러 (제출 전, 클라 사이드)
+
+| 항목 | 내용 |
+|---|---|
+| 트리거 | `onSubmit` 진입 시 `validate(form)` 호출. 에러 1개 이상이면 `setErrors(...)` 후 `loginApi` 호출하지 **않고** 반환. (네트워크 비용 0) |
+| 규칙 | 1) `email` 빈 값 → "이메일을 입력하세요" / 2) `email` 비형식 → "올바른 이메일 형식이 아닙니다" (정규식 `\S+@\S+\.\S+`) / 3) `password` 빈 값 → "비밀번호를 입력하세요" |
+| onBlur 검증 여부 | **하지 않음**. 제출 시점에만 검증 (기존 `src/pages/Login.tsx:18-29` 와 동일 UX). 사용자에게 너무 공격적인 피드백 회피. |
+| 표시 위치 | 각 인풋 **하단** 12px `var(--danger)` 텍스트 (`× 메시지`). 인풋 보더 `var(--danger)`. SPEC § 1 「에러 시 border var(--danger) + 하단 12px danger 텍스트」 그대로. |
+| 클리어 시점 | 해당 필드 `onChange` → 그 필드의 `errors[field]` 만 비움. 다른 필드 에러는 유지. |
+| 사용자 액션 | 잘못된 필드 수정 → 자동 클리어 → 다시 [로그인] 클릭. |
+| 접근성 | `<Input aria-invalid={!!errors.email} aria-describedby="email-error" />`. 에러 메시지 노드 `id="email-error"`. |
+
+### 5.4 권한 (인증 상태 체크)
+
+| 항목 | 내용 |
+|---|---|
+| 가드 위치 | `src/pages-v2/Login/index.tsx` (LoginPage). 라우트 컴포넌트 진입 직후 `useAuth()` 의 `isLoading` / `isLoggedIn` 확인. |
+| 케이스 A — `isLoading: true` | AuthProvider 가 마운트 시 `getProfile()` 호출 중. **빈 화면 또는 단순 placeholder** 표시 (Login.tsx 의 카드 마크업까지 그리지 않음). 깜빡임 방지. <br>코드 예: `if (auth.isLoading) return null;` (또는 SPEC 의 `<Loading fullscreen />` 가 있다면 그걸 사용 — §7 결정). |
+| 케이스 B — `isLoggedIn: true` 로 진입 | 이미 로그인된 사용자가 `/login` 으로 직접 들어온 경우. **로그인 폼을 그리지 않고 즉시 redirect**. <br>대상: `returnTo` 쿼리스트링 우선, 없으면 `/`. <br>코드: `<Navigate to={returnTo ?? '/'} replace />` (react-router-dom v6, INVENTORY § 5). |
+| 케이스 C — `isLoggedIn: false` (정상) | LoginView 렌더 + `useLoginForm` 활성화. |
+| 로그인 성공 직후 | `useAuth().login(accessToken, refreshToken)` 가 내부적으로 `fetchUser()` 까지 await → resolve 되면 `navigate(returnTo ?? '/', { replace: true })`. **`replace: true` 로** 히스토리에 `/login` 남기지 않아 뒤로가기 시 다시 로그인 화면으로 돌아오지 않게 함. |
+| `returnTo` 추출 | `useSearchParams()` 로 `?returnTo=...` 파싱. (`react-router-dom` 기본 제공) |
+| `returnTo` 화이트리스트 | **반드시 적용**. 외부 도메인 / 프로토콜 우회 (`returnTo=https://evil.com`, `returnTo=javascript:...`) 차단을 위해 다음 조건만 통과: `returnTo` 가 `/` 로 시작 + `//` 로 시작하지 않음. 위반 시 무시하고 `/` 사용. <br>구현 위치: `hooks.ts` 의 `useLoginForm` 가 `returnTo` 를 검사한 안전 값을 반환. |
+| `returnTo` 미명시 시 기본 경로 | `/`. (SPEC § 1 「성공 시 토큰 저장 + 리다이렉트 (메인 또는 returnTo)」) |
+| RequireAuth 와의 관계 | INVENTORY § 4: `RequireAuth` 가 미인증 사용자를 `/login` 으로 보낼 때 `returnTo` 를 부여하는지 확인 필요. 현재 `App.tsx:48` 가 단순 `<Navigate to="/login" />` 면 v2 cutover 시점에 `state` 또는 쿼리에 `returnTo` 를 실어 보내도록 수정 필요. **이 작업은 본 plan 범위 밖** — §7 결정 항목으로 위탁. |
+| 사용자 액션 | A: 자동 (대기). B: 자동 (즉시 redirect). C: 폼 입력 → 제출. |
 
 ## 6. 라우터 등록 방법
 (작성 예정)
