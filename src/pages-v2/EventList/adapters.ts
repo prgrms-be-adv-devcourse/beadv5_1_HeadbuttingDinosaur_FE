@@ -5,39 +5,20 @@ import type {
   EventSearchRequest,
   EventFilterRequest,
 } from '@/api/types';
+import {
+  toStatus,
+  toDateTimeLabels,
+  isFree,
+  isLowStock,
+} from '@/pages-v2/_shared/eventFormat';
 import type {
   EventVM,
-  EventStatus,
   EventListPage,
   EventListFilters,
 } from './types';
 
 export const DEFAULT_PAGE_SIZE = 24;
 export const DEFAULT_CATEGORY = '전체';
-
-const KNOWN_STATUSES: readonly EventStatus[] = [
-  'ON_SALE',
-  'SOLD_OUT',
-  'SALE_ENDED',
-  'CANCELLED',
-  'ENDED',
-];
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-const toStatus = (raw: string): EventStatus =>
-  (KNOWN_STATUSES as readonly string[]).includes(raw)
-    ? (raw as EventStatus)
-    : 'ENDED';
-
-const toDateTimeLabels = (iso: string): { dateLabel: string; timeLabel: string } => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { dateLabel: '', timeLabel: '' };
-  return {
-    dateLabel: `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`,
-    timeLabel: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`,
-  };
-};
 
 export const toEventVM = (api: EventItem): EventVM => {
   const { dateLabel, timeLabel } = toDateTimeLabels(api.eventDateTime);
@@ -51,8 +32,8 @@ export const toEventVM = (api: EventItem): EventVM => {
     status: toStatus(api.status),
     eventDateTime: api.eventDateTime,
     thumbnailUrl: api.thumbnailUrl,
-    isFree: api.price === 0,
-    isLowStock: api.remainingQuantity > 0 && api.remainingQuantity < 10,
+    isFree: isFree(api.price),
+    isLowStock: isLowStock(api.remainingQuantity),
     dateLabel,
     timeLabel,
   };

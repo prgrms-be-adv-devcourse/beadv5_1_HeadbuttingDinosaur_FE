@@ -1,7 +1,5 @@
 import type { EventStatus } from '@/types-v2/event';
 
-export type { EventStatus };
-
 export interface EventVM {
   eventId: string;
   title: string;
