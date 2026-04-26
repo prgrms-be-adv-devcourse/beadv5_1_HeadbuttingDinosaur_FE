@@ -217,7 +217,88 @@ src/pages-v2/EventList/adapters.ts
 > 재시도 버튼은 hook이 노출한 `refetch`를 호출. 디바운스/페이지 등 모든 입력 상태는 보존(URL 동기화 덕에 새로고침으로도 같은 결과 재현 가능).
 
 ## 4. URL 쿼리스트링 ↔ 상태 동기화
-(작성 예정)
+
+URL은 페이지 상태의 **단일 진실 소스(SoT)**. React state는 URL의 derived view. 이렇게 하면 뒤로가기/앞으로가기/공유/새로고침이 자동으로 같은 결과를 재현한다.
+
+### 1) 쿼리 파라미터 키
+
+| 필터 | 키 | 값 형식 | 기본값 (URL에서 생략) |
+|---|---|---|---|
+| 검색어 | `q` | 문자열 (URL 인코딩) | `''` (빈 문자열) |
+| 카테고리 | `cat` | 한글 라벨 그대로 (`'컨퍼런스'`, `'밋업'`, …) | `'전체'` |
+| 기술 스택 | `stack` | 단일 이름 (`'React'`) — 다중 도입 시 콤마 (§ 2 결정) | `''` (없음) |
+| 페이지 | `page` | 숫자 (백엔드 컨벤션 따라 0/1-base — § 5에서 확정) | `0` (또는 `1`) |
+
+키는 짧게(`q`, `cat`, `stack`, `page`). 외부에서 공유 가능한 표면이라 길고 직관적이지 않은 이름(`techStacks`, `categoryName`)은 피한다.
+
+### 2) 다중 값 처리
+
+- 현 단계: 기술 스택은 **단일 선택** (프로토타입과 동일). `?stack=React`.
+- 향후 다중 도입 시: **콤마 join** (`?stack=React,Go`) 채택. 이유 — URL 짧음, history entry 차이 줄어듦, axios `params` serializer 기본 동작과 충돌 안 남(직접 join). 반복 키 방식(`?stack=React&stack=Go`)은 가독성 떨어지고 `URLSearchParams.get()`이 첫 값만 반환해 실수 유발.
+- 어댑터(`adapters.ts#toFilterRequest`)가 콤마 문자열 → `number[]` (ID 배열)로 풀어 API 파라미터로 변환.
+
+### 3) 빈 값 처리
+
+- 기본값과 같으면 URL에서 **키 자체를 제거** (`?q=&cat=전체&page=0` 같은 노이즈 금지).
+- 공유 URL이 짧고, "필터 없음" 상태가 `/events`로 정규화되어 캐시/북마크 친화적.
+- 정규화는 `writeFilters` 한 곳에서 보장 (아래 코드).
+
+### 4) 디바운스 시 URL 업데이트 타이밍
+
+- 검색어 인풋은 **로컬 즉시 / URL 디바운스(300ms)**. 입력 중간 글자마다 URL 갱신 X.
+- 검색어 변경은 `setSearchParams(..., { replace: true })` — 한 글자씩 history entry 쌓이지 않게 **현재 entry 교체**. 뒤로가기로 입력 직전 상태로 한 번에 돌아감.
+- 카테고리/스택 chip 클릭, 페이지 변경은 `replace: false` (push) — 의도된 액션이라 history entry 1칸 사용. 뒤로가기로 직전 필터로 복원.
+- 필터(검색 외) 변경 시 `page`는 항상 0으로 리셋.
+
+### 5) 사용 훅
+
+- `react-router-dom@6`의 `useSearchParams` (이미 `pages-v2/Login/index.tsx`에서 사용 중). 라이브러리 추가 도입 없음 (SPEC § 9 "추가 라이브러리 미도입 확정"과 일치).
+- 페이지 진입 시 초기 상태는 hook이 `searchParams`에서 동기적으로 읽어 그대로 첫 렌더에 반영. 별도 effect로 후행 동기화하지 않는다 (URL → state 일방향).
+
+### 핵심 흐름 (코드 골격)
+
+```ts
+// src/pages-v2/EventList/hooks.ts
+const DEFAULT: EventListFilters = { keyword: '', category: '전체', stack: '', page: 0 };
+
+const readFilters = (sp: URLSearchParams): EventListFilters => ({
+  keyword:  sp.get('q')     ?? DEFAULT.keyword,
+  category: sp.get('cat')   ?? DEFAULT.category,
+  stack:    sp.get('stack') ?? DEFAULT.stack,
+  page:     Number(sp.get('page') ?? DEFAULT.page),
+});
+
+const writeFilters = (sp: URLSearchParams, patch: Partial<EventListFilters>) => {
+  const next = new URLSearchParams(sp);
+  const put = (k: string, v: string, isDefault: boolean) => isDefault ? next.delete(k) : next.set(k, v);
+  if ('keyword'  in patch) put('q',     patch.keyword!,            !patch.keyword);
+  if ('category' in patch) put('cat',   patch.category!,            patch.category === '전체');
+  if ('stack'    in patch) put('stack', patch.stack!,              !patch.stack);
+  if ('page'     in patch) put('page',  String(patch.page!),        patch.page === 0);
+  // 필터(검색 외) 변경 시 page 리셋
+  if ('keyword' in patch || 'category' in patch || 'stack' in patch) next.delete('page');
+  return next;
+};
+
+export function useEventListFilters() {
+  const [sp, setSp] = useSearchParams();
+  const filters = readFilters(sp);
+  const setFilters = (patch: Partial<EventListFilters>, opts?: { replace?: boolean }) =>
+    setSp(prev => writeFilters(prev, patch), { replace: opts?.replace ?? false });
+  return { filters, setFilters };
+}
+```
+
+검색어 디바운스는 같은 파일의 `useEventList`가 위 `setFilters`를 `replace: true`로 감싸 호출:
+
+```ts
+const debouncedKeyword = useDebouncedValue(localKeyword, 300);
+useEffect(() => {
+  setFilters({ keyword: debouncedKeyword }, { replace: true });
+}, [debouncedKeyword]);
+```
+
+> 인풋의 controlled value는 **로컬 state**(`localKeyword`)를 사용해 즉시 반응. URL/`filters.keyword`는 디바운스 후에만 따라 움직인다. 둘이 일시적으로 어긋나는 것은 정상.
 
 ## 5. 데이터 페칭 전략
 (작성 예정)
