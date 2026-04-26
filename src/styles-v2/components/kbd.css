@@ -1,0 +1,27 @@
+/* kbd.css
+   Source: docs/redesign/prototype/ide-theme.css `.kbd` (default surface)
+   and `.ide-status kbd` (inverse variant on dark indigo strip).
+   Inline interactive: none — keyboard hint display only. */
+
+.kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+/* Translucent treatment for dark surfaces (StatusBar). Drops border/bottom
+ * accent so the chrome stays visually quiet. */
+.kbd-inverse {
+  background: rgba(255, 255, 255, 0.15);
+  border: 0;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: inherit;
+}

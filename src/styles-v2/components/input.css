@@ -1,0 +1,95 @@
+/* input.css
+   Source: docs/redesign/prototype/Login.jsx (default variant) and
+   ide-theme.css `.code-input` (code variant). Variant heights 42 / 44
+   per shared-components.plan.md §4.7; focus glow + error/disabled
+   states formalized here (Spec §1 focus pattern, §4.7 error/disabled
+   slots — error path adds danger envelope, focus glow stays as red
+   alpha rather than brand). */
+
+/* ── Container (label + control + error) ──────────── */
+.input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-label {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* ── Control wrapper (border/bg envelope) ─────────── */
+.input-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--editor-bg);
+  border: 1px solid var(--border-2);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.input-control:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-light);
+}
+
+/* ── Variant: default (h 42 / radius 8) ───────────── */
+.input-default .input-control {
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 8px;
+}
+
+/* ── Variant: code (h 44 / radius 6, slot-friendly) ─ */
+.input-code .input-control {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 6px;
+}
+
+/* ── Slots ────────────────────────────────────────── */
+.input-icon-start,
+.input-hint-end {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--text-3);
+}
+
+/* ── Field (the <input> itself) ───────────────────── */
+.input-field {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+}
+.input-field::placeholder { color: var(--text-4); }
+.input-field:disabled { cursor: not-allowed; }
+
+/* ── State: error ─────────────────────────────────── */
+.input.is-error .input-control,
+.input.is-error .input-control:focus-within {
+  border-color: var(--danger);
+}
+.input.is-error .input-control:focus-within {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+}
+
+.input-error {
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* ── State: disabled ──────────────────────────────── */
+.input.is-disabled .input-control {
+  background: var(--surface-2);
+  opacity: 0.5;
+  cursor: not-allowed;
+}

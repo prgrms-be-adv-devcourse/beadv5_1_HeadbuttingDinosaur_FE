@@ -1,0 +1,23 @@
+/* DevTicket v2 — style barrel
+   Single entry point for v2 tokens + globals + component CSS.
+   Imported once from src/main.tsx. Add new component CSS files below.
+   Layout chrome (ide-chrome.css) is loaded by Layout itself per its own
+   migration track (see docs/redesign/layout.plan.md). */
+
+@import './tokens.css';
+@import './global.css';
+
+@import './components/kbd.css';
+@import './components/eyebrow.css';
+@import './components/status-chip.css';
+@import './components/chip.css';
+@import './components/button.css';
+@import './components/input.css';
+@import './components/card.css';
+@import './components/section-head.css';
+@import './components/term-dot.css';
+@import './components/avatar.css';
+@import './components/accent-media-box.css';
+@import './components/quantity-stepper.css';
+@import './components/meta-line.css';
+@import './components/empty-state.css';
