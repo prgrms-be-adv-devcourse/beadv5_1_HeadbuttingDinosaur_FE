@@ -82,7 +82,68 @@ src/pages/
 | `prototype/tokens.css`, `prototype/ide-theme.css`, `prototype/DevTicket IDE.html`, `prototype/assets/` | 디자인 토큰 / 정적 자원 |
 
 ## 2. API 클라이언트
-(작성 예정)
+
+### `src/api/` 디렉토리 구조
+
+```
+src/api/
+├── .env.example
+├── client.ts            # axios 인스턴스, ApiResponse/Page 타입, unwrapApiData, idempotencyConfig
+├── index.ts             # barrel: client + types + 모든 *.api 재수출
+├── types.ts             # 도메인 DTO 타입
+├── auth.api.ts          # 회원가입/로그인/프로필/판매자 신청, 공통 techStacks
+├── events.api.ts        # 이벤트 목록/검색/상세, 판매자 이벤트 CRUD, 이미지 업로드
+├── cart.api.ts          # 장바구니
+├── orders.api.ts        # 주문 생성/조회/취소
+├── tickets.api.ts       # 티켓 조회
+├── payments.api.ts      # PG 결제 ready/confirm/fail
+├── wallet.api.ts        # 지갑 잔액/충전/출금/거래내역
+├── refunds.api.ts       # 환불 (티켓/주문/판매자 이벤트)
+├── seller.api.ts        # 판매자 정산 미리보기/월별
+├── admin.api.ts         # 관리자 대시보드/유저/이벤트/신청/정산/수수료/기술스택
+├── techStacks.ts        # extractTechStacks (공통 헬퍼)
+└── ai.api.ts            # getEventRecommendations
+```
+
+### 페이지 → 호출 함수 매핑
+
+| 페이지 | 모듈 | 호출 함수 |
+|---|---|---|
+| `EventList.tsx` | `events.api`, `auth.api`, `techStacks` | `getEvents`, `searchEvents`, `filterEvents`, `getTechStacks`, `extractTechStacks` |
+| `EventDetail.tsx` | `events.api`, `cart.api` | `getEventDetail`, `addCartItem` |
+| `Login.tsx` | `auth.api` | `login` |
+| `Signup.tsx` | `auth.api`, `techStacks` | `signup`, `createProfile`, `getTechStacks`, `reissueToken`, `extractTechStacks` |
+| `SignupComplete.tsx` | — | (호출 없음) |
+| `OAuthCallback.tsx` | `auth.api` | `getProfile` |
+| `SocialProfileSetup.tsx` | `auth.api`, `techStacks` | `createProfile`, `getTechStacks`, `extractTechStacks` |
+| `Cart.tsx` | `cart.api`, `events.api`, `orders.api`, `client` | `addCartItem`, `clearCart`, `getCart`, `getEventDetail`, `recommendEvents`, `createOrder`, `unwrapApiData` |
+| `Payment.tsx` | `payments.api`, `wallet.api`, `client` | `readyPayment`, `getWalletBalance`, `unwrapApiData` |
+| `PaymentComplete.tsx` | — | (호출 없음) |
+| `PaymentSuccess.tsx` | `payments.api` | `confirmPayment` |
+| `PaymentFail.tsx` | `payments.api` | `failPayment` |
+| `WalletChargeSuccess.tsx` | `wallet.api` | `confirmWalletCharge` |
+| `WalletChargeFail.tsx` | — | (호출 없음) |
+| `MyPage.tsx` | `tickets.api`, `orders.api`, `wallet.api`, `refunds.api`, `auth.api`, `techStacks` | `getTickets`, `getOrders`, `cancelOrder`, `getWalletBalance`, `getWalletTransactions`, `startWalletCharge`, `withdrawWallet`, `getRefunds`, `getRefundInfo`, `refundTicketByPg`, `refundOrder`, `getTechStacks`, `updateProfile`, `changePassword`, `withdrawUser`, `extractTechStacks` |
+| `SellerApply.tsx` | `auth.api` | `applyForSeller`, `getSellerApplicationStatus` |
+| `NotFound.tsx` | — | (호출 없음) |
+| `seller/SellerDashboard.tsx` | `events.api`, `refunds.api` | `getSellerEvents`, `stopSellerEvent`, `getSellerEventRefundsPage` |
+| `seller/SellerEventCreate.tsx` | `events.api`, `auth.api`, `techStacks` | `createSellerEvent`, `getSellerEventDetail`, `updateSellerEvent`, `uploadEventImage`, `getTechStacks`, `extractTechStacks` |
+| `seller/SellerEventEdit.tsx` | — | (직접 import 없음 — `SellerEventCreate`를 재사용/포워딩) |
+| `seller/SellerEventDetail.tsx` | `events.api` | `getSellerEventDetail`, `getSellerEventSummary`, `getSellerEventParticipants` |
+| `seller/SellerSettlement.tsx` | `seller.api` | `getSellerSettlementByMonth`, `getSellerSettlementPreview` |
+| `admin/AdminDashboard.tsx` | `admin.api` | `getAdminDashboard` |
+| `admin/AdminUsers.tsx` | `admin.api` | `getAdminUsers`, `updateUserStatus`, `updateUserRole` |
+| `admin/AdminEvents.tsx` | `admin.api` | `getAdminEvents`, `forcecancelEvent`, `getSellerApplications`, `processSellerApplication`, `runSettlementProcess`, `getAdminSettlements` |
+| `admin/AdminApplications.tsx` | `admin.api` | `getSellerApplications`, `processSellerApplication` |
+| `admin/AdminSettlements.tsx` | — | (직접 import 없음) |
+| `admin/AdminTechStacks.tsx` | `admin.api` | `getAdminTechStacks`, `createAdminTechStack`, `updateAdminTechStack`, `deleteAdminTechStack`, `reindexAdminTechStacks` |
+
+### 비고 — 페이지에서 미사용 모듈
+
+| 모듈 | 노출 함수 | 페이지 사용 여부 |
+|---|---|---|
+| `ai.api.ts` | `getEventRecommendations` | 페이지 직접 호출 없음 (Cart는 `events.api`의 `recommendEvents` 사용) |
+| `admin.api.ts` 일부 | `getFeePolicies`, `createFeePolicy`, `updateFeePolicy`, `getAdminUserDetail` | 페이지 직접 호출 없음 |
 
 ## 3. 도메인 타입
 (작성 예정)
