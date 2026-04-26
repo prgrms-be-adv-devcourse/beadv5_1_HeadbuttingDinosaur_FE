@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
+import { addCartItem } from '@/api/cart.api';
 import { apiClient, unwrapApiData, type ApiResponse } from '@/api/client';
 import type { EventDetailResponse } from '@/api/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 import {
   toEventDetailVM,
@@ -193,4 +197,72 @@ export function useRecommendedEvents(currentEventId: string): RecommendedQuery {
   }, [currentEventId]);
 
   return state;
+}
+
+/* ── usePurchaseActions (§6.6 합성 hook / §9.3 PR 3) ─────────────────────
+ * "장바구니에 담기" + "바로 구매하기" 두 액션을 한 hook 으로 노출. busy
+ * state 를 공유해 동시 클릭 시 두 버튼이 같이 disabled. 비로그인 시 로그인
+ * 페이지로 returnTo 인코딩해 redirect (§5-(4)). POST 는 사용자 명시 액션이라
+ * AbortController 미사용 (§6.6). */
+
+export type PurchaseBusy = 'adding' | 'buying' | null;
+
+export interface UsePurchaseActionsReturn {
+  busy: PurchaseBusy;
+  addToCart: (quantity: number) => Promise<void>;
+  buyNow: (quantity: number) => Promise<void>;
+}
+
+export function usePurchaseActions(eventId: string): UsePurchaseActionsReturn {
+  const { isLoggedIn } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [busy, setBusy] = useState<PurchaseBusy>(null);
+
+  const redirectToLogin = useCallback(() => {
+    const returnTo = encodeURIComponent(location.pathname + location.search);
+    navigate(`/login?returnTo=${returnTo}`);
+  }, [location.pathname, location.search, navigate]);
+
+  const addToCart = useCallback(
+    async (quantity: number) => {
+      if (!isLoggedIn) {
+        redirectToLogin();
+        return;
+      }
+      if (busy !== null) return;
+      setBusy('adding');
+      try {
+        await addCartItem({ eventId, quantity });
+        toast('장바구니에 담았습니다', 'success');
+      } catch {
+        toast('장바구니 담기에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      } finally {
+        setBusy(null);
+      }
+    },
+    [busy, eventId, isLoggedIn, redirectToLogin, toast],
+  );
+
+  const buyNow = useCallback(
+    async (quantity: number) => {
+      if (!isLoggedIn) {
+        redirectToLogin();
+        return;
+      }
+      if (busy !== null) return;
+      setBusy('buying');
+      try {
+        await addCartItem({ eventId, quantity });
+        navigate('/cart');
+      } catch {
+        toast('오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+        setBusy(null);
+      }
+    },
+    [busy, eventId, isLoggedIn, navigate, redirectToLogin, toast],
+  );
+
+  return { busy, addToCart, buyNow };
 }
