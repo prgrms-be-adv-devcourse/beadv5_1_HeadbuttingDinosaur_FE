@@ -37,3 +37,30 @@ export type { CardProps, CardVariant, CardPadding } from './Card';
 
 export { SectionHead } from './SectionHead';
 export type { SectionHeadProps } from './SectionHead';
+
+/* PR 4 — Composite shared */
+
+export { TermDot } from './TermDot';
+export type { TermDotProps, DotTone } from './TermDot';
+
+export { Avatar } from './Avatar';
+export type { AvatarProps, AvatarSize } from './Avatar';
+
+export { AccentMediaBox } from './AccentMediaBox';
+export type {
+  AccentMediaBoxProps,
+  AccentMediaVariant,
+  AccentMediaSize,
+} from './AccentMediaBox';
+
+export { QuantityStepper } from './QuantityStepper';
+export type {
+  QuantityStepperProps,
+  QuantityStepperSize,
+} from './QuantityStepper';
+
+export { MetaLine } from './MetaLine';
+export type { MetaLineProps } from './MetaLine';
+
+export { EmptyState } from './EmptyState';
+export type { EmptyStateProps } from './EmptyState';

@@ -1,0 +1,41 @@
+/* empty-state.css
+   Source: docs/redesign/prototype Cart.jsx + MyPage.jsx empty-state
+   surface (centered, padding 40, emoji separated from title). Per
+   shared-components.plan.md §4.15: single fixed size, own surface
+   (no Card wrap needed per §3.4). EventList ports its inline ".hint"
+   row by passing ReactNode message — EmptyState does not add a slot
+   for it (§4.15 note). Radius 8 keeps prototype value; not aligned
+   with Card's 12 since the two surfaces are intentionally separate. */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.empty-state-emoji {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.empty-state-title {
+  font-family: var(--font);
+  font-size: 17px;
+  color: var(--text);
+}
+
+.empty-state-message {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+.empty-state-action {
+  margin-top: 16px;
+}
