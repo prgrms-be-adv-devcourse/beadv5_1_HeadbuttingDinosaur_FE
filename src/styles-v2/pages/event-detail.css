@@ -217,6 +217,18 @@
   justify-content: center;
 }
 
+/* RecommendedSection (§2 RecommendedSection / §5-(6)) — full-width grid
+   below the 2-column main grid. SectionHead + auto-fit RecommendedCard[]. */
+.ed-rec-section {
+  margin-top: 40px;
+}
+.ed-rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
 /* RecommendedCard (§2 RecommendedCard / §8-항목4-v) — mini card with
    category pill / title (link) / date / price. No quick-add. */
 .ed-rec-card {
