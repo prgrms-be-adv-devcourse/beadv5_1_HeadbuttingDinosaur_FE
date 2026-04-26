@@ -6,6 +6,8 @@ import { AuthProvider } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ThemeProvider } from './contexts/ThemeContext'
+import './styles-v2/tokens.css'
+import './styles-v2/global.css'
 import './styles/globals.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
