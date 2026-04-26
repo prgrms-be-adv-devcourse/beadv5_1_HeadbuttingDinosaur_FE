@@ -21,3 +21,11 @@ export type { StatusChipProps, StatusVariant } from './StatusChip';
 
 export { Chip } from './Chip';
 export type { ChipProps } from './Chip';
+
+/* PR 2 — Form / Action */
+
+export { Button } from './Button';
+export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
+
+export { Input } from './Input';
+export type { InputProps, InputVariant } from './Input';
