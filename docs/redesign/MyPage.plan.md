@@ -1610,7 +1610,150 @@ export function useRefunds(page: number /* 1-base */):
 후퇴는 기존 컴포넌트 시그니처 변경 없이 마운트 분기만 빼는 형태 → 미래 재합류 시 비용 0.
 
 ## 9. 인증 / 가드
-(작성 예정)
+
+### 9.1 가드 위치 — 부모 라우트 element 1번
+
+§ 2 결정대로 `/mypage/:tab` 5라우트(`/mypage` redirect 포함) 모두 인증 필요. 따라서 가드를 자식마다 거는 게 아니라 **부모 path `/mypage/*` 의 element 한 곳**에 wrapping.
+
+| 옵션 | 평가 |
+|---|---|
+| **A. 부모 라우트 element 한 번 (`<RequireAuth><MyPageRouter/></RequireAuth>`)** | RR v6 nested 패턴과 정합. 가드 코드 1곳. **추천** |
+| B. 자식 5라우트 각각 RequireAuth | DRY 위반. 5라우트가 무조건 함께 보호되는데 분리할 이유 없음 |
+| C. 페이지 컴포넌트 내부 `useAuth().isLoggedIn` 체크 | RR 가드 패턴 위배. `isLoading` 처리 / redirect 직접 작성 / Layout 마운트 후 체크라 깜빡임 |
+
+`Layout` 부모 → `/mypage/*` 자식의 형태(INVENTORY § 4 "RequireAuth + Layout"). § 10 의 라우터 등록도 동일 트리 유지.
+
+### 9.2 v2 전용 가드 — `RequireAuthV2` 신규
+
+기존 `RequireAuth` (`src/App.tsx:48`)는 `<Navigate to="/login" replace />` — **`returnTo` 미지원**. v2 는 deep-link(`/mypage/orders?page=3`)를 보존해야 하므로 `returnTo` 가 필요.
+
+| 옵션 | 평가 |
+|---|---|
+| 1. `src/App.tsx` 의 `RequireAuth` 수정 | App.tsx 는 router-toggle plan § 4 에서 "라우트 wiring 단위로 변경"이 허용되지만, 가드 본체 수정은 v1 라우트 9개에 영향(`/cart`, `/payment*` 등). 회귀 위험 |
+| 2. **`src/router-v2/RequireAuthV2.tsx` 신규** | `RequireAuth` 와 시그니처 동일 + `returnTo` 만 추가. v2 라우트 전용. v1 영향 0. **추천** |
+| 3. v2 페이지 컴포넌트 내부 inline 가드 | § 9.1 옵션 C 와 동일 단점 |
+
+#### `RequireAuthV2` 시그니처
+
+```tsx
+// src/router-v2/RequireAuthV2.tsx (신규)
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import Loading from '@/components/Loading';
+
+interface RequireAuthV2Props { children: React.ReactElement; }
+
+export function RequireAuthV2({ children }: RequireAuthV2Props) {
+  const { isLoggedIn, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) return <Loading fullscreen />;
+  if (!isLoggedIn) {
+    const returnTo = location.pathname + location.search;
+    const safe = encodeURIComponent(returnTo);
+    return <Navigate to={`/login?returnTo=${safe}`} replace />;
+  }
+  return children;
+}
+```
+
+- `useLocation` 으로 `pathname + search` 캡처 — `/mypage/orders?page=3` 같은 쿼리까지 보존.
+- `replace` redirect — history 에 `/mypage/orders` → `/login` 두 칸 쌓이지 않게.
+- 가드 컴포넌트 본체는 router-v2 디렉토리. router-toggle plan § 4 의 `src/router-v2/` 신규 디렉토리에 합류.
+
+### 9.3 `returnTo` 검증 — open redirect 방지
+
+`returnTo=https://evil.com` 같은 외부 URL 으로 로그인 후 자동 이동하면 phishing 위험.
+
+- `RequireAuthV2` 가 redirect 발행 시점엔 `location.pathname + location.search` 만 사용 → `/` 로 시작하는 내부 경로만 자연 보장.
+- 그러나 Login v2 가 `?returnTo` 를 받아 `navigate(returnTo)` 할 때, 사용자가 직접 `/login?returnTo=https%3A%2F%2Fevil.com` 같은 URL 을 만들 수 있음 → **Login v2 측에서 `returnTo` 검증 필수**.
+
+검증 규칙(Login v2 가 구현):
+1. `decodeURIComponent` 후 첫 글자가 `/` 이고 `//` 로 시작하지 않을 것 (protocol-relative URL 차단).
+2. 위반 시 fallback `/` 로 이동.
+
+이 검증은 본 plan 의 책임 범위 외(Login v2 plan 에서 다룸). 본 plan 은 **`?returnTo=...` 쿼리 contract 를 정의**하는 데 그치고, Login v2 합류 때 검증 책임을 명시.
+
+### 9.4 Login 페이지의 `returnTo` 처리 — 단계별 호환
+
+| 시나리오 | 동작 |
+|---|---|
+| Login v2 도입 + returnTo 처리 구현 | RequireAuthV2 redirect → Login v2 가 `?returnTo` 파싱 + 검증 + 로그인 성공 시 `navigate(returnTo)`. 정상 |
+| Login v2 도입 + returnTo 미구현 | RequireAuthV2 가 `?returnTo` 를 붙여 redirect 하지만 Login v2 는 무시. 로그인 성공 시 기본 이동지(`/`)로. 사용자는 다시 `/mypage` 로 가야 함. **degrade gracefully** |
+| Login v1 (router-toggle 토글로 v1 활성) | RequireAuthV2 의 `?returnTo` 가 v1 Login 에 도달. v1 도 무시. 위와 동일하게 degrade |
+| `?returnTo` 없이 직접 `/login` 진입 | 기본 동작 (로그인 성공 시 `/`) |
+
+→ `RequireAuthV2` 의 `?returnTo` 추가는 **하위 호환**. Login v2 가 처리 미구현 상태에서도 동작이 망가지지 않음. Login v2 가 returnTo 를 처리하는 시점부터 deep-link 가 살아남음.
+
+§ 11 안건: "Login v2 의 returnTo 파싱·검증 — 도입 PR 협의".
+
+### 9.5 토큰 만료 (401) — 페이지 코드 무관여
+
+INVENTORY § 4 / SPEC § 10 정책 그대로. axios 인터셉터(`src/api/client.ts`)가 처리:
+
+| 시점 | 인터셉터 동작 | 페이지 책임 |
+|---|---|---|
+| 401 첫 발생 | `isRefreshing` 락 + `failedQueue` 직렬화 → `POST /auth/reissue` → 새 access 토큰 저장 → `originalRequest._retry=true` 로 원 요청 재시도 (`client.ts:68`) | 0 (어댑터/훅이 분기 작성 금지) |
+| 401 + 재발급 실패 | 토큰 3종(`accessToken`/`refreshToken`/`userId`) 제거 + `window.location.href = '/login'` (`client.ts:95`) | 0 |
+| 403 + `code: 'PROFILE_NOT_COMPLETED'` | `/social/profile-setup` 강제 이동 (`client.ts:60`) | 0 |
+| 그 외 4xx | 인터셉터 passthrough → 어댑터/훅이 error 상태로 분기 (§ 5.2.9 / § 6.2.9 / § 7.2.7 / § 8.3.3) | 페이지의 `TabErrorBox` 표시 |
+
+#### MyPage 코드에서 절대 작성하지 않는 분기
+
+```ts
+// ❌ 금지 — 인터셉터가 처리. 중복 분기 시 토큰 갱신 race
+if (err.response?.status === 401) {
+  navigate('/login');
+}
+```
+
+```ts
+// ❌ 금지 — 인터셉터가 처리
+if (err.response?.status === 403 && err.response.data.code === 'PROFILE_NOT_COMPLETED') {
+  navigate('/social/profile-setup');
+}
+```
+
+#### 401 재발급 실패 시 returnTo 미보존
+
+- `client.ts:97` 의 `window.location.href = '/login'` 는 returnTo 쿼리 없이 이동.
+- 결과: 토큰 자동 갱신 실패로 강제 로그아웃되면 사용자가 마지막에 본 `/mypage/orders?page=3` 는 사라짐.
+- 인터셉터 수정 = `src/api/client.ts` 수정 = SPEC § 0 절대 규칙 위배. 본 plan 범위 외.
+- § 11 안건: "401 강제 로그아웃 시 returnTo 보존 — 인터셉터 수정 별도 PR" (SPEC § 0 위반 가능 여부 검토 후).
+
+### 9.6 비로그인 deep-link 시나리오 (전체 흐름)
+
+외부 링크 또는 직접 입력으로 `/mypage/orders?page=3` 진입했을 때 (Login v2 + returnTo 처리 도입 후 가정):
+
+```
+1. 브라우저 → /mypage/orders?page=3
+2. App.tsx 의 <Route path="/mypage/*"> 매칭
+3. <RequireAuthV2> 마운트
+   ├─ isLoading 동안 <Loading fullscreen/>
+   ├─ AuthContext.fetchUser() 진행
+   └─ 결정:
+      ├─ isLoggedIn === true: children 렌더 → § 10 의 <MyPageRouterV2/> 진입
+      └─ isLoggedIn === false: <Navigate to="/login?returnTo=%2Fmypage%2Forders%3Fpage%3D3" replace/>
+4. (false 분기) 브라우저 → /login?returnTo=...
+5. Login v2 가 ?returnTo 파싱 + 검증 (§ 9.3)
+6. 사용자 로그인 → AuthContext.login() → AuthContext.fetchUser() → 상태 갱신
+7. Login v2 가 navigate(decodeURIComponent(returnTo)) (검증 통과 시)
+8. 브라우저 → /mypage/orders?page=3
+9. <RequireAuthV2> 재마운트 → isLoggedIn === true → 통과
+10. <OrdersTab/> 렌더 + URL ?page=3 동기화 (§ 6.3)
+```
+
+### 9.7 정리
+
+| 결정 | 위치 |
+|---|---|
+| 가드 1곳: `/mypage/*` 부모 라우트 element | App.tsx (§ 10 에서 wiring) |
+| 가드 컴포넌트: `RequireAuthV2` 신규 | `src/router-v2/RequireAuthV2.tsx` (router-toggle plan § 4 의 `src/router-v2/` 디렉토리에 합류) |
+| `returnTo` 쿼리 contract | `?returnTo=<URL-encoded path+search>` |
+| `returnTo` 검증 책임 | Login v2 (본 plan 외) |
+| 401 / 403 처리 | axios 인터셉터 자동 — 페이지 코드 무관여 |
+| 401 재발급 실패 후 returnTo 보존 | § 11 안건 |
+| Login v2 의 returnTo 미구현 시 | degrade gracefully — 기본 이동지(/) |
+| 페이지 컴포넌트 내부 인증 체크 | 금지 (`useAuth().user` 는 표시용으로만 — § 4.1) |
 
 ## 10. 라우터 등록
 (작성 예정)
