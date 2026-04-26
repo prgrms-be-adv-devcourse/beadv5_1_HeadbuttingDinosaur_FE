@@ -517,8 +517,163 @@ src/styles-v2/
 - Layout chrome 작업 PR (Phase 0 첫 PR) 에서 A/B 가 확정될 때까지 § 1 의 "IDE 전용" 블록은 22개 모두 유지.
 - B 로 뒤집힐 경우 § 1 와 § 5 의 IDE 토큰 부분, 그리고 (B-2 라면) SPEC § 8 도 동반 갱신.
 
-## 5. 다크모드 [data-theme="dark"] 스코프
-(작성 예정)
+## 5. 다크모드 `[data-theme="dark"]` 스코프
+
+### 5-0. 현재 메커니즘 (기존 코드 분석)
+
+`src/contexts/ThemeContext.tsx` 가 이미 존재하고 **거의 완성**되어 있음. 단, CSS 변수 주입 방식이 v2 방향과 어긋남.
+
+| 항목 | 기존 동작 | 위치 |
+|---|---|---|
+| 3-state 테마 | `'light' | 'dark' | 'system'` | `ThemeContext.tsx:3` |
+| localStorage 키 | `'devticket-theme'` | `ThemeContext.tsx:14` |
+| 시스템 감지 | `window.matchMedia('(prefers-color-scheme: dark)')` | `ThemeContext.tsx:17` |
+| 시스템 변경 listener | OS 테마 바뀌면 자동 반영 (system 모드일 때만) | `ThemeContext.tsx:65-71` |
+| `data-theme` 속성 토글 | `<html data-theme="dark">` set | `ThemeContext.tsx:22` |
+| **CSS 변수 주입** | **JS 가 `root.style.setProperty(...)` 로 11개 변수 직접 주입** | `ThemeContext.tsx:25-49` |
+
+**문제점**: CSS 변수 오버라이드가 JS 코드에 박혀 있어서, 토큰을 추가/수정할 때마다 ThemeContext.tsx 도 같이 손봐야 함. 변수 정의가 CSS 와 JS 두 군데로 갈라짐.
+
+### 5-1. v2 방침: JS setProperty 폐기 → CSS `[data-theme="dark"]` 셀렉터로 일원화
+
+```css
+/* src/styles-v2/tokens.css */
+:root {
+  --bg: #F8FAFC;
+  /* ... 라이트 값 ... */
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0F172A;
+  /* ... 모든 다크 오버라이드 ... */
+}
+```
+
+**ThemeContext.tsx 변경 사항** (재사용하되 setProperty 로직만 제거):
+
+| 라인 | 처리 |
+|---|---|
+| `ThemeContext.tsx:22` `root.setAttribute('data-theme', resolved)` | **유지** — CSS 셀렉터가 잡을 hook |
+| `ThemeContext.tsx:25-49` `if (resolved === 'dark') { root.style.setProperty(...) } else { removeProperty(...) }` | **삭제** — CSS 가 대신 처리 |
+| 그 외 (state, localStorage, system 감지, 토글) | **유지** — 그대로 재사용 |
+
+> v2 절대 규칙(`docs/CLAUDE.md`): 기존 `src/contexts/`, `src/api/`, `src/hooks/` 같은 비페이지 비컴포넌트 레이어는 cutover 전까지 수정 금지가 아님 (금지 대상은 `src/pages/`, `src/components/`). ThemeContext 는 v2 페이지가 같이 쓰는 컨텍스트이므로 **인플레이스 수정 가능**. 단 cutover 전까지 기존 페이지가 라이트 모드만 정상 동작하면 되는데, JS setProperty 를 제거해도 CSS 셀렉터가 같은 변수를 정의하므로 기존 페이지에도 그대로 동작 (오히려 일관성 향상).
+> 만약 cutover 전 인플레이스 수정에 부담이 있다면 `src/contexts-v2/ThemeContext.tsx` 를 신규로 두고, cutover 시 교체하는 안도 가능 — Layout 작업 PR 에서 결정.
+
+### 5-2. 오버라이드 토큰 목록 — 공통 토큰 (`prototype/tokens.css:117-131` 그대로)
+
+| 토큰 | 라이트 | 다크 |
+|---|---|---|
+| `--bg` | `#F8FAFC` | `#0F172A` |
+| `--surface` | `#FFFFFF` | `#1E293B` |
+| `--surface-2` | `#F1F5F9` | `#263047` |
+| `--surface-3` | `#E2E8F0` | `#334155` |
+| `--text` | `#0F172A` | `#F1F5F9` |
+| `--text-2` | `#334155` | `#CBD5E1` |
+| `--text-3` | `#64748B` | `#94A3B8` |
+| `--text-4` | `#94A3B8` | `#64748B` |
+| `--border` | `#E2E8F0` | `#1E293B` |
+| `--border-2` | `#CBD5E1` | `#334155` |
+| `--brand-light` | `#EEF2FF` | `rgba(79, 70, 229, 0.20)` |
+| `color-scheme` | `light` (`:root`) | `dark` |
+
+**채택 결정**: 11개 모두 그대로 채택. 기존 ThemeContext.tsx:26-36 의 값과 정확히 일치하므로 회귀 위험 없음.
+
+### 5-3. 오버라이드 토큰 목록 — IDE 전용 (`prototype/ide-theme.css:38-76`)
+
+§ 4 시나리오 A (단일 tokens.css 통합) 채택 시 같은 `[data-theme="dark"]` 블록에 합류.
+
+**Terminal accent**
+| 토큰 | 라이트 | 다크 |
+|---|---|---|
+| `--term-green` | `#00FF88` | `#00FF88` (동일) |
+| `--term-green-dim` | `#00CC6A` | `#00E07A` |
+| `--term-green-soft` | `rgba(0,255,136,0.12)` | `rgba(0,255,136,0.14)` |
+
+**Syntax (VS Code Dark+ 톤)**
+| 토큰 | 라이트 | 다크 |
+|---|---|---|
+| `--syn-keyword` | `#7C3AED` | `#C586C0` |
+| `--syn-string` | `#0F9D58` | `#CE9178` |
+| `--syn-number` | `#D97706` | `#B5CEA8` |
+| `--syn-fn` | `#2563EB` | `#DCDCAA` |
+| `--syn-prop` | `#0891B2` | `#9CDCFE` |
+| `--syn-comment` | `#64748B` | `#6B7280` |
+| `--syn-punct` | `#475569` | `#94A3B8` |
+| `--syn-type` | `#BE185D` | `#4EC9B0` |
+| `--syn-tag` | `#DC2626` | `#569CD6` |
+
+**IDE chrome**
+| 토큰 | 라이트 | 다크 |
+|---|---|---|
+| `--chrome` | `#F3F4F6` | `#252526` |
+| `--chrome-2` | `#E5E7EB` | `#333333` |
+| `--gutter` | `#F8FAFC` | `#1E1E1E` |
+| `--gutter-text` | `#94A3B8` | `#5A6270` |
+| `--editor-bg` | `#FFFFFF` | `#1E1E1E` |
+| `--editor-line` | `rgba(79,70,229,0.04)` | `rgba(255,255,255,0.035)` |
+| `--sidebar-bg` | `#FAFBFC` | `#1A1A1C` |
+| `--status-bg` | `#4F46E5` | `#007ACC` |
+| `--status-text` | `#FFFFFF` | `#FFFFFF` |
+| `--minimap-bg` | `#F8FAFC` | `#161618` |
+
+### 5-4. ⚠️ 결정 필요: IDE 다크에서 공통 surface/text/border 재오버라이드 충돌
+
+`prototype/ide-theme.css:65-75` 가 다크 모드에서 **공통 토큰을 한 번 더** 오버라이드한다. 값은 § 5-2 와 다름.
+
+| 토큰 | tokens.css 다크 (5-2) | ide-theme.css 다크 (재오버라이드) | 톤 |
+|---|---|---|---|
+| `--bg` | `#0F172A` (slate-900) | `#1E1E1E` (VS Code) | IDE 가 더 어둡고 중성 |
+| `--surface` | `#1E293B` | `#252526` | IDE 가 더 어둡고 중성 |
+| `--surface-2` | `#263047` | `#2D2D30` | 〃 |
+| `--surface-3` | `#334155` | `#3E3E42` | 〃 |
+| `--text` | `#F1F5F9` | `#D4D4D4` | IDE 가 덜 밝음 |
+| `--text-2` | `#CBD5E1` | `#B8B8B8` | 〃 |
+| `--text-3` | `#94A3B8` | `#858585` | 〃 |
+| `--text-4` | `#64748B` | `#6A6A6A` | 〃 |
+| `--border` | `#1E293B` | `#3E3E42` | IDE 가 더 밝은 회색 |
+| `--border-2` | `#334155` | `#505050` | 〃 |
+
+**§ 4 에서 시나리오 A 로 단일 파일 통합을 결정했으므로, 같은 변수를 두 번 정의할 수 없음.** Layout 작업 PR 에서 다음 중 택 1:
+
+| 옵션 | 결과 | 영향 |
+|---|---|---|
+| **5-4-a** Slate 톤 채택 (tokens.css 다크 그대로) | IDE 셸도 slate 계열로 통일. VS Code 느낌은 약해짐 | 기존 ThemeContext 의 11개 값과 일치 — 회귀 0 |
+| **5-4-b** VS Code Dark+ 톤 채택 (ide-theme.css 값으로) | 비IDE 페이지(MyPage, Cart, EventDetail …)도 다크모드에서 VS Code 톤이 됨 — 시각 일관성↑ | 기존 ThemeContext 와 값이 달라짐. 기존 페이지의 다크 스크린샷과 차이. 기존 페이지가 cutover 전이라도 다크에서 톤 변함 |
+| **5-4-c** IDE 셸용 토큰을 별도로 도입 (`--ide-bg`, `--ide-surface` …) | 두 톤을 공존시킴 | 토큰 수↑, IDE 컴포넌트가 별도 변수 사용 — § 1 와 § 4 도 동기화 필요 |
+
+> **권고: 5-4-a (slate 톤 채택)**. 근거 — (1) 기존 ThemeContext 와 값이 같아 회귀 0, (2) SPEC § 8 의 "단일 위치" 원칙과 가장 잘 맞음, (3) IDE 셸의 슬레이트 톤은 시각상 충분히 어둡고 브랜드 indigo 와도 잘 맞음. **5-4-b 를 원하면 기존 페이지의 다크 회귀 검수 PR 동반 필수.**
+
+### 5-5. `prefers-color-scheme` 자동 감지
+
+| 항목 | 결정 |
+|---|---|
+| 도입 여부 | ✅ 도입 (이미 기존 ThemeContext 에 구현됨) |
+| 기본 모드 | `'system'` (`ThemeContext.tsx:54`) — OS 설정 따라감 |
+| OS 테마 변경 listener | 유지 (`ThemeContext.tsx:65-71`) |
+| 사용자 명시 선택 | localStorage `devticket-theme` 에 `'light'` / `'dark'` 저장 — system 우선순위 위 |
+
+> CSS 측에서 `@media (prefers-color-scheme: dark)` 미디어 쿼리는 **사용하지 않음**. 이유: 사용자가 명시 선택한 경우 OS 와 어긋날 수 있는데, 미디어 쿼리는 그걸 못 잡음. `data-theme` 속성 단일 source 로 가는 게 깔끔.
+
+### 5-6. 토글 메커니즘
+
+기존 코드 그대로 재활용:
+
+| API | 위치 | 비고 |
+|---|---|---|
+| `useTheme()` 훅 | `ThemeContext.tsx:89` | 기존 그대로 |
+| `setTheme('light' | 'dark' | 'system')` | `ThemeContext.tsx:73` | 기존 그대로 |
+| `toggleTheme()` (light↔dark 2-state 토글) | `ThemeContext.tsx:78` | 기존 그대로. status bar 의 테마 토글 버튼이 호출 |
+| `resolvedTheme` (현재 적용된 'light' | 'dark') | `ThemeContext.tsx:7` | 기존 그대로 |
+
+> 신규 토글 컴포넌트 (status bar 우측 등) 는 `src/components-v2/` 에 새로 만들고 `useTheme()` 만 호출.
+
+### 5-7. 다크 전용 컴포넌트 스타일 (참고)
+
+§ 5 는 **토큰 오버라이드만** 다룸. 컴포넌트 단위 다크 스타일(예: `[data-theme="dark"] .terminal { background: #0D1117 }`, `prototype/ide-theme.css:437`)은 § 4 에서 IDE 컴포넌트 CSS 와 함께 처리.
+
+기존 `src/styles/globals.css:443-494` 의 컴포넌트 단위 다크 오버라이드(`.card`, `.form-input`, `.btn-secondary`, `th`, `tr:hover td`, `.toast`, `header`)는 **변수만 제대로 다크에 매핑되면 자동으로 처리되므로 v2 컴포넌트에서는 거의 불필요**해질 전망. 단 기존 globals.css 자체는 § 3-4 대로 cutover 시 일괄 폐기.
 
 ## 6. 파일 생성 순서 (구현 시 참고)
 (작성 예정)
