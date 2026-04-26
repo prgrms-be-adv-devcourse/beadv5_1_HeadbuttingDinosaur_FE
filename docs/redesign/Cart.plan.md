@@ -67,7 +67,89 @@ src/pages-v2/Cart/
 - 신규 작성 시 SPEC § 0 "프로토타입 가져오지 않음" 규칙 준수: `style={{}}` 객체 인라인 금지(동적 값 제외), `window.*` 미사용, 별칭 hook(`useStateC`) 미사용.
 
 ## 3. 장바구니 상태 관리 전략
-(작성 예정)
+
+### 결론 — **Option B (서버 only)** 채택
+
+선택지를 그대로 검토한 결과 **A·C는 적용 불가**, B만 가능. 사실상 결정은 SPEC/INVENTORY 시점에 이미 끝나 있고, 본 plan은 운영 전략(상태 위치/타이밍/낙관적 업데이트)만 결정.
+
+### 검토 근거
+
+#### 1) v1 코드 동작
+- `src/pages/Cart.tsx`는 **서버 API에만 의존** (`getCart` / `addCartItem` / `clearCart`, 그리고 `updateCartItemQuantity` · `deleteCartItem`도 `cart.api.ts`에 존재).
+- 페이지 진입 시 `useEffect → getCart()`로 서버 상태 페치, 변경마다 서버 호출 후 `fetchCart()` 재페치. **localStorage 미사용**.
+- `recommendEvents`로 추천 카드 별도 페치, "빠르게 담기"는 `addCartItem` → `fetchCart()` 패턴.
+- 결제는 `createOrder({ cartItemIds: items.map(i => i.cartItemId) })` → `PaymentModal`(Toss).
+
+#### 2) 백엔드 cart API
+풀 CRUD 존재 (`src/api/cart.api.ts`):
+
+| 동작 | 메서드 | 경로 | 함수 |
+|---|---|---|---|
+| 조회 | GET | `/cart` | `getCart()` |
+| 담기 | POST | `/cart/items` | `addCartItem({ eventId, quantity })` |
+| 수량 증감 | PATCH | `/cart/items/:cartItemId` | `updateCartItemQuantity(id, { quantity })` (delta `+1`/`-1`) |
+| 단건 삭제 | DELETE | `/cart/items/:cartItemId` | `deleteCartItem(id)` |
+| 전체 비우기 | DELETE | `/cart` | `clearCart()` |
+
+응답은 모두 `cartItemId`(UUID) 식별자 기반. 디바이스 간 동기화는 백엔드가 사용자별로 보장.
+
+#### 3) 인증 게이팅 (INVENTORY § 4)
+- `/cart` 라우트는 `RequireAuth` 가드 적용 → **비로그인 접근 시 `/login`으로 강제 이동**.
+- 토큰은 `localStorage.accessToken` 인터셉터 주입(`src/api/client.ts`), 401 시 `/auth/reissue` 자동 재발급, 실패하면 `window.location.href = '/login'`.
+- 즉, "비로그인 사용자가 cart에 머무는 시나리오"가 라우터 차원에서 차단되어 있어 **A·C의 핵심 장점(비로그인 담기)이 무효**.
+
+#### 4) SPEC § 9 의사결정
+- "**장바구니 서버 저장 여부 → 서버 저장 확정**: `src/pages/Cart.tsx`가 `getCart/addCartItem/clearCart` 사용".
+- "**추가 라이브러리 미도입 확정**: axios + `useEffect/useState` 기반 현행 패턴 유지 (React Query/SWR 미사용)".
+- INVENTORY § 5: 전역 상태 라이브러리(Redux/Zustand/Jotai) **하나도 없음**. Context 3종(Auth/Theme/Toast)만 존재.
+
+#### 5) 프로토타입 동작
+`prototype/Cart.jsx`는 부모(`Layout`)가 들고 있는 `cart` props/`setCart` setter를 받아 **인메모리만** 조작. 영속화·서버 동기화·인증 게이팅 코드 없음 → 프로토타입은 백엔드 부재 환경의 시각 데모일 뿐, **상태 전략의 근거로 삼지 않음**.
+
+### 옵션별 적용 가능성
+
+| 옵션 | 채택 여부 | 사유 |
+|---|---|---|
+| A. 로컬(localStorage) only | ❌ | (1) 백엔드 cart API와 `createOrder({ cartItemIds })`가 서버 cart 식별자에 의존, (2) `/cart`는 RequireAuth 가드라 비로그인 장점이 무의미, (3) v1·SPEC 결정과 정면 충돌 |
+| B. 서버 only | ✅ | v1 패턴, SPEC § 9, RequireAuth 가드, 백엔드 풀 CRUD 모두와 일치 |
+| C. 하이브리드 | ❌ | A의 장점(비로그인 담기)이 라우트 가드 때문에 발휘되지 않음. 동기화 로직을 떠안을 이유 없음. 단, EventDetail의 "장바구니 담기"에서 비로그인 시 처리는 § 7(결제 플로우) / § 6(에러 상태)에서 별개로 다룸 — `returnTo`로 로그인 후 복귀하는 식, **본 plan에서 로컬 큐는 두지 않음** |
+
+### 운영 전략 (B 전제)
+
+#### 상태 위치 — **페이지 로컬**
+- 신규 전역 store/Context 도입하지 **않음** (라이브러리 미도입 원칙 + 사용처가 Cart 단일 페이지).
+- 헤더 카트 뱃지 등 다른 곳에서 카운트가 필요해지면 그때 SPEC § 9에 별도 의사결정으로 올림. 본 plan 범위 밖.
+- `src/pages-v2/Cart/hooks.ts`에 다음 훅 정의:
+  - `useCart()` — `getCart()` 페치 + `CartQuery` 상태(`loading/success/error`) 반환. `useEffect` 마운트 1회.
+  - `useCartMutations(refetch)` — `addItem`, `setQuantity`, `removeItem`, `clearAll` 래퍼. 각 함수는 호출 측에 `pending` boolean 노출.
+  - `useCheckout(items)` — `createOrder` 호출 + `PaymentModal` open state.
+
+#### 영속화 라이브러리 — **사용 안 함**
+- 서버가 SoT(Source of Truth). localStorage·`zustand/persist` 등 일체 미사용.
+- `react-router` 라우터 상태(예: returnTo)만 표준 사용.
+
+#### 동기화 타이밍 — **변경 즉시 서버 호출 + 낙관적 업데이트**
+
+| 인터랙션 | 호출 | UX 전략 |
+|---|---|---|
+| 페이지 진입 | `getCart()` 1회 | 로딩 스켈레톤 → 결과 / 빈 상태 / 에러 |
+| 수량 `+` / `−` | `updateCartItemQuantity(id, { quantity: ±1 })` | **낙관적**: 클라이언트가 먼저 수량 갱신 → 실패 시 롤백 + 토스트. v1처럼 매번 `fetchCart()` 재호출은 **하지 않음** (응답에 `cartItemId/quantity` 들어 있어 부분 머지 가능) |
+| "삭제" | `deleteCartItem(id)` | **낙관적**: 즉시 리스트에서 제거 → 실패 시 복구. 더블클릭 방지 위해 해당 row `pending` |
+| EventDetail "장바구니 담기" 후 진입 | 진입 시 `getCart()` 한 번 | 추가 동기화 불필요 |
+| 결제 클릭 | `createOrder({ cartItemIds })` → 성공 시 `PaymentModal` open. 결제 완료 콜백에서 cart는 백엔드가 정리(주문 생성 시 처리 가정) — 미정리면 `clearCart()` 보충 호출 | § 7에서 상세 |
+
+- **디바운싱 안 함**: 수량 컨트롤은 클릭 단위(±1)이고 PATCH는 delta. 디바운스 시 인플라이트 race 위험 + 의미 없음.
+- **레이스 가드**: 같은 `cartItemId`에 대해 인플라이트 mutation이 있으면 다음 클릭은 큐잉하지 않고 버튼 disable (`pendingItemIds: Set<string>`).
+- **무효화**: 서버 응답이 인플라이트 낙관값과 어긋나면 서버값 채택 + 토스트.
+
+#### 에러 / 복구
+- 401: 인터셉터가 처리(`/auth/reissue` → 실패 시 `/login`). Cart 코드는 별도 처리 안 함.
+- 4xx/5xx: 토스트 + 낙관적 업데이트 롤백. 페이지 진입 페치 실패는 § 6(빈/로딩/에러)에서 다룸.
+
+#### v1 대비 변경점 요약
+1. 매 mutation 후 `fetchCart()` 재페치 → 낙관적 업데이트 + 응답 머지
+2. 인라인 `useState` 페이지 컴포넌트 → `useCart` / `useCartMutations` 훅으로 분리
+3. `CartItemDetail` 직접 렌더 → `CartItemVM` (§ 1)로 어댑터 경유
 
 ## 4. API 매핑 테이블 (주문 / 결제)
 (작성 예정)
