@@ -207,3 +207,94 @@
   color: var(--text-3);
   line-height: 1.7;
 }
+
+/* EventDetailSkeleton (§5-(1)) — part-by-part loading placeholders. */
+@keyframes ed-skel-shimmer {
+  0%   { opacity: 0.55; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.55; }
+}
+.ed-skel {
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  animation: ed-skel-shimmer 1.4s ease-in-out infinite;
+}
+.ed-skel-hero {
+  height: 240px;
+  border-radius: var(--r-lg);
+  margin-bottom: 24px;
+}
+.ed-skel-line {
+  height: 14px;
+}
+.ed-skel-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ed-skel-title {
+  height: 28px;
+  width: 70%;
+  margin-bottom: 14px;
+}
+.ed-skel-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+.ed-skel-chip {
+  height: 22px;
+  width: 64px;
+  border-radius: var(--r-full);
+}
+.ed-skel-info {
+  padding: 4px 0;
+  margin-bottom: 24px;
+}
+.ed-skel-info-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ed-skel-info-row:last-child {
+  border-bottom: none;
+}
+.ed-skel-info-label {
+  height: 12px;
+  width: 60px;
+  flex-shrink: 0;
+}
+.ed-skel-info-value {
+  height: 14px;
+  flex: 1;
+  max-width: 240px;
+}
+.ed-skel-desc-title {
+  height: 17px;
+  width: 120px;
+  margin-bottom: 14px;
+}
+.ed-skel-desc-line {
+  height: 14px;
+  margin-bottom: 10px;
+}
+.ed-skel-panel {
+  padding: 20px;
+}
+.ed-skel-price-label {
+  height: 12px;
+  width: 70px;
+  margin-bottom: 8px;
+}
+.ed-skel-price-amount {
+  height: 30px;
+  width: 60%;
+  margin-bottom: 24px;
+}
+.ed-skel-button {
+  height: 44px;
+  border-radius: var(--r-md);
+  margin-bottom: 8px;
+}
