@@ -998,4 +998,189 @@ useEffect(() => {
 
 
 ## 7. 파일 생성 순서
-(작성 예정)
+
+### 7-0. 검증 전략 — 공통 전제
+
+INVENTORY §5: 의존성에 **Storybook / Vitest / Jest / ESLint 모두 없음**. 검증 수단은 다음 두 가지로 한정.
+
+| 수단 | 용도 |
+|---|---|
+| **임시 dev 프리뷰 라우트** `/__layout-preview` | `src/App.tsx` 가 아닌 별도 dev-only 엔트리에서 마운트. `import.meta.env.DEV` 가드 + 본 PR 안에서만 존재(다음 PR 에서 페이지 등록되면 제거). 모든 sub 컴포넌트를 가짜 props 로 렌더해 시각 검증 |
+| **dev 서버 + 브라우저 수동 확인** | `npm run dev` 후 위 프리뷰 라우트로 이동. 라이트/다크 토글, 단축키, 팔레트, 반응형(window 리사이즈)을 직접 확인 |
+
+> Storybook 도입은 별도 트랙. 본 PR 범위 아님.
+
+### 7-1. 사전 PR (Layout PR 의 의존)
+
+본 plan 의 Layout PR 시작 전, 다음이 머지되어 있어야 함. 부재 시 **별도 선행 PR**로 작업.
+
+| 사전 PR | 산출물 | 근거 |
+|---|---|---|
+| **tokens.css** (tokens.plan §4 시나리오 A) | IDE 전용 토큰 22개 + 다크 오버라이드 + 공통 토큰 | tokens.plan §4-4, 본 plan §5-1 |
+| **global.css** | `.truncate`, `.kbd`, `.mono`, `.sans`, `.sr-only`, `.skip-link`, `body` 리셋 | 본 plan §5-3, §6-5, §6-6 |
+| **Icon 컴포넌트** (`src/components-v2/Icon/`) | 프로토타입 `common.jsx` 의 Icon 셋 → SVG React 컴포넌트 | 본 plan §4-4 |
+
+세 항목이 누락된 경우 Step A0 으로 합쳐 본 PR 안에서 진행 가능 (단 PR 크기 ↑).
+
+### 7-2. 단계별 진행
+
+`src/components-v2/Layout/` 내부 작업. 각 단계는 1 commit. LOC 는 빈 줄/주석 포함 추정치.
+
+#### Step 1 — CSS + 정적 모듈
+
+**파일**: `ide-chrome.css`, `types.ts`, `utils.ts`
+
+| 항목 | 내용 | LOC |
+|---|---|---|
+| `src/styles-v2/components/ide-chrome.css` | §5-2 컴포넌트 클래스 + §5-5 반응형 + §5-7 다크 1건 | ~420 |
+| `Layout/types.ts` | §3-1 공통 타입 (`RouteKey`, `NavigateFn`, `PaletteItem` 등) | ~50 |
+| `Layout/utils.ts` | `routeFromPath` / `pathFromRoute` | ~30 |
+
+**commit**: `feat(v2-layout): scaffold ide-chrome.css with layout chrome classes`
+
+**검증**:
+- 정적 HTML 프리뷰 파일 `public/__layout-chrome-preview.html` 임시 작성 → ide-chrome.css 만 import 하고 ide-theme.css 의 마크업 샘플(`<div class="ide">…</div>`)을 그대로 붙여넣어 시각 확인. **PR 머지 전 제거**(또는 다음 단계에서 React 프리뷰로 대체)
+- TS 컴파일 에러 0건 (`tsc --noEmit`)
+
+#### Step 2 — 컨텍스트 + 훅 스캐폴드
+
+**파일**: `LayoutChromeContext.tsx`, `hooks/useCartCount.ts`
+
+| 항목 | 내용 | LOC |
+|---|---|---|
+| `LayoutChromeContext.tsx` | §3-2 Provider + `useChrome` (Provider 외부 호출 시 throw) | ~60 |
+| `hooks/useCartCount.ts` | §4-4 1차 안 — `getCart()` 호출 + `isLoggedIn` 가드. 이후 PR에서 `CartContext` 로 격상 | ~50 |
+
+**commit**: `feat(v2-layout): add LayoutChromeContext and useCartCount`
+
+**검증**: 단독 검증 수단 없음(UI 없음). Step 8 의 통합 검증에서 함께 확인.
+
+#### Step 3 — 리프 컴포넌트 (의존 0)
+
+**파일**: `Minimap.tsx`, `TabBar.tsx`
+
+| 항목 | 의존 | LOC |
+|---|---|---|
+| `Minimap.tsx` | (Icon 불필요 — `<div>` 만) | ~60 |
+| `TabBar.tsx` | `Icon`, `types` | ~50 |
+
+**commit**: `feat(v2-layout): add Minimap and TabBar`
+
+**검증**:
+- 임시 dev 라우트 `/__layout-preview` 신설 (App.tsx 가 아닌 별도 dev 엔트리, 또는 `import.meta.env.DEV` 가드).
+- 두 컴포넌트를 정적 props 로 6개 라우트 변형 렌더 → 미니맵 패턴 + 탭 active 인디케이터 시각 확인.
+
+#### Step 4 — 타이틀 / 액티비티 / 상태
+
+**파일**: `TitleBar.tsx`, `ActivityBar.tsx`, `StatusBar.tsx`
+
+| 항목 | 의존 | LOC |
+|---|---|---|
+| `TitleBar.tsx` | `Icon`, `theme` prop, `onOpenPalette`, `onToggleTheme` | ~50 |
+| `ActivityBar.tsx` | `Icon`, items 상수, `onNavigate`, `onOpenPalette` | ~80 |
+| `StatusBar.tsx` | `Icon`, 라벨 맵, `onOpenPalette` | ~70 |
+
+**commit**: `feat(v2-layout): add TitleBar, ActivityBar, StatusBar`
+
+**검증**: `/__layout-preview` 에 위 3개 추가 → 라이트/다크 토글, 카트 배지 표시(가짜 카운트), active 라우트 변경 시 ActivityBar/StatusBar 라벨 갱신 확인.
+
+#### Step 5 — Sidebar 분해
+
+**파일**: `Sidebar/SidebarSession.tsx`, `Sidebar/SidebarUpcoming.tsx`, `Sidebar/SidebarMenu.tsx`, `Sidebar/index.tsx`
+
+작은 → 큰 순서. 각 sub 가 부모 없이도 단독 렌더 가능해야 통합 디버깅 쉬움.
+
+| 항목 | 의존 | LOC |
+|---|---|---|
+| `SidebarSession.tsx` | `user` prop | ~30 |
+| `SidebarUpcoming.tsx` | `events: UpcomingEventVM[]`, `onSelectEvent`, `open`, `onToggle` | ~55 |
+| `SidebarMenu.tsx` | `Icon`, `categories`, `onNavigate`, `open`, `onToggle`, `currentRoute`, `isLoggedIn` | ~130 |
+| `Sidebar/index.tsx` | 위 3개 + `useState(true)` 두 개 | ~60 |
+
+**commit**: `feat(v2-layout): add Sidebar with menu, upcoming, session sections`
+
+(LOC 합 ~275 — 4파일 분산이라 각 파일 200줄 가드 §2-3 충족)
+
+**검증**: `/__layout-preview` 에 더미 `categories`(6개) + `upcoming`(4개) + `user` 주입 → 헤더 토글, 메뉴 active 표시, 비로그인 시 "로그인" 항목 노출 / 세션 섹션 미렌더 확인.
+
+#### Step 6 — CommandPalette
+
+**파일**: `CommandPalette/PaletteList.tsx`, `CommandPalette/usePaletteCommands.ts`, `CommandPalette/index.tsx`
+
+| 항목 | 의존 | LOC |
+|---|---|---|
+| `PaletteList.tsx` | `Icon`, `PaletteItem[]`, `selectedIndex`, `onHover`, `onRun` | ~55 |
+| `usePaletteCommands.ts` | `useNavigate`, `useChrome`, `useAuth`, `events.api` (`searchEvents` 또는 `getEvents`) — query 디바운스 | ~90 |
+| `CommandPalette/index.tsx` | `PaletteList` + `usePaletteCommands` + 포커스 트랩 (§6-7) | ~140 |
+
+**commit**: `feat(v2-layout): add CommandPalette with focus trap and event search`
+
+(`index.tsx` 가 200줄 한도에 근접 — 포커스 트랩이 더 커지면 `useFocusTrap.ts` 로 분리, §6-7 결정)
+
+**검증**: 프리뷰에 ⌘K 트리거 버튼 + 팔레트 마운트 → 화살표 / Enter / Esc / 배경 클릭 / 입력값 필터링 / dark 모드 hover 색 / 포커스 복귀 확인.
+
+#### Step 7 — 전역 단축키 훅
+
+**파일**: `hooks/useGlobalShortcuts.ts`
+
+| 항목 | 의존 | LOC |
+|---|---|---|
+| `useGlobalShortcuts.ts` | `useEffect` + `window.addEventListener('keydown', …)` + `inInput` 가드 + `g+x` 시퀀스 | ~80 |
+
+**commit**: `feat(v2-layout): add useGlobalShortcuts hook for keyboard navigation`
+
+**검증**: 프리뷰 페이지에서 콘솔 로깅용 어댑터로 주입 → 모든 단축키(⌘K/Esc/`/`/`g h e c m`/`j`/`k`/Enter)가 콘솔에 출력되는지 확인. 입력 박스 안에서는 `/` `g` `j` `k` 가 무시되는지 별도 확인.
+
+#### Step 8 — Layout 본체 + dev 프리뷰 정리
+
+**파일**: `Layout/index.tsx`, (정리) `/__layout-preview` 라우트
+
+| 항목 | 의존 | LOC |
+|---|---|---|
+| `Layout/index.tsx` | 전 단계 모두 + `useLocation`, `useNavigate`, `useAuth`, `useTheme`, `useCartCount` | ~130 |
+| dev 프리뷰 페이지 | mock children 6종(home/events/detail/cart/mypage/login) + 라우트 토글 컨트롤 | ~80 |
+
+**commit**: `feat(v2-layout): wire Layout container with dev-only preview entry`
+
+**검증** (전체 통합):
+1. `npm run dev` → `/__layout-preview` 접속
+2. 라우트 변경 컨트롤로 6개 라우트 순환 → ActivityBar/Sidebar/TabBar/StatusBar active 표시 동기화
+3. 라이트 ↔ 다크 토글 (TitleBar 버튼 + 팔레트 명령 양쪽)
+4. ⌘K → 팔레트 → "이벤트 목록" 선택 → 라우트 이동
+5. `g e` 시퀀스 → events 라우트 이동
+6. 비로그인 상태에서 cart/mypage 클릭 → login 으로 가드
+7. 윈도우 폭 1280 → 1100 → 800 으로 축소: 미니맵 → 사이드바 → 타이틀 검색 박스가 단계적으로 숨겨짐 (§6-1)
+8. 키보드 Tab 만으로 전 영역 순회 가능 (§6-5)
+9. 콘솔에 React 워닝 / a11y 워닝 0건 확인
+
+### 7-3. 라우터 등록 정책
+
+**본 PR 은 v2 라우터(`src/App.tsx` 또는 신규 `src/App-v2.tsx`)에 Layout 을 등록하지 않는다.**
+
+근거:
+- INVENTORY §1: `src/App.tsx` 의 모든 라우트가 기존 `<Layout>` (`src/components/Layout.tsx`) 을 사용 중. v2 Layout 으로 교체하려면 페이지도 v2 페이지로 함께 마이그레이션되어야 깨지지 않음.
+- CLAUDE.md 절대 규칙: "기존 `src/pages/`, `src/components/` 는 cutover PR 전까지 절대 수정 금지". 따라서 `src/App.tsx` 의 `<Route element={<Layout/>}>` 를 v2 로 바꾸는 것은 cutover 시점에만.
+- 페이지별 v2 작업 PR 진입 시점에, 그 페이지가 `src/components-v2/Layout` 을 import 해서 사용. 라우터 단의 `<Layout/>` 교체는 모든 페이지 v2 가 끝난 cutover PR 의 책임.
+
+따라서 본 PR 의 산출물은:
+- ✅ `src/components-v2/Layout/*` (chrome 코드)
+- ✅ `src/styles-v2/components/ide-chrome.css`
+- ✅ dev-only 프리뷰 라우트 1개 (`import.meta.env.DEV` 가드, **PR 머지 후 첫 페이지 v2 PR 에서 제거**)
+- ❌ `src/App.tsx` 수정 — 안 함
+- ❌ 기존 `src/pages/*.tsx` 수정 — 안 함
+
+### 7-4. 단계 요약 표
+
+| Step | 산출 파일 | LOC (누계) | commit prefix |
+|---|---|---|---|
+| 1 | ide-chrome.css + types.ts + utils.ts | ~500 (~500) | `feat(v2-layout): scaffold ide-chrome.css …` |
+| 2 | LayoutChromeContext + useCartCount | ~110 (~610) | `feat(v2-layout): add LayoutChromeContext …` |
+| 3 | Minimap + TabBar | ~110 (~720) | `feat(v2-layout): add Minimap and TabBar` |
+| 4 | TitleBar + ActivityBar + StatusBar | ~200 (~920) | `feat(v2-layout): add TitleBar, ActivityBar, StatusBar` |
+| 5 | Sidebar (4 파일) | ~275 (~1195) | `feat(v2-layout): add Sidebar with … sections` |
+| 6 | CommandPalette (3 파일) | ~285 (~1480) | `feat(v2-layout): add CommandPalette with focus trap …` |
+| 7 | useGlobalShortcuts | ~80 (~1560) | `feat(v2-layout): add useGlobalShortcuts hook` |
+| 8 | Layout/index + dev 프리뷰 | ~210 (~1770) | `feat(v2-layout): wire Layout container with dev-only preview entry` |
+
+PR 단위: 8 commits 한 PR(권장) 또는 Step 1-4 / 5-6 / 7-8 의 3 PR 분할 가능. v2 절대 규칙 충족 + INVENTORY 의 lint/test 의존성 부재 상황을 감안하면 **단일 PR 로 한 번에 리뷰**가 컨텍스트 손실이 적음.
+
