@@ -1121,6 +1121,128 @@ E. **콘솔 / 빌드 검증**
 | 라우트 `/`, `/events/:id`, `/cart` 등 | 미수정. dev 라우트만 추가 |
 
 ### 12.2 PR 2: Hero + Stats
+
+**목적**: Hero 섹션(좌 카피·CTA + 우 TypedTerminal 슬롯)과 Stats 섹션(4 카드)을 데이터 페칭 + 어댑터까지 연결해 단독 렌더 가능 상태로 완성.
+
+**의존**: PR 1 (TypedTerminal) **머지 후**. PR 1 의 `<TypedTerminal lines={...} />` 를 import 해 사용. PR 1 미머지 상태에서는 PR 2 빌드 실패.
+
+**§ 11 결정 반영**:
+- #1 (TypedTerminal 라인 1 동적 = `getEvents.totalElements`) — Hero 가 `useFirstPage()` 로 받아 `lines` props 합성. 라인 2 는 하드코딩 그대로.
+- #3 (Stats 4번 카드 하드코딩 `'24+'`) — `toStatsVM` 에서 고정 주입.
+- #2 (⌘K 팔레트) — PR 0 (`onOpenPalette` 인터페이스만 PR 0 에서 노출) 머지 여부에 따라 분기. 미머지 시 `onOpenPalette` 미주입 → § 7.2 fallback (`onBrowseEvents` 로 동일 동작).
+
+**§ 5 페칭 패턴 도입**: `getFirstPage()` (in-flight 공유 fetcher) + 모듈 캐시 (`landing:events:firstpage:size=10`, stale 5분). `useFirstPage` / `useLandingStats` 두 훅이 같은 fetcher 결과를 공유 — 네트워크 1회. 패턴은 EventList `hooks.ts` 와 동일한 `useState/useEffect/AbortController`.
+
+#### 포함 파일
+
+| 파일 | 종류 | 추정 LOC | 비고 |
+|---|---|---|---|
+| `src/pages-v2/Landing/types.ts` | 수정 | +30 | `StatVM`, `LandingFirstPageQuery` (loading/success/error union, EventList 의 `EventsQuery` 결) 추가. 기존 `TerminalLine` 유지 |
+| `src/pages-v2/Landing/adapters.ts` | 신규 | ~50 | `toStatsVM(firstPage)`: 4 카드 합성 (1=totalElements / 2=page items 중 ON_SALE 길이 / 3=page items remainingQuantity 합 / 4='24+' 하드코딩). `buildTerminalLines(totalCount)` 로 라인 1 동적 합성, 라인 2 하드코딩 |
+| `src/pages-v2/Landing/hooks.ts` | 신규 | ~120 | `getFirstPage()` (in-flight 공유 fetcher), `useFirstPage()` (raw `EventListPage` 반환), `useLandingStats()` (`StatVM[]` 변환). 모듈 캐시 + LRU 4 (§ 5.4) |
+| `src/pages-v2/Landing/sections/HeroSection.tsx` | 신규 | ~80 | 좌 (Eyebrow/h1/subcopy/CTA 2개/메타 코멘트) + 우 (`<TypedTerminal lines={…} />`). `useFirstPage` 로 totalCount 받아 `buildTerminalLines` 호출 |
+| `src/pages-v2/Landing/sections/StatsSection.tsx` | 신규 | ~35 | 4-col grid + `Stat` map. 로딩/에러 상태 분기 (§ 6.2) |
+| `src/pages-v2/Landing/components/Stat.tsx` | 신규 | ~25 | `{ hint, num, unit, label }` 정상 카드 + 스켈레톤 variant (§ 6.2) |
+| `src/styles-v2/pages/landing.css` | 수정 | +90 | `.hero-section`, `.hero-left`, `.hero-right`, `.stats-section`, `.stat-card`, `.stat-skeleton` 추가. PR 1 에서 만든 `.typed-terminal*` 클래스는 그대로 |
+| `src/pages-v2/_dev/HeroStatsShowcase.tsx` | 신규 | ~30 | 임시 dev 페이지. 실제 API 와 결선된 `<HeroSection>` + `<StatsSection>` 단독 렌더. `onBrowseEvents` 는 alert, `onOpenPalette` 미주입 |
+| `src/App.tsx` | 수정 | +3 | 라우트 `/_dev/landing-hero-stats` 추가 (PR 1 의 `/_dev/typed-terminal` 라우트는 유지) |
+
+**총 추정 LOC**: 본체 (Hero 80 + Stats 35 + Stat 25) 140 + 데이터 (hooks 120 + adapters 50 + types 30) 200 + 스타일 90 + dev (showcase 30 + route 3) 33 = **~463 LOC**.
+
+> 목표 200~350 을 초과. 다음으로 트리밍 가능한 항목을 본 PR 에 진입 시 우선 평가:
+> - `hooks.ts` 의 LRU 안전 코드 (`landing:` 키 4종 고정이라 LRU 자체 생략 가능 → ~25 LOC 감소)
+> - `landing.css` 의 hover variant 들을 `:hover` 한 줄 토큰 변수로 묶기 (~20 감소)
+> 트리밍 적용 시 ~410 LOC. 그래도 여전히 350 초과 → § 12.5 에서 PR 2 를 "Hero" / "Stats" 두 PR 로 분할할지 재논의 (Stats 가 단순해 분할 효율은 낮을 가능성).
+
+#### 파일 생성 순서
+
+1. **데이터 레이어 먼저** — UI 가 항상 데이터 형태에 의존하므로:
+   1. `types.ts` 확장 (`StatVM`, `LandingFirstPageQuery`).
+   2. `adapters.ts` 신규 (`toStatsVM`, `buildTerminalLines`).
+   3. `hooks.ts` 신규 (`getFirstPage`, `useFirstPage`, `useLandingStats`).
+2. **컴포넌트 (가장 작은 것부터)**:
+   4. `components/Stat.tsx` (Stat 단일 카드 + 스켈레톤).
+   5. `sections/StatsSection.tsx` (Stat 4개 + 상태 분기).
+   6. `sections/HeroSection.tsx` (TypedTerminal 결선 + CTA 핸들러 props).
+3. **스타일**:
+   7. `styles-v2/pages/landing.css` 에 Hero / Stats 클래스 append (PR 1 의 typed-terminal 부분 유지).
+4. **검증 환경**:
+   8. `_dev/HeroStatsShowcase.tsx` — 두 섹션 단독 마운트.
+   9. `src/App.tsx` 라우트 1 줄 추가.
+5. **로컬 검증** (아래 절차).
+
+#### Commit 메시지 시퀀스
+
+작은 커밋 5개 권장:
+
+1. `feat(landing): add stats VM types and shared first-page query state`
+   - `types.ts` 확장만.
+2. `feat(landing): add adapters for stats VM and dynamic terminal lines`
+   - `adapters.ts` 신규.
+3. `feat(landing): add useFirstPage and useLandingStats hooks (PR 2/4)`
+   - `hooks.ts` 신규.
+4. `feat(landing): add Hero and Stats sections (PR 2/4)`
+   - `sections/HeroSection.tsx`, `sections/StatsSection.tsx`, `components/Stat.tsx`, `styles-v2/pages/landing.css` 의 Hero/Stats 부분.
+5. `chore(landing): add dev showcase route /_dev/landing-hero-stats`
+   - `_dev/HeroStatsShowcase.tsx`, `src/App.tsx` 라우트.
+
+#### 검증 방법
+
+PR 2 단독으로 `/` 라우트는 변하지 않음 — 검증은 dev 라우트에서.
+
+A. **`/_dev/landing-hero-stats` 시각 검증**
+
+| 케이스 | 확인 |
+|---|---|
+| 1 | 페이지 진입 시 Hero 좌측 카피·CTA·메타 코멘트 즉시 노출 (LCP 즉시) |
+| 2 | Hero 우측 TypedTerminal 마운트되며 PR 1 동작 그대로 (라인 1 cmd 가 38ms 타이핑) |
+| 3 | 라인 1 의 `out` 이 "→ N개의 이벤트를 찾았어요" 형태로 N 이 실제 `totalElements` 와 일치 |
+| 4 | 라인 2 는 하드코딩 ("✓ 티켓 1매가 발급되었습니다") |
+| 5 | Stats 4 카드 — 1번이 `totalElements`, 2번이 응답 페이지의 ON_SALE 개수, 3번이 잔여 좌석 합, 4번이 `24+` |
+| 6 | 첫 마운트 시 Stats 4 카드 모두 스켈레톤 (§ 6.2) → fetch 완료 후 정상 카드로 교체 |
+| 7 | "이벤트 둘러보기" 버튼 클릭 시 alert (`onBrowseEvents` 가 stub) |
+| 8 | "빠른 검색 ⌘K" 버튼 클릭 시 alert 또는 `onBrowseEvents` fallback (§ 7.2) — `onOpenPalette` 미주입 시 후자 |
+| 9 | 응답 비어있을 때 (mock 으로 빈 페이지 흉내) Stats 1·2·3 = 0, 4 = '24+' 표시. NaN/공백 없음 |
+
+B. **에러 / refetch 검증**
+
+- DevTools Network 탭에서 `/events` 요청을 throttle 또는 차단.
+- 기대: Stats 섹션이 인라인 에러 박스 + "다시 시도" 버튼 표시 (§ 6.2). Hero 좌측은 정적이라 그대로. Hero 우측 TypedTerminal 은 라인 1 의 count 부분이 `—` 또는 라인 1 자체가 정적 fallback 으로 표시 (§ 6.1 보강 — 카운트 미수신 시 "다양한" 으로 합성).
+- "다시 시도" 클릭 시 모듈 캐시 키 삭제 + 재요청.
+
+C. **공유 fetcher 검증** (in-flight reuse)
+
+- DevTools Network 탭 열고 `/_dev/landing-hero-stats` 새로고침.
+- 기대: `/events?page=0&size=10` 요청이 **단 1번** (Hero 와 Stats 가 같이 의존하지만 in-flight 프로미스 reuse).
+- 5분 안에 동일 라우트 재진입: 요청 0회 (캐시 히트).
+
+D. **a11y / 빌드**
+
+- VoiceOver: Hero h1 "개발자의 다음 한 줄을…" 1회 낭독, TypedTerminal 영역은 sr-only 요약만.
+- `Tab`: Eyebrow → "이벤트 둘러보기" → "⌘K" → (Stats 카드는 button 아님, 통과). 4 Stats 카드는 키보드 포커스 대상 아님 (§ 6.2 인터랙션 없음).
+- `npm run build` 통과, `tsc --noEmit` 통과, 콘솔 경고 0.
+
+#### 머지 조건
+
+- [ ] PR 1 머지 완료 후 rebase
+- [ ] A~D 검증 통과
+- [ ] `/`, `/events/:id` 등 기존 라우트 동작 변화 없음 (dev 라우트만 추가)
+- [ ] 모듈 캐시 키 네임스페이스 `landing:` 준수 (EventList 캐시와 충돌 0)
+- [ ] `useFirstPage` / `useLandingStats` 가 같은 fetcher 결과 공유 (네트워크 1회) — DevTools 로 검증 후 PR 설명에 스크린샷
+- [ ] § 11 #1 (라인 1 동적), #3 (4번 카드 하드코딩) 정합
+
+#### 영향 받지 않는 영역
+
+| 영역 | 보장 |
+|---|---|
+| `src/pages-v2/EventList/` | 미수정. 단 `EventList/types.ts` 의 `EventVM` 은 import 만 함 (§ 1 자산 공유) |
+| `src/pages-v2/_shared/eventFormat.ts` | 미수정. `isLowStock` 등은 `toStatsVM` 에서 import 만 |
+| `src/pages-v2/Landing/components/TypedTerminal.tsx` | PR 1 결과물 그대로 사용. 본 PR 에서 미수정 |
+| 다른 v2 페이지 (Cart/EventDetail/Login/PaymentCallback) | 미수정 |
+| `src/pages/*` (v1) | 미수정 |
+| 라우트 `/`, `/events/:id` 등 | 미수정 |
+| `index.html` | 미수정 (메타 태그는 PR 4) |
+
 ### 12.3 PR 3: Categories + Featured
 ### 12.4 PR 4: CTA + 통합 + 라우터
 ### 12.5 PR 간 의존성
