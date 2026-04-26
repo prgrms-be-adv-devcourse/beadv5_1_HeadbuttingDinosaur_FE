@@ -447,7 +447,87 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn { /* getFirstPage()
 
 
 ## 6. 신규 상태 처리
-(작성 예정)
+
+§ 5 의 섹션별 독립 훅 구조 위에 얹는다. 한 섹션의 상태가 다른 섹션을
+가리지 않는 것이 원칙. 공용 자산:
+- 스켈레톤 fill 색은 `--surface-3` (`src/styles-v2/tokens.css:18`)
+- 빈 상태는 `EmptyState` (`src/components-v2/EmptyState/`) 재사용
+- 에러 박스는 Landing 전용 인라인 패턴 (Cart `cart-rec-card--skeleton`,
+  EventDetail `EventDetailSkeleton` 의 결을 참고)
+
+### 6.1 Hero
+
+| 상태 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| 정상 | 마운트 즉시 | 좌측 카피·CTA 2개 + 우측 TypedTerminal | "이벤트 둘러보기" → `/events` (§ 7), "⌘K" → 팔레트 (§ 7) |
+| 로딩/에러 | — | **없음** (정적 컨텐츠) | — |
+| `prefers-reduced-motion: reduce` | matchMedia 감지 | TypedTerminal 모든 라인 즉시 완성 + 커서 깜빡임 정지 (§ 3) | 동일 |
+| 백그라운드 탭 | `document.visibilityState !== 'visible'` | TypedTerminal 타이머 pause (§ 3) | 탭 복귀 시 자동 resume |
+
+CTA / mono 메타 코멘트 / Eyebrow pill 은 모두 정적. 별도 상태 없음.
+
+### 6.2 Stats (4 카드)
+
+| 상태 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| 로딩 | `useLandingStats().status === 'loading'` 이고 `previous` 없음 | 4개 카드 스켈레톤. 카드 형태 그대로(`hint` / 숫자블록 / `label` 3줄)를 `--surface-3` 블록으로 치환. CLS 방지 위해 카드 높이 고정 | 없음 |
+| 갱신 중 (previous 보유) | refetch / stale 재요청 | 이전 숫자 그대로 노출 + 카드 우상단 `◐` 1px 회전 표시 (선택) | 없음 |
+| 정상 | `status === 'success'` | 4개 카드 정상 (`StatVM[]`) | 없음 — Stats 카드는 클릭 동선 없음 |
+| 에러 | `status === 'error'` 이고 `previous` 없음 | 4 카드 슬롯을 한 줄 인라인 메시지로 대체: `// stats unavailable — 통계를 불러올 수 없습니다  [다시 시도]`. 다른 섹션은 그대로 | "다시 시도" → `refetch()` |
+| 에러 (previous 보유) | refetch 실패 | 이전 숫자 + 우상단 작은 ⚠ 토큰("stale 1m") | 클릭 시 `refetch()` |
+| 데이터 0 | 응답이 모든 카운트 0 | 그대로 `0` 표시 (NaN/공백 금지). 4번 카드는 하드코딩이라 항상 값 있음 | 없음 |
+
+`StatVM` 의 `num` 은 string 또는 number 모두 허용 (§ 4 4번 카드는
+`'24+'` 하드코딩). 0 vs 미수신 구분: `data` 가 있으면 0, 없으면 로딩/에러.
+
+### 6.3 Categories (6 타일)
+
+| 상태 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| 로딩 | 첫 마운트 + 캐시 미스 | 6개 타일 스켈레톤. 34×34 아이콘 박스 + 두 줄 라인 자리 모두 `--surface-3` | 없음 (클릭 비활성) |
+| 정상 | `status === 'success'` | 6 타일 (이름 + `N개 이벤트`) | 클릭 → `/events?category={cat}` (§ 8) |
+| 부분 에러 (1~5개 실패) | 카테고리 호출이 `Promise.allSettled` (§ 5.6) 로 일부 reject | 실패 타일은 카운트를 `—` 로, 클릭은 그대로 가능 (EventList 가 빈 결과 처리) | 클릭 가능 — 라우팅은 정상 |
+| 전체 에러 | 6개 모두 reject 또는 카테고리 fetcher 자체 실패 | Categories 섹션 본문을 인라인 에러 박스로 교체 (`SectionHead` 는 유지). `// categories unavailable  [다시 시도]` | "다시 시도" → `refetch()` |
+| 카운트 0 | 한 카테고리만 0 | 그대로 `0개 이벤트` + 클릭 가능 (EventList 가 빈 상태 처리). disabled 처리 안 함 — 사용자가 카테고리 동선을 잃지 않도록 | 클릭 → `/events?category={cat}` (EventList 빈 상태 노출) |
+
+> **결정**: 카운트 0 타일을 disabled 로 만들지 vs 클릭 유지할지 — **클릭 유지**.
+> 이유: (a) Featured/추천 영역에 등장한 카테고리가 일시적 0 일 수 있고,
+> (b) 사용자에게 "이 포맷은 없다"는 정보를 EventList 빈 상태로 전달하는
+> 편이 정직.
+
+### 6.4 Featured (5 rows)
+
+| 상태 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| 로딩 | `useFeaturedEvents().status === 'loading'` | 5개 행 스켈레톤. grid `36px 56px 1fr auto` 레이아웃 그대로, 각 셀 `--surface-3` | 없음 |
+| 정상 | 5건 채워짐 | 5 행 (`FeaturedItemVM[]`) | 행 클릭 → `/events/:eventId`, "전체 보기" → `/events` |
+| 정상 (5건 미만, 1~4건) | 1차 응답에서 ON_SALE 이 5개 미만 | 받은 만큼 행 노출 (1~4행) + 마지막에 "전체 보기" 액션 그대로 | 동일 |
+| 에러 | 1차 응답 fetcher 실패 (§ 5.5 의 `getFirstPage`) | 섹션 본문에 인라인 에러 박스: `// featured unavailable — 추천 이벤트를 불러올 수 없습니다  [다시 시도]` (`SectionHead` 유지). Stats 도 같은 fetcher 의존이라 함께 에러 가능 | "다시 시도" → 두 섹션 동시 `refetch()` (같은 캐시 키) |
+| 빈 결과 (0건) | 1차 응답 비거나 모두 SOLD_OUT | **섹션 본문을 `EmptyState` 로 교체** (제목 "곧 새로운 이벤트가 등록될 예정입니다", message "현재 판매중인 이벤트가 없습니다", action 으로 `/events` 링크). `SectionHead` 는 유지 | "전체 보기" → `/events` |
+
+> **결정**: 빈 결과 시 섹션을 **숨기지 않음**. 이유: Landing 의 정보
+> 밀도/리듬을 유지하고, EventList 동선을 사용자에게 계속 제시하기 위해.
+> 섹션 자체 숨김은 v1 범위 밖.
+
+### 6.5 CTA
+
+| 상태 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| 정상 | 항상 | dashed border 카드 + "지금 바로 다음 컨퍼런스를 예약하세요" + primary lg "시작하기" | "시작하기" → `/events` (비로그인 시에도 동일, RequireAuth 가드 없음) |
+| 로딩/에러/빈 | — | **없음** (정적 컨텐츠) | — |
+
+> **인증 컨텍스트 분기 미적용 (v1)**: 로그인 사용자에게는 "이벤트 더 보기"
+> 등으로 카피를 바꿀 여지 있으나 v1 은 단일 카피 유지. § 11 결정.
+
+### 6.6 페이지 전체 차원
+
+| 상태 | 트리거 | 표시 |
+|---|---|---|
+| 첫 진입 | 모든 섹션 동시 로딩 | Hero / CTA 정적 + Stats / Categories / Featured 스켈레톤. **"전체 페이지 로딩 스피너"는 사용하지 않음** — 정적 섹션이 즉시 보이는 게 LCP 에 유리 |
+| 모든 데이터 섹션 에러 | 3개 fetcher 모두 실패 | 각자 인라인 에러 박스. 페이지 자체는 살아있음. Hero / CTA 통해 다음 동선 제공 |
+| 네트워크 끊김 | fetcher catch | 섹션별 인라인 에러 + 네트워크 복귀 감지 시 자동 재시도는 v1 범위 밖 — 사용자 "다시 시도" 클릭에 의존 |
+| 401 / 403 | apiClient 인터셉터 | Landing 코드 분기 없음 (SPEC § 0 부수). 인터셉터가 `/login` 또는 `/social/profile-setup` 로 강제 이동 |
+
 
 ## 7. Hero 인터랙션 (CTA 버튼, ⌘K 팔레트 호출)
 (작성 예정)
