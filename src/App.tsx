@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import SellerLayout from './components/SellerLayout'
 import AdminLayout from './components/AdminLayout'
 import Loading from './components/Loading'
+import { VersionedRoute } from './router-v2'
 
 // 즉시 로드 (비로그인 첫 화면)
 import EventList         from './pages/EventList'
@@ -16,6 +17,9 @@ import NotFound          from './pages/NotFound'
 // lazy – 소셜 로그인
 const OAuthCallback       = lazy(() => import('./pages/OAuthCallback'))
 const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
+
+// lazy – v2 재구축 (router-toggle.plan, Login.plan §6)
+const LoginV2             = lazy(() => import('./pages-v2/Login'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
@@ -72,7 +76,7 @@ export default function App() {
     <Suspense fallback={<Loading fullscreen />}>
       <Routes>
         {/* 공개 */}
-        <Route path="/login"               element={<Login />} />
+        <Route path="/login"               element={<VersionedRoute v1={<Login />} v2={<LoginV2 />} />} />
         <Route path="/signup"              element={<Signup />} />
         <Route path="/signup/complete"     element={<SignupComplete />} />
 
