@@ -805,7 +805,197 @@ ide-chrome.css 안에 `[data-theme="dark"]` 추가 룰이 필요한 항목:
 
 
 ## 6. 반응형 / 다크모드 / 접근성
-(작성 예정)
+
+### 6-1. 반응형 분기점
+
+프로토타입은 `@media (max-width: 960px)` 단일 브레이크 (ide-theme.css:802-805). v2 도 단순 유지하되, 미니맵 분기를 1280px 로 한 단계 더 두는 것을 권장.
+
+| 분기점 | 영역 | 그리드 |
+|---|---|---|
+| **데스크탑** ≥ 1280px | 풀 chrome | `48px 220px 1fr 60px` (4열, 프로토타입 기본값) |
+| **태블릿** 960px ~ 1279px | 미니맵 숨김 | `48px 220px 1fr 0` (3열 + 0열) |
+| **모바일** < 960px | 사이드바 + 미니맵 숨김 | `48px 0 1fr 0` (1열 + 0 + 1열 + 0) |
+
+미디어 쿼리는 `ide-chrome.css` 안에 다음 형태:
+
+```css
+@media (max-width: 1279px) {
+  .ide { grid-template-columns: var(--ide-activity-w) var(--ide-sidebar-w) 1fr 0; }
+  .ide-minimap { display: none; }
+}
+@media (max-width: 959px) {
+  .ide { grid-template-columns: var(--ide-activity-w) 0 1fr 0; }
+  .ide-sidebar { display: none; }
+  /* TitleBar 의 검색 박스(.title-cmd)는 좁은 화면에서 숨김 */
+  .title-cmd { display: none; }
+}
+```
+
+### 6-2. 모바일 동작 (< 960px)
+
+**채택안: 사이드바 / 미니맵 / 타이틀 검색 박스 숨김. 햄버거 / Drawer 도입 안 함.**
+
+- ActivityBar(48px) 는 유지 — 이게 모바일에서의 주 네비. 검색 아이콘은 그대로 ⌘K 팔레트 오픈.
+- 사이드바의 카테고리 / 다가오는 이벤트 / 세션 정보는 모바일에서는 **EventList 페이지 자체의 필터/리스트**가 대체 역할 수행 (사이드바 햄버거를 따로 만들지 않음).
+- TitleBar 의 트래픽 라이트 + 서비스명은 유지(`.title-text` 가 flex:1 로 자동 축소).
+- TabBar 는 가로 스크롤 가능(이미 ide-theme.css L271-273 `overflow-x: auto` + 스크롤바 숨김).
+- StatusBar 는 유지하되, 좁아질 때 `.status-spacer` 가 자동으로 좌우 항목 분리.
+
+**향후 확장 여지** (이번 PR 범위 아님): 모바일 햄버거 → 사이드바 Drawer. ActivityBar 의 좌측에 햄버거 버튼을 추가하고 `<Sidebar>` 를 fixed overlay 로 띄우는 변형. 본 plan 1차에는 미포함.
+
+### 6-3. 태블릿 동작 (960px ~ 1279px)
+
+**채택안: 미니맵만 숨김, 나머지는 데스크탑과 동일.**
+
+- 사이드바(220px) 유지 — 태블릿 가로폭에서도 220px 는 12~17% 비중이라 무리 없음.
+- 미니맵(60px)은 가독성 기여가 낮으므로 숨김 (그리드 4열 → 3열 + 0).
+- 사이드바를 더 좁히거나 아이콘만 표시하는 변형은 도입 안 함 (구현 복잡도 대비 이득 작음).
+
+### 6-4. 다크모드
+
+**기본: 토큰 자동 적용.** `ThemeContext` 가 `document.documentElement` 에 `data-theme="dark"` 부착(§4-3) → tokens.css 의 `[data-theme="dark"]` 블록이 IDE 토큰 22개를 모두 다크 값으로 스왑(tokens.plan §4-0). ide-chrome.css 의 거의 모든 룰은 토큰만 참조하므로 **추가 처리 불필요**.
+
+**별도 처리 필요한 영역**:
+
+| 영역 | 처리 | 근거 |
+|---|---|---|
+| `[data-theme="dark"] .palette-item:hover, [data-theme="dark"] .palette-item.sel { color: #C7D2FE; }` | ide-chrome.css 에 명시 (§5-7) | 다크 brand-light 위 텍스트 가독성 보정 |
+| TitleBar 테마 토글 아이콘 | `theme === 'dark' ? 'sun' : 'moon'` (Layout.jsx:20) — `TitleBar` 가 `resolvedTheme: 'light' \| 'dark'` 를 받아 분기 | `'system'` 미도달 보장 (§4-3) |
+| 트래픽 라이트 색 (`#FF5F57`, `#FEBC2E`, `#28C840`) | **모드별 동일 — 의도된 하드코딩** (macOS 마이메틱) | 토큰화 안 함 |
+| 활성 라인 하이라이트 `--editor-line` | 라이트 `rgba(79,70,229,0.04)` ↔ 다크 `rgba(255,255,255,0.035)` | tokens.css 가 처리 |
+| 스크롤바 thumb (`var(--surface-3)`) | 토큰으로 자동 처리 | — |
+
+**토큰 미사용 검증**: ide-chrome.css 작성 시 grep `#[0-9A-Fa-f]{3,8}` 로 색 리터럴 검출 → 트래픽 라이트 3색만 남는 것이 정상.
+
+### 6-5. 키보드 네비게이션
+
+**전역 단축키** (`useGlobalShortcuts`, §3-16):
+
+| 키 | 동작 | 입력 필드 안 |
+|---|---|---|
+| `⌘K` / `Ctrl+K` | 팔레트 오픈 | 동작 |
+| `Esc` | 팔레트 닫기 | 동작 |
+| `/` | TitleBar 검색 박스 포커스(`focusSearch`) | 무시 |
+| `g h` / `g e` / `g c` / `g m` | 라우트 이동 (`c`/`m` 은 미인증 시 `login`) | 무시 |
+| `j` / `k` | 카드 포커스 이동(`onCardNav`, 페이지 옵트인) | 무시 |
+| `Enter` | 현재 카드 열기(`onCardOpen`, 페이지 옵트인) | 무시 |
+
+**팔레트 내부 키**: `↑` / `↓` 항목 이동, `Enter` 실행, `Esc` 닫기 (§1-3).
+
+**포커스 순서 (Tab)**:
+
+```
+1. TitleBar      .title-cmd (검색 박스)
+2. TitleBar      테마 토글 버튼
+3. ActivityBar   home → events → search → cart → mypage → settings (위→아래)
+4. Sidebar       메뉴 헤더(토글) → 메뉴 항목들 → 다가오는 헤더(토글) → 다가오는 항목들 → (세션 — 비대화형)
+5. TabBar        탭들 (왼쪽→오른쪽), 각 탭 안에서 close 버튼
+6. Editor        children 콘텐츠 (페이지 책임)
+7. Minimap       포커스 받지 않음 (tabindex 미부여)
+8. StatusBar     git/DevTicket → ⌘K 트리거 (clickable 만)
+```
+
+`tabindex` 직접 설정은 사용 안 함 (DOM 순서 = 그리드 영역 순서로 자연스럽게 매칭). 단 `.ide-editor` 는 `tabindex="-1"` 로 두어 라우트 변경 시 프로그램적 포커스 이동(스킵 링크용)을 허용.
+
+**스킵 링크**: `Layout` 첫 자식으로 `<a className="skip-link" href="#ide-editor">본문으로 건너뛰기</a>` 추가. 평소 `clip-path: inset(50%)` 로 숨김, 포커스 시 노출. ide-chrome.css 에 `.skip-link` / `.skip-link:focus` 룰 추가.
+
+**클릭 가능 요소는 모두 `<button>`**: 프로토타입의 `<div onClick>` (`.side-item`, `.title-cmd`, `.status-item.clickable` 등)은 v2 에서 `<button type="button">` 으로 변환. 이미 `<button>` 인 `.act-btn`, `.tab` 은 그대로.
+
+### 6-6. 스크린리더 / ARIA
+
+**랜드마크 구조**:
+
+```tsx
+<div className="ide" role="application" aria-label="DevTicket">
+  <header className="ide-title" role="banner">
+    {/* traffic lights — 장식 */}
+    <div className="traffic" aria-hidden="true">…</div>
+    <h1 className="title-text">DevTicket · 개발자를 위한 이벤트 티켓</h1>
+    <button className="title-cmd" aria-label="명령 팔레트 열기 (⌘K)">…</button>
+    <button className="act-btn" aria-label="테마 전환">…</button>
+  </header>
+
+  <nav className="ide-activity" aria-label="주요 메뉴">
+    <button aria-label="홈" aria-current={isHome ? 'page' : undefined}>…</button>
+    {/* … */}
+  </nav>
+
+  <aside className="ide-sidebar" aria-label="사이드 네비게이션">
+    <h2 className="side-header">
+      <button aria-expanded={menuOpen} aria-controls="side-menu">메뉴</button>
+    </h2>
+    <ul id="side-menu" className="side-group" role="list">…</ul>
+    {/* 다가오는 이벤트 / 세션 동일 패턴 */}
+  </aside>
+
+  <div className="ide-tabs" role="tablist" aria-label="열린 페이지">
+    <button role="tab" aria-selected={active} aria-controls="ide-editor">…</button>
+  </div>
+
+  <main className="ide-editor" id="ide-editor" role="main" tabIndex={-1}>
+    <Outlet />
+  </main>
+
+  <div className="ide-minimap" aria-hidden="true">…</div>
+
+  <footer className="ide-status" role="contentinfo">
+    <button className="status-item clickable" aria-label="명령 팔레트 열기">…</button>
+  </footer>
+
+  {/* CommandPalette 는 별도 — 6-7 참조 */}
+</div>
+```
+
+**영역별 ARIA 요약**:
+
+| 영역 | 시맨틱 / role | aria 속성 |
+|---|---|---|
+| `.ide` | `role="application"` | `aria-label="DevTicket"` (단축키가 풍부하므로 application 적절) |
+| TitleBar | `<header role="banner">` | `.title-text` 는 `<h1>` 으로 |
+| `.traffic` | — | `aria-hidden="true"` (장식) |
+| ActivityBar | `<nav aria-label="주요 메뉴">` | 각 버튼 `aria-label`, 현재 라우트 `aria-current="page"`, 카트 배지 `aria-label="장바구니 ${count}개"` |
+| Sidebar | `<aside aria-label="사이드 네비게이션">` | 섹션 헤더 `<button aria-expanded aria-controls>`, 항목 그룹 `<ul role="list">`, 카테고리 카운트 `aria-label="${cat}, ${count}개"` |
+| TabBar | `role="tablist" aria-label="열린 페이지"` | 각 탭 `role="tab" aria-selected aria-controls="ide-editor"`, close 버튼 `aria-label="${label} 탭 닫기"` |
+| `.ide-editor` | `<main id="ide-editor" tabIndex={-1}>` | 스킵 링크 타깃 |
+| Minimap | — | **`aria-hidden="true"`** (순수 장식, 포커스 X) |
+| StatusBar | `<footer role="contentinfo">` | `.term-ok` 는 `aria-label="시스템 상태: 정상"`, ⌘K 트리거 `aria-label="명령 팔레트 열기"` |
+
+**SR 전용 텍스트**: `.sr-only` 유틸리티(global.css)로 트래픽 라이트 등 장식 요소를 의도적으로 숨길 때 사용. ide-chrome.css 자체에는 두지 않음.
+
+**축약 검증**: axe-core / @axe-core/react 로 자동 검증 (테스트 도입 시점에 별도 PR — INVENTORY §5: 현재 테스트 의존성 0개).
+
+### 6-7. 포커스 트랩 (CommandPalette)
+
+CommandPalette 는 Layout 안에서 유일한 모달성 영역. 다음을 만족해야 함.
+
+| 요구 | 구현 |
+|---|---|
+| 다이얼로그 시맨틱 | `<div role="dialog" aria-modal="true" aria-label="명령 팔레트">` 를 `.palette` 에 부착 |
+| 입력 자동 포커스 | open=true 시점에 `inputRef.current?.focus()` (Layout.jsx:221 동일 — `setTimeout(…, 10)` 그대로 유지) |
+| 백그라운드 비활성화 | 백드롭(`.palette-backdrop`) 클릭 시 닫기 + 백그라운드 콘텐츠는 `aria-hidden="true"` (오픈 동안 `.ide` 에 토글) |
+| 포커스 순환 | Tab 이 입력 → 리스트 → 푸터 → 다시 입력 으로 순환. **시작 sentinel + 끝 sentinel** 두 개 두고 `onFocus` 에서 반대편으로 이동. 또는 `react-focus-lock` (외부 라이브러리 도입 시) — INVENTORY §5 라이브러리 미도입 정책에 따라 **자체 구현 권장** |
+| Esc 로 닫기 | `useGlobalShortcuts` 에서 처리 (Layout.jsx:308) |
+| 백드롭 클릭 닫기 | `.palette-backdrop onClick={onClose}` + `.palette onClick={e => e.stopPropagation()}` (프로토타입과 동일) |
+| 닫힌 후 포커스 복귀 | open 직전의 `document.activeElement` 를 `useRef` 로 저장 → onClose 시 `restoreEl.current?.focus()` |
+| 리스트 시맨틱 | `.palette-list role="listbox" aria-label="검색 결과"`, 각 `.palette-item role="option" aria-selected={i === selectedIndex}` |
+| 선택 동기화 | `.palette-input` 에 `aria-activedescendant={'palette-item-' + selectedIndex}` 부착해 SR 이 화살표 이동을 인지 |
+
+**구현 위치**: 포커스 트랩 유틸은 `src/components-v2/Layout/CommandPalette/useFocusTrap.ts` (선택) 로 분리 가능. 단 sentinel 2개 패턴은 30줄 안쪽이라 `CommandPalette/index.tsx` 안에 인라인해도 무방 (§2-3 200줄 한도 내).
+
+**스킵 패턴 — 포커스 복귀**:
+
+```ts
+const lastFocusedRef = useRef<HTMLElement | null>(null);
+useEffect(() => {
+  if (open) {
+    lastFocusedRef.current = document.activeElement as HTMLElement;
+    inputRef.current?.focus();
+  } else {
+    lastFocusedRef.current?.focus();
+  }
+}, [open]);
+```
+
 
 ## 7. 파일 생성 순서
 (작성 예정)
