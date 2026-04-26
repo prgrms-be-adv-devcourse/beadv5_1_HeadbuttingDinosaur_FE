@@ -301,7 +301,102 @@ useEffect(() => {
 > 인풋의 controlled value는 **로컬 state**(`localKeyword`)를 사용해 즉시 반응. URL/`filters.keyword`는 디바운스 후에만 따라 움직인다. 둘이 일시적으로 어긋나는 것은 정상.
 
 ## 5. 데이터 페칭 전략
-(작성 예정)
+
+### 전제 (확정 사항)
+
+- **캐시 라이브러리 없음**. SPEC § 9 + INVENTORY § 5: `axios` + `useEffect/useState` 패턴 유지. React Query / SWR / `useInfiniteQuery` 사용 불가.
+- 기존 자산: `src/hooks/useApi.ts` (단발성), `src/hooks/useDebounce.ts`(400ms 기본). `usePagedApi`는 INVENTORY 언급은 있으나 **실제 파일 없음** — v2에서 새로 만든다.
+- API 응답이 `{ content, page, size, totalElements, totalPages }` 표준 page 모델이라 cursor 기반 무한스크롤로 가기 어색함.
+
+### 1) 사용할 훅
+
+- **자체 `useEvents`** (페이지 디렉토리의 `hooks.ts`). 기존 `useApi`를 그대로 쓰지 않고 페이지에 특화된 형태로 신규 작성.
+  - 이유: ① 필터 키 직렬화 + 모듈 레벨 인메모리 캐시 결합, ② `AbortController`로 키 변경 시 in-flight race 방지(`useApi`엔 없음), ③ "이전 결과 유지하며 위에 로딩 표시"(아래 placeholderData 항목)를 위한 상태 셰이프가 다름.
+- 검색어 디바운스는 `src/hooks/useDebounce.ts` 재사용 (단, delay는 300ms로 호출 — § 4와 일치).
+
+### 2) 캐시 키 설계
+
+- 키는 **정규화된 필터 직렬화** 한 줄.
+  ```ts
+  const serializeFilters = (f: EventListFilters) =>
+    `q=${f.keyword}|cat=${f.category}|stack=${f.stack}|page=${f.page}`;
+  ```
+- 키 안에 `keyword`, `category`, `stack`, `page` **모두 포함**. 다른 차원(정렬/사이즈 등)이 도입되면 키 함수에 같이 추가.
+- URL 정규화(§ 4)와 키 정규화가 1:1 — 같은 URL이면 같은 캐시 슬롯에 매핑.
+
+### 3) 디바운스
+
+- 검색어: **300ms** (§ 4와 동일). `useDebounce(localKeyword, 300)` → 디바운스된 값이 바뀔 때만 URL `setFilters({ keyword }, { replace: true })` 호출 → URL → `useEventListFilters().filters` → `useEvents(filters)` 재실행.
+- 카테고리/스택/페이지는 디바운스 없음 (한 번의 클릭이 즉시 fetch).
+
+### 4) prefetch / placeholderData
+
+- **prefetch: 도입 안 함**. 캐시 라이브러리 없이 hover prefetch를 직접 구현하면 코드 비용 대비 이득 적음. (이후 도입 시 § 9 갱신.)
+- **placeholderData 효과**: 새 키 fetch 중에도 **직전 키의 데이터를 그리드에 유지**하고 위에 dim 인디케이터를 띄운다. 키 변경마다 그리드가 깜빡(skeleton → 데이터)하는 UX 단절 방지. 상태 셰이프에 `previousData` 슬롯을 둔다 (코드 골격 참고).
+- 모듈 레벨 인메모리 LRU 캐시(슬롯 8개): 같은 키 재방문 시 즉시 표시. 뒤로가기/앞으로가기 시 효과 큼.
+
+### 5) stale time / cache time
+
+| 항목 | 값 | 동작 |
+|---|---|---|
+| **인메모리 캐시 수명** | 페이지 라이프사이클(탭 유지 동안). 새로고침 시 소멸. | LRU 8개 슬롯. |
+| **stale 윈도우** | **60초** | 캐시 hit이고 60초 이내면 fetch 스킵, 캐시 그대로. |
+| **stale 후 동작** | 60초 경과 시 캐시 표시 + 백그라운드 재요청 1회. 응답 도착하면 갱신. | "Show stale, refetch in background" 패턴을 직접 구현 (`fetchedAt: number`로 비교). |
+| **수동 invalidate** | `refetch()` (재시도 버튼) | 해당 키만 캐시 제거 후 재요청. |
+
+### 페이지네이션 vs 무한스크롤
+
+**결정: 숫자 페이지네이션** (`Pagination.tsx`, § 2).
+
+| 기준 | 페이지네이션 | 무한스크롤 |
+|---|---|---|
+| API 호환 | ✅ `{page, totalPages}` 그대로 매핑 | ⚠️ offset 기반이라 새 이벤트 등록 시 인덱스 밀림 → 중복/누락 가능 |
+| URL 공유 (§ 4) | ✅ `page=N` 그대로 표현 | ⚠️ 스크롤 위치를 URL에 표현 어려움 |
+| 키보드 내비(§ 7)와 결합 | ✅ 페이지 사이즈 고정이라 `j`/`k` 인덱스 단순 | ⚠️ 카드 수가 가변이라 인덱스 다루기 복잡 |
+| 라이브러리 지원 | ✅ 단일 fetch + 컨트롤로 충분 | ❌ `useInfiniteQuery` 없음 — 직접 구현 비용 큼 |
+
+→ **페이지네이션 채택**. 인덱스/사이즈 컨트롤은 `Pagination.tsx`의 props(`page`, `totalPages`, `hasNext`, `onPageChange`)로만 노출 — 추후 무한스크롤로 갈아끼울 때 컨테이너 변경 최소화.
+
+### 핵심 흐름 (코드 골격)
+
+```ts
+// src/pages-v2/EventList/hooks.ts
+type EventsQuery =
+  | { status: 'loading'; previous?: EventListPage }
+  | { status: 'success'; data: EventListPage; fetchedAt: number }
+  | { status: 'error';   error: unknown; previous?: EventListPage };
+
+const cache = new Map<string, { data: EventListPage; fetchedAt: number }>();
+const STALE_MS = 60_000;
+
+export function useEvents(filters: EventListFilters, stackNameToId: Map<string, number>) {
+  const key = serializeFilters(filters);
+  const [state, setState] = useState<EventsQuery>(() => {
+    const hit = cache.get(key);
+    return hit ? { status: 'success', data: hit.data, fetchedAt: hit.fetchedAt } : { status: 'loading' };
+  });
+
+  useEffect(() => {
+    const hit = cache.get(key);
+    const fresh = hit && Date.now() - hit.fetchedAt < STALE_MS;
+    if (fresh) { setState({ status: 'success', data: hit!.data, fetchedAt: hit!.fetchedAt }); return; }
+    setState(prev => ({ status: 'loading', previous: 'data' in prev ? prev.data : prev.previous }));
+
+    const ctrl = new AbortController();
+    callByKind(toFilterRequest(filters, stackNameToId), ctrl.signal)
+      .then(toEventListPage)
+      .then(data => { const now = Date.now(); cache.set(key, { data, fetchedAt: now }); setState({ status: 'success', data, fetchedAt: now }); })
+      .catch(error => { if (!ctrl.signal.aborted) setState(prev => ({ status: 'error', error, previous: 'data' in prev ? prev.data : prev.previous })); });
+    return () => ctrl.abort();
+  }, [key]);
+
+  const refetch = () => { cache.delete(key); setState({ status: 'loading' }); /* effect 재실행 위해 key 의존 별도 트리거 ref 사용 */ };
+  return { ...state, refetch };
+}
+```
+
+- 컴포넌트는 `state.status`로 분기(§ 6)하고, `previous`가 있으면 dim 처리해서 그대로 노출.
+- LRU 축출은 `cache.size > 8`일 때 가장 오래된 슬롯 삭제 — 위 골격에서 생략, 실제 구현 시 보강.
 
 ## 6. 신규 상태 처리 (로딩/에러/empty/페이징)
 (작성 예정)
