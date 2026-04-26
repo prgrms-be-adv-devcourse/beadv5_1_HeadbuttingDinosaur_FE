@@ -547,7 +547,174 @@ src/pages-v2/MyPage/shared/
 - 프로토타입의 인라인 `style={{}}` / `window.accent(t.id)` 글로벌 / 한자릿수 알파 hex 직조립은 **가져오지 않음** (SPEC § 0). accent 매핑은 어댑터에서 `accent(eventId)` 헬퍼로 (§ 5.2 에서 위치 결정).
 
 ### 5.2 API 매핑
+
+#### 5.2.1 호출 함수
+
+```ts
+// src/api/tickets.api.ts (기존, 수정 금지)
+export const getTickets = (params?: TicketListRequest) =>
+  apiClient.get<TicketListResponse>('/tickets', { params });
+```
+
+- 엔드포인트: `GET /tickets` (실제 BE 경로. SPEC § 3 의 `/api/me/tickets` 표기는 `apiClient` baseURL `/api` + `/tickets` 합성 결과 — 동일).
+- **`ApiResponse<T>` 래퍼 없음**: `apiClient.get<TicketListResponse>` 가 직접 `TicketListResponse` 를 던진다 (다른 엔드포인트와 다름 — `unwrapApiData` 적용 X). 어댑터에서 그대로 `.data` 를 사용.
+- 인증: axios 인터셉터(`Authorization: Bearer …`)가 자동 주입 (INVENTORY § 4). 페이지가 토큰을 직접 다루지 않음.
+- 페이지 요청은 0-base (v1 MyPage.tsx:121 이 `{ page: 0, size: 20 }` 호출 — BE 컨벤션 그대로 따름).
+
+#### 5.2.2 응답 타입 (실측)
+
+```ts
+// src/api/types.ts:434
+interface TicketItem {
+  ticketId: number;        // ← 숫자
+  eventId: string;
+  eventTitle: string;
+  eventDate: string;       // ISO
+  status: string;          // 'VALID' | 'USED' | 'CANCELLED' | 'EXPIRED' (v1 매핑 기준)
+}
+interface TicketListResponse {
+  tickets: TicketItem[];
+  totalElements: number;
+  totalPages: number;
+}
+```
+
+#### 5.2.3 응답 필드 매핑 (mock → API → VM)
+
+| 프로토타입 mock 필드 | API 필드 | 실제 위치 | VM 필드 (`TicketVM`) | 변환 |
+|---|---|---|---|---|
+| `id` (`'t1'`) | `ticketId` (number) | `types.ts:435` | `ticketId: string` | `String(api.ticketId)` — React `key` / 향후 라우팅 안정성. accent 매핑은 `eventId` 기반이라 별도 |
+| `title` (`'Spring Camp …'`) | `eventTitle` | `types.ts:437` | `title: string` | passthrough |
+| `status` (`'VALID' / 'USED'`) | `status` (string) | `types.ts:439` | `statusVariant: 'ok' \| 'end'` | enum 매핑 표 (§ 5.2.4) |
+| `label` (`'사용 가능' / '사용 완료'`) | (없음 — 클라이언트 매핑) | — | `statusLabel: string` | `status` 기반 자동 생성 — 어댑터에서 라벨 테이블 참조 |
+| `date` (`'2026.05.18 14:00'`) | `eventDate` (ISO) | `types.ts:438` | `dateLabel: string` | `fmtDate(api.eventDate)` (`src/lib/format.ts:12`, § 4.3.1) |
+| `seat` (`'A-14' / '자율석'`) | **없음** | — | **VM 에서 제거** | § 5.2.5 결정 |
+| (없음) | `eventId` (string) | `types.ts:436` | `accent: string` | `accent(eventId)` 매핑 — 어댑터가 page-local `accent()` 헬퍼 호출 |
+
+#### 5.2.4 status enum 매핑
+
+v1 MyPage.tsx:30-35 의 매핑을 그대로 채택 (BE 컨벤션 반영). 4개 상태를 StatusChip 의 4개 variant 에 1:1 매핑:
+
+| API `status` | `statusVariant` | `statusLabel` | 비고 |
+|---|---|---|---|
+| `VALID` | `'ok'` | `'사용 가능'` | 프로토타입 케이스 1 |
+| `USED` | `'end'` | `'사용 완료'` | 프로토타입 케이스 2 |
+| `CANCELLED` | `'sold'` | `'취소됨'` | 프로토타입에 없음 — v1 매핑 따라 추가 |
+| `EXPIRED` | `'end'` | `'만료'` | USED 와 시각 톤 동일(`end`) |
+| (그 외) | `'end'` | `String(status)` | 미지의 값은 라벨로 그대로 노출(디버그용). prod 에서 발생 시 BE 와 enum 합의 |
+
+위치: `tabs/Tickets/adapters.ts` 의 상수 객체 + `toTicketVM(api: TicketItem): TicketVM` 함수.
+
+#### 5.2.5 `seat` 필드 — VM 에서 제거
+
+- `TicketItem` 에 좌석 필드 **없음**. `TicketDetailResponse`(`types.ts:447`) 에도 좌석 필드 없음(가장 가까운 건 `location` — 행사장).
+- 프로토타입의 `💺 A-14 / 자율석` 은 mock 전용. SPEC § 0 절대 규칙 "프로토타입의 mock 데이터는 v2 코드에 들어가면 안 됨" → **v2 카드의 좌석 라인 삭제**.
+- 메타 라인은 `📅 {dateLabel}` 만 단독 노출. 디자인 회귀가 우려되면 `📍 {location}` 을 `getTicketDetail` 에서 prefetch 해 채울 수 있으나, 목록에서 N개 detail 호출은 비용 — § 11 의사결정 안건으로 등록.
+
+#### 5.2.6 `accent` 매핑
+
+- 프로토타입 `window.accent(t.id)` 글로벌은 가져오지 않음 (SPEC § 0).
+- `accent()` 함수는 페이지/공용 어디 둘지: `prototype/common.jsx` 의 매핑은 이미 `src/components-v2/_shared` 또는 `src/lib/accent.ts` 후보로 다른 페이지 plan 에서 거론(`shared-components.plan.md § 1.4 #26 AccentMediaBox` 의 alpha 매핑이 색상 매핑과 별개). 본 plan 에서는 다음으로 가정:
+  - **이미 존재하면**: 그대로 import.
+  - **없으면**: `src/lib/accent.ts` (페이지 외 공용) 신규 — Cart/EventDetail/Landing 도 같은 매핑을 쓸 수밖에 없으니 페이지 내부에 두면 중복.
+- 어댑터가 `accent(eventId)` 한 번 호출해 VM 의 `accent` 필드(hex 문자열)에 박아둠. 컴포넌트는 hex 만 받음.
+
+> 위치 결정 (`src/lib/accent.ts` vs `src/components-v2/_shared/`)은 § 11 안건. 1차 PR 에서는 `MyPage/shared/accent.ts` 임시 위치 + TODO 주석. 외부 페이지가 같은 함수 필요해지는 시점에 승격.
+
+#### 5.2.7 `TicketVM` 시그니처
+
+```ts
+// src/pages-v2/MyPage/tabs/Tickets/types.ts
+export type TicketStatus = 'VALID' | 'USED' | 'CANCELLED' | 'EXPIRED' | 'UNKNOWN';
+
+export interface TicketVM {
+  ticketId: string;          // String(TicketItem.ticketId)
+  eventId: string;           // accent 재계산 등 향후 활용
+  title: string;
+  dateLabel: string;         // fmtDate 결과
+  status: TicketStatus;
+  statusVariant: 'ok' | 'end' | 'sold';   // StatusChip prop
+  statusLabel: string;       // '사용 가능' 등
+  accent: string;            // hex (#xxxxxx)
+}
+```
+
+#### 5.2.8 페이징 전략
+
+| 조건 | 전략 |
+|---|---|
+| `totalElements ≤ size` (단일 페이지) | 추가 호출 0. 현재 페이지 그대로 표시 |
+| `totalElements > size` | § 11 의사결정 (페이지네이션 / 무한스크롤 / "더 보기" 버튼) |
+
+- 1차 PR: `getTickets({ page: 0, size: 50 })` 단일 호출. 보통 사용자당 티켓 수가 적다는 가정 (v1 기본 size=20 보다 여유 둠).
+- Footer 에 `totalElements > 50` 일 때만 "전체 N개 중 50개 표시" 안내 + § 11 결정 후 페이저/스크롤 도입.
+- API 가 0-base 인지 1-base 인지: v1 코드(`page: 0`) + `getTickets` 시그니처에 명시 없음 → v1 호환성 차원에서 **0-base** 가정. 페이저 도입 시 `page` 키 의미를 한 번 검증.
+
+#### 5.2.9 에러 처리
+
+| HTTP / 조건 | 처리 | 위치 |
+|---|---|---|
+| 401 (액세스 토큰 만료) | axios 인터셉터가 `/auth/reissue` 자동 재발급 + 원 요청 재시도 (INVENTORY § 4). **페이지 코드가 401 분기 작성 X** | `src/api/client.ts:68` |
+| 401 (재발급 실패) | 인터셉터가 토큰 3종 제거 + `window.location.href = '/login'`. 페이지는 가만 있으면 됨 | `src/api/client.ts:95` |
+| 403 + `code: PROFILE_NOT_COMPLETED` | 인터셉터가 `/social/profile-setup` 강제 이동. 페이지 처리 X | `src/api/client.ts:60` |
+| 4xx (그 외 — 거의 발생 안 하는 케이스) | `useTickets` 가 error 상태로 `TabFetchState` 에 넘김 → `TabErrorBox` (재시도 버튼) | § 4.2.2 |
+| 5xx | 동일 — `TabErrorBox` 의 "다시 시도" 버튼이 `useTickets.refetch()` 트리거 | § 4.2.2 |
+| 네트워크 오류 (`axios.isAxiosError(e) && !e.response`) | 동일 — 5xx 와 같은 에러 상태로 합침 | `useTickets` |
+| 빈 응답 (`tickets: []`) | error 가 아니라 정상. `TabFetchState.empty.when` 분기로 `EmptyTickets` 렌더 | § 5.3 |
+
+> SPEC § 0 어댑터 규칙 + INVENTORY § 4 인터셉터 동작이 페이지 코드의 분기를 줄여줌 — 401 / 403 / 토큰 갱신은 페이지에서 절대 다루지 않음. **페이지가 다루는 에러는 4xx-other / 5xx / 네트워크** 3종으로 좁혀짐.
+
 ### 5.3 상태 처리
+
+`TabFetchState` (§ 4.2.2) 가 분기를 처리. Tickets 탭은 다음 4 상태:
+
+| 상태 | 트리거 | 렌더 | 비고 |
+|---|---|---|---|
+| `loading` | 첫 fetch 진행 중 (`useTickets` 가 아직 응답 X) | `<TicketsSkeleton count={6} />` | 카드 6장 placeholder. 그리드 첫 줄(340px × 3열 × 데스크톱 가정)이 즉시 채워지는 시각 — 더 적으면 그리드가 비어 보이고, 더 많으면 위 fold 밖이라 무의미 |
+| `error` | 4xx-other / 5xx / 네트워크 (§ 5.2.9) | `<TabErrorBox onRetry={refetch} />` | `EmptyState` 변형 — 이모지 ⚠️ + "불러오지 못했습니다" + "다시 시도" Button |
+| `empty` | 응답 정상 + `tickets.length === 0` | `<EmptyTickets onBrowse={() => navigate('/')} />` | `EmptyState` 변형 — 이모지 🎫 + "보유한 티켓이 없습니다" + "이벤트 둘러보기" primary Button (`/` = EventList) |
+| `ready` | 응답 정상 + `tickets.length > 0` | `<TicketsHeader/>` + `<TicketGrid/>` | `total / validCount / usedCount` 는 어댑터가 한 번에 계산해 `TabFetchState` 에 함께 넘김 |
+
+#### 5.3.1 `useTickets()` 리턴 시그니처
+
+```ts
+// src/pages-v2/MyPage/tabs/Tickets/hooks.ts
+type TicketsData = {
+  tickets: TicketVM[];
+  total: number;       // = api.totalElements
+  validCount: number;  // tickets.filter(t => t.status === 'VALID').length
+  usedCount: number;   // tickets.filter(t => t.status === 'USED').length
+};
+
+export function useTickets(): FetchState<TicketsData> & { refetch: () => void };
+```
+
+- `FetchState<T>` 는 § 4.2.2 의 `'loading' | 'error' | 'ready'` 합 타입.
+- 페칭은 `useEffect` + `useState` (INVENTORY § 5: 캐시 라이브러리 미도입). 마운트 시 1회 호출. 탭 전환 후 재진입 시 다시 호출되는 동작은 1차 PR 에서 허용 — 캐시 도입은 § 11.
+
+#### 5.3.2 `TicketsSkeleton` 형태
+
+- `TicketGrid` 와 동일 grid 안에 빈 `<Card variant='flat' />` 6개.
+- 각 빈 카드 내부에 56px stripe placeholder (회색 surface-2) + 우측 padding 16 본문 placeholder 3줄(상태칩 자리 짧은 막대 / 제목 자리 긴 막대 / 메타 자리 중간 막대).
+- 깜빡임 애니메이션 토큰은 `src/styles-v2/tokens.css` 의 skeleton 토큰 사용 (Phase 0 토큰 작업 산출물). 토큰 미정 시 1차 PR 에서는 정적 placeholder 로 두고 § 11 표시.
+
+#### 5.3.3 빈 상태 카피
+
+- 제목: `"보유한 티켓이 없습니다"`
+- 메시지: `"마음에 드는 이벤트를 찾아 첫 티켓을 만들어보세요."`
+- CTA: `<Button variant="primary">이벤트 둘러보기</Button>` → `/` (EventList).
+- 라우팅: `useNavigate()` 또는 `<Link>` — `Button` 의 `to`/`href` prop 지원 여부에 맞춤. 미지원이면 `onClick={() => navigate('/')}`.
+
+#### 5.3.4 에러 상태 카피
+
+- 제목: `"불러오지 못했습니다"`
+- 메시지: `"네트워크 또는 서버 오류일 수 있어요. 잠시 후 다시 시도해주세요."`
+- CTA: `<Button variant="primary">다시 시도</Button>` → `useTickets().refetch()`.
+- HTTP 상태별 카피 분기는 1차 PR 범위 외(§ 11). 한 가지 카피로 시작.
+
+#### 5.3.5 동시 상태 / 경합
+
+- `TicketsTab` 자체는 자식만 가지므로 mutation 없음. 향후 "환불 요청" 버튼 등이 카드에 추가되면(§ 11 — 5.2.5 의 좌석/환불 동선과 함께) `useTickets.refetch()` 와 mutation 결과의 경합 처리 필요. 1차 PR 범위 외.
 
 ## 6. 탭 2: 주문 내역
 (작성 예정)
