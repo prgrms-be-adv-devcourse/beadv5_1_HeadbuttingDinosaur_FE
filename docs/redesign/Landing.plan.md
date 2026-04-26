@@ -223,7 +223,94 @@ export interface TypedTerminalProps {
 
 
 ## 4. API 매핑 + 데이터 소스
-(작성 예정)
+
+INVENTORY § 2 기준. 현행 `events.api.ts` 기준으로 사용 가능한 함수 시그니처:
+
+- `getEvents(params?: { page?: number; size?: number })` — **필터 파라미터 없음**.
+- `searchEvents({ keyword, page, size })` — 키워드 검색.
+- `filterEvents({ category, techStacks, page, size })` — 카테고리/스택 필터.
+- `recommendEvents()` — 추천 (현재 Cart에서 사용 중).
+- `getEventRecommendations` (`ai.api.ts`) — 페이지에서 미사용 모듈.
+- 카테고리/호스트/통계 전용 API는 **현재 부재** (INVENTORY §2 비고).
+
+### 표 1 — Stats 데이터 (4 카드)
+
+| 표시 항목 | 출처 (현실적 옵션) | 비고 |
+|---|---|---|
+| 진행 중인 이벤트 (`events.length`) | `getEvents({ page: 0, size: 1 })` 의 `totalElements` | 페이지당 size 최소화로 본문은 버리고 카운트만 사용 |
+| 판매중인 티켓 (`status=ON_SALE`) | ⚠️ 백엔드 미지원 → A) `getEvents` 결과를 클라에서 `status==='ON_SALE'`로 필터한 길이, B) 백엔드에 `status` 쿼리 추가 요청, C) 영업적 정확성보다 시각적 의미가 크므로 A로 시작 | `EventItem.status: string` (`src/api/types.ts:140`). 클라 집계 시 페이지 1장만 받는 한계로 정확한 총 ON_SALE 수가 아님 — § 11 결정 |
+| 전체 잔여 좌석 (`sum(remainingQuantity)`) | ⚠️ 백엔드 미지원 → A) `getEvents` 모든 페이지 합산 (요청 폭증), B) **백엔드에 `/events/stats` 추가 요청 권장**, C) 시각적 카드이므로 첫 페이지만 합산 + "+" 표기 | 정확성과 비용의 트레이드오프 — § 11 결정 |
+| 참여 커뮤니티 (`24+ 팀`) | ⚠️ 백엔드 미지원 → A) **하드코딩 유지** (프로토타입과 동일), B) 백엔드에 `/api/hosts/count` 추가 요청 | 프로토타입 기본값. v1 출시 동안 A 권장 |
+
+**권장 v1 라인업**: 1번 카드만 실제 API의 `totalElements`, 2·3번 카드는
+첫 페이지 `getEvents` 응답을 클라 집계, 4번은 하드코딩. 백엔드 통계
+엔드포인트가 추가되면 § 5 의 `useLandingStats` 만 갈아끼움.
+
+### 표 2 — Categories 카운트 (6 타일)
+
+| 카테고리 | 출처 (현실적 옵션) | 비고 |
+|---|---|---|
+| 컨퍼런스 / 밋업 / 해커톤 / 스터디 / 세미나 / 워크샵 | ⚠️ 백엔드 미지원 (`/api/categories?withCounts=true` **미존재**) → A) 클라에서 카테고리별 `filterEvents({ category, page:0, size:1 })` 6번 호출 후 `totalElements` 사용, B) `getEvents` 한 번 받아 클라 집계(첫 페이지 한정 정확성), C) 백엔드에 `categories?withCounts=true` 추가 요청 | A는 6 RTT, B는 정확성 손실, C가 정답이지만 v1 범위 밖 가능. § 11 에서 최종 결정. v1은 A 권장 (병렬 `Promise.all`) |
+
+카테고리 6종은 프로토타입과 SPEC § 6 에서 고정 — 마스터 목록은 Landing
+의 `types.ts` 에서 상수로 보유.
+
+### 표 3 — Featured 5 rows
+
+| 출처 | 비고 |
+|---|---|
+| `GET /api/events?featured=true&limit=5` (SPEC § 6 가정) | ⚠️ 백엔드 미지원 — `EventListRequest` 에 `featured` 필드 **부재** (`src/api/types.ts:128`) |
+| `GET /api/events?status=ON_SALE&sort=closingSoon&limit=5` | ⚠️ 백엔드 미지원 — `getEvents` 가 `sort`/`status` 받지 않음. 정렬은 백엔드 기본 정렬에 의존 |
+| **EventList 와 같은 API** (`getEvents({ page:0, size:5 })`) + 클라에서 `status==='ON_SALE'` 필터 | ✅ **v1 채택**. 첫 페이지가 모두 `SOLD_OUT` 인 극단 케이스만 빈 섹션 |
+| 대안: `recommendEvents()` (events.api) | 로그인/추천 컨텍스트가 필요해 비로그인 첫 화면(Landing)에는 부적합. § 11 에서 보류 |
+
+**v1 결정**: `getEvents({ page:0, size:10 })` 호출 → 클라에서
+`status==='ON_SALE'` 필터 → 앞 5개. 백엔드에 `featured` 또는 정렬
+파라미터가 추가되면 어댑터 한 곳만 수정.
+
+### 표 4 — 어댑터 매트릭스
+
+| 어댑터 | 입력 | 출력 | 위치 | 공유 여부 |
+|---|---|---|---|---|
+| `toEventVM` | `EventItem` (`src/api/types.ts:132`) | `EventVM` | `src/pages-v2/EventList/adapters.ts` (기존) | **EventList 와 공유** (§ 1). Landing은 import |
+| `toFeaturedItemVM` | `EventVM` | `FeaturedItemVM` (= `Pick<EventVM, …> & { rank }`) | `src/pages-v2/Landing/adapters.ts` | Landing 전용 |
+| `toStatsVM` | `{ events: EventListResponse; openOnly?: EventItem[] }` | `StatVM[]` (4개 고정) | `src/pages-v2/Landing/adapters.ts` | Landing 전용 |
+| `toCategoryCountVM` | `Array<{ category: string; totalElements: number }>` | `CategoryTileVM[]` | `src/pages-v2/Landing/adapters.ts` | Landing 전용 |
+| `_shared/eventFormat.ts` (`toStatus` / `toDateTimeLabels` / `isFree` / `isLowStock`) | — | — | `src/pages-v2/_shared/eventFormat.ts` (기존) | 재사용 |
+
+`toEventVM` 위치는 § 1 결정대로 EventList 모듈에서 직접 import (cross-page
+import 1건 허용). 다른 페이지에서도 호출하기 시작하면 `_shared/event.ts`
+승격 검토 — cutover 직전.
+
+### 표 5 — 에러 처리
+
+| HTTP / 상황 | 처리 |
+|---|---|
+| 401 | apiClient 인터셉터가 자동 재발급(SPEC § 0 부수). Landing 코드에 분기 작성 금지 |
+| 4xx (그 외) | 섹션별 에러 박스 표시. 다른 섹션은 정상 렌더 (Promise.allSettled 기반 — § 5) |
+| 5xx | 섹션별 에러 박스 + "다시 시도" 버튼. Landing 전체를 죽이지 않음 |
+| 네트워크 끊김 | 섹션별 재시도 버튼. 4번 카드(하드코딩)는 영향 없음 |
+| 빈 결과 (Featured 0건) | "곧 새로운 이벤트가 등록될 예정입니다" 안내 + EventList 링크 |
+| 빈 결과 (Categories all 0) | 타일은 그대로 노출하되 카운트 자리에 `—` 표시 |
+
+각 섹션은 데이터 로드를 **독립적으로** 다룬다. Hero / CTA 는 정적이고
+TypedTerminal 은 자체 동작이라 API 의존 없음. Stats / Categories /
+Featured 만 로딩·에러·빈 상태 분기.
+
+### ⚠️ 백엔드 지원 여부 확인 필요 항목 (§ 11 입력)
+
+다음 항목은 **백엔드와 합의 필요**. 합의 결과에 따라 § 5 데이터 페칭
+전략이 바뀜:
+
+1. **`getEvents` 에 `status` 쿼리 추가 가능 여부** — Stats 2번 카드 정확도 결정.
+2. **이벤트 통계 엔드포인트 (`/events/stats` 가칭) 신설 가능 여부** — Stats 3번 카드(잔여 좌석 합) 정확도/비용 결정.
+3. **카테고리 마스터 + 카운트 엔드포인트 (`/categories?withCounts=true` 가칭) 신설 가능 여부** — Categories 6 RTT vs 1 RTT 결정.
+4. **Featured 플래그 또는 정렬 파라미터 추가 가능 여부** — Featured 5 rows 의 "추천" 의미 보장.
+5. **호스트/커뮤니티 카운트** — Stats 4번 카드. 미지원이면 v1 하드코딩 유지.
+
+**v1 출시 가정**: 위 5건 모두 미지원. § 5 의 페칭 전략은 미지원
+가정으로 작성하고, 지원되면 어댑터/훅 1곳씩 교체.
+
 
 ## 5. 데이터 페칭 전략 (캐싱 / 합성)
 (작성 예정)
