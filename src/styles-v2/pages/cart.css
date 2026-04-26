@@ -1,0 +1,228 @@
+/* DevTicket v2 — Cart page styles
+   Source: docs/redesign/prototype/Cart.jsx + docs/redesign/Cart.plan.md
+   Scope: classes prefixed with `cart-` are local to /cart (v2). */
+
+/* ── Page container ───────────────────────────────────────────────── */
+.cart-page {
+  max-width: 980px;
+}
+
+/* ── Header (§2 CartHeader) ───────────────────────────────────────── */
+.cart-header {
+  margin-bottom: 22px;
+}
+.cart-header__title {
+  font-family: var(--font);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.cart-header__subtitle {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  color: var(--text-3);
+  margin: 0;
+}
+
+/* ── Grid (§2 Cart) — 2-column main + sticky right ────────────────── */
+.cart-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .cart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Item list (§2 CartItemList) ──────────────────────────────────── */
+.cart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.cart-list__row {
+  min-width: 0;
+}
+
+/* ── CartItem (§2 CartItem) — flex 3-column row ───────────────────── */
+.cart-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  transition: opacity var(--dur-base) var(--ease);
+}
+.cart-item.is-pending {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.cart-item__media {
+  flex-shrink: 0;
+}
+.cart-item__main {
+  flex: 1;
+  min-width: 0;
+}
+.cart-item__title {
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin-bottom: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cart-item__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cart-item__remove {
+  margin-left: auto;
+}
+.cart-item__total {
+  font-family: var(--font);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  text-align: right;
+  min-width: 96px;
+  flex-shrink: 0;
+}
+
+/* ── Empty / Error ────────────────────────────────────────────────── */
+.cart-empty {
+  padding: 40px;
+}
+.cart-error {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: var(--fs-base);
+}
+.cart-error p {
+  margin: 0;
+}
+
+/* ── OrderSummary (§2 OrderSummary) ───────────────────────────────── */
+.cart-summary {
+  position: sticky;
+  top: 12px;
+  padding: 20px;
+}
+.cart-summary__title {
+  font-family: var(--font);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin: 0 0 14px;
+}
+.cart-summary__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 14px 0;
+}
+.cart-summary__checkout {
+  margin-top: 16px;
+}
+.cart-summary__caption {
+  margin: 10px 0 0;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  line-height: var(--lh-body);
+}
+
+/* ── SummaryRow (§2 SummaryRow) ───────────────────────────────────── */
+.cart-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font);
+  font-size: 13.5px;
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+  margin-bottom: 8px;
+}
+.cart-summary-row--bold {
+  font-size: var(--fs-md);
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+
+/* ── Skeleton (§6.2 CartSkeleton) — mirrors layout to prevent shift ── */
+@keyframes cart-skel-shimmer {
+  0%   { opacity: 0.55; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.55; }
+}
+.cart-skel {
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  animation: cart-skel-shimmer 1.4s ease-in-out infinite;
+}
+.cart-skel-title {
+  height: 28px;
+  width: 30%;
+  margin-bottom: 10px;
+}
+.cart-skel-subtitle {
+  height: 14px;
+  width: 55%;
+  margin-bottom: 22px;
+}
+.cart-skel-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.cart-skel-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-md);
+  flex-shrink: 0;
+}
+.cart-skel-item__main {
+  flex: 1;
+  min-width: 0;
+}
+.cart-skel-line {
+  height: 14px;
+  margin-bottom: 8px;
+}
+.cart-skel-line--title { width: 70%; }
+.cart-skel-line--meta  { width: 40%; }
+.cart-skel-line--summary-title {
+  height: 16px;
+  width: 40%;
+  margin-bottom: 14px;
+}
+.cart-skel-line--summary-row {
+  height: 13px;
+  width: 100%;
+  margin-bottom: 10px;
+}
+.cart-skel-controls {
+  height: 28px;
+  width: 60%;
+  margin-top: 10px;
+}
+.cart-skel-total {
+  height: 18px;
+  width: 80px;
+  flex-shrink: 0;
+}
+.cart-skel-button {
+  height: 44px;
+  border-radius: var(--r-md);
+  margin-top: 16px;
+}
