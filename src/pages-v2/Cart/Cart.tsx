@@ -21,6 +21,10 @@ import { CartItemList } from './components/CartItemList';
 import { CartSkeleton } from './components/CartSkeleton';
 import { EmptyCart } from './components/EmptyCart';
 import { OrderSummary } from './components/OrderSummary';
+import {
+  RecommendedSection,
+  type RecommendedQuery,
+} from './components/RecommendedSection';
 import type { CartQuery } from './types';
 
 export type CheckoutState = 'idle' | 'submitting' | 'error';
@@ -33,6 +37,15 @@ export interface CartProps {
   onBrowse: () => void;
   checkoutState: CheckoutState;
   pendingItemIds?: Set<string>;
+  /** PR 4 — Cart.plan.md § 10.3 추천 카드. 컨테이너 (`useRecommendedEvents`)
+   *  가 채움. 페치 실패 시 hidden → 본 컴포넌트는 자동으로 섹션을 숨김. */
+  recommended: RecommendedQuery;
+  /** 추천 카드의 `inCart` 판정용 — 현재 cart 의 eventId 집합. */
+  cartEventIds: Set<string>;
+  /** addCartItem inflight eventId 집합 — 카드 단위 가드. */
+  pendingRecEventIds?: Set<string>;
+  /** 추천 카드 "빠르게 담기" 클릭 핸들러. */
+  onRecAdd: (eventId: string) => void;
 }
 
 function PageShell({ children }: { children: ReactNode }) {
@@ -58,7 +71,24 @@ export function Cart({
   onBrowse,
   checkoutState,
   pendingItemIds,
+  recommended,
+  cartEventIds,
+  pendingRecEventIds,
+  onRecAdd,
 }: CartProps) {
+  /* 본문 분기와 무관하게 비-loading 상태에선 항상 추천 섹션을 마운트.
+   * 로딩 중에는 메인 카트가 우선이라 표시하지 않는다. RecommendedSection
+   * 자체가 hidden → null 처리하므로 페치 실패시 자동 침묵 (§ 10.3.6). */
+  const recSection =
+    query.status === 'loading' ? null : (
+      <RecommendedSection
+        query={recommended}
+        cartEventIds={cartEventIds}
+        pendingEventIds={pendingRecEventIds}
+        onAdd={onRecAdd}
+      />
+    );
+
   if (query.status === 'loading') {
     return (
       <PageShell>
@@ -74,6 +104,7 @@ export function Cart({
         <Card variant="solid" className="cart-error">
           <p>장바구니를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</p>
         </Card>
+        {recSection}
       </PageShell>
     );
   }
@@ -85,6 +116,7 @@ export function Cart({
       <PageShell>
         <CartHeader itemCount={0} />
         <EmptyCart onBrowse={onBrowse} />
+        {recSection}
       </PageShell>
     );
   }
@@ -108,6 +140,7 @@ export function Cart({
           submitting={checkoutState === 'submitting'}
         />
       </div>
+      {recSection}
     </PageShell>
   );
 }
