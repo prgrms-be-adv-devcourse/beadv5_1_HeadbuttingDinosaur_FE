@@ -193,7 +193,371 @@ PR 1 (Primitives) ──┬──> PR 2 (Form/Action) ──┐
 
 
 ## 3. 컴포넌트별 props 시그니처
-(작성 예정)
+
+### 3.0 표준 패턴 (모든 컴포넌트 공통)
+
+#### forwardRef 적용 기준
+- **적용**: 단일 native HTML 엘리먼트를 감싸는 컴포넌트 (Icon, Kbd, Button, Input, Card, Chip, StatusChip, Eyebrow, TermDot, Avatar, AccentMediaBox, MetaLine, EmptyState, SectionHead, FileIcon)
+- **미적용**: 내부에 여러 엘리먼트가 동등하게 있어 ref 대상이 모호한 컴포넌트 (QuantityStepper)
+- 모두 `React.forwardRef<HTMLXxxElement, XxxProps>` 형태. 디스플레이 네임 지정.
+
+#### className / style
+- 모든 컴포넌트는 `className?: string` 받음. 내부 클래스와 `clsx`(또는 동등 헬퍼)로 병합
+- `style?: CSSProperties` 는 native HTML 래퍼만 통과 (`...rest` 로). 합성 컴포넌트는 의도적으로 미허용.
+
+#### ...rest 처리
+- **native HTML 래퍼** (Button / Input / Card / Chip / Kbd / Icon / FileIcon): 해당 엘리먼트의 attribute 타입을 extend → onClick / disabled / aria-* / data-* 자동 통과
+- **합성 컴포넌트** (Eyebrow / StatusChip / SectionHead / EmptyState / QuantityStepper / MetaLine / Avatar / AccentMediaBox / TermDot): `...rest` 미허용. props 표면을 명시 prop 으로만 제한 → API 흐려지는 것 방지
+
+#### children
+- 콘텐츠가 본질인 컴포넌트만 받음 (Button / Card / Chip / Eyebrow / StatusChip / Kbd / MetaLine 의 값)
+- 그 외에는 `title`, `label`, `message` 등 named string/ReactNode prop 으로 받음
+
+#### Slot 패턴
+- 단일 슬롯: `action?: ReactNode`, `iconStart?: ReactNode`, `iconEnd?: ReactNode`
+- compound component (`Card.Header`, `Card.Body`) 는 도입하지 않음 — `padding` 옵션으로 충분
+- 호출자가 `<Icon name="cart" />` 인스턴스를 직접 만들어 슬롯에 주입 (의존 분리)
+
+#### variant / size / tone
+- **literal union 타입** 사용 (`'primary' | 'ghost'`). enum 안 씀
+- `size` 가 디자인 토큰(sm/md/lg) 인 경우와 임의 px 인 경우 분리:
+  - 디자인 토큰: `'sm' | 'md' | 'lg'`
+  - 임의 px (Icon, TermDot 등): `number`
+
+#### 색상 / accent
+- **컴포넌트는 색을 모름**. accent 컬러가 필요한 컴포넌트(`AccentMediaBox`)는 `accent: string` prop 으로 hex 받음. 호출자가 `accent(eventId)` 유틸 호출 책임.
+
+#### controlled / uncontrolled
+- 모두 **controlled 강제**. `defaultValue` 안 받음. (QuantityStepper, Input)
+- form 컴포넌트는 `value` + `onChange` 필수.
+
+---
+
+### 3.1 PR 1 — Primitives
+
+#### Icon
+
+```ts
+import type { SVGAttributes } from 'react';
+
+export type IconName =
+  | 'folder' | 'file' | 'search' | 'git' | 'ext'
+  | 'user' | 'cart' | 'ticket'
+  | 'sun' | 'moon' | 'x' | 'chev' | 'chevd'
+  | 'bell' | 'check' | 'play'
+  | 'wallet' | 'refund' | 'terminal' | 'trash'
+  | 'plus' | 'minus' | 'settings' | 'zap'
+  | 'calendar' | 'pin';
+
+export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, 'name'> {
+  name: IconName;     // 아이콘 식별자 (paths 맵 키)
+  size?: number;      // 한 변 px. default 16
+  // stroke / fill 은 currentColor 고정 → CSS color 로 제어
+}
+```
+- forwardRef: O (`SVGSVGElement`)
+- 디스플레이 네임 `'Icon'`
+
+#### Kbd
+
+```ts
+import type { HTMLAttributes, ReactNode } from 'react';
+
+export interface KbdProps extends HTMLAttributes<HTMLElement> {
+  children: ReactNode;  // 키 라벨 ('⌘K', '/', 'j', 'esc')
+}
+```
+- forwardRef: O (`HTMLElement`, native `<kbd>`)
+- 별도 variant 없음. 모든 스타일은 CSS 클래스에서.
+
+#### Eyebrow
+
+```ts
+import type { ReactNode } from 'react';
+
+export interface EyebrowProps {
+  children: ReactNode;                       // 라벨 텍스트
+  tone?: 'term-green' | 'brand';             // default 'term-green'
+  dot?: boolean;                             // 좌측 dot. default true
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- `...rest` 미허용. dot 은 PR 4 의 `<TermDot>` 머지 후 내부 치환 (PR 1 에선 인라인).
+
+#### StatusChip
+
+```ts
+import type { ReactNode } from 'react';
+
+export type StatusVariant = 'ok' | 'sold' | 'free' | 'end';
+
+export interface StatusChipProps {
+  variant: StatusVariant;   // 색/도트 색 결정
+  children: ReactNode;      // 라벨 ('판매중', '매진', '무료', '결제 대기')
+  dot?: boolean;            // default true
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLSpanElement`)
+- 색은 variant 가 결정. 호출자가 색 hex 전달하지 않음.
+
+#### Chip
+
+```ts
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+export interface ChipProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  active?: boolean;     // default false. 활성 시 brand color
+  count?: number;       // 우측에 작은 숫자 (카테고리 카운트)
+  children: ReactNode;  // 칩 라벨
+}
+```
+- forwardRef: O (`HTMLButtonElement`)
+- `onClick`, `disabled`, `type` 등은 ButtonHTMLAttributes 로 통과.
+
+---
+
+### 3.2 PR 2 — Form / Action
+
+#### Button
+
+```ts
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+export type ButtonVariant = 'primary' | 'ghost';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;   // default 'primary'
+  size?: ButtonSize;         // default 'md'
+  full?: boolean;            // 100% 폭. default false
+  loading?: boolean;         // 스피너 + 자동 disabled. default false
+  iconStart?: ReactNode;     // 좌측 아이콘 슬롯
+  iconEnd?: ReactNode;       // 우측 아이콘 슬롯
+  children: ReactNode;
+}
+```
+- forwardRef: O (`HTMLButtonElement`)
+- `disabled` 와 `loading` 은 별개 — `loading=true` 면 내부에서 `disabled` 강제.
+- `type` 은 미지정 시 `'button'` 강제 (form submit 사고 방지).
+
+#### Input
+
+```ts
+import type { InputHTMLAttributes, ReactNode } from 'react';
+
+export interface InputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  label?: string;            // 상단 라벨. 있으면 자동 htmlFor 연결
+  error?: string;            // 에러 메시지. 있으면 border danger + 하단 표시
+  iconStart?: ReactNode;     // 좌측 아이콘 (검색바)
+  hintEnd?: ReactNode;       // 우측 힌트 슬롯 (<Kbd>/</Kbd>)
+  containerClassName?: string;  // wrapper div 용 (label 까지 포함)
+  // value / onChange / placeholder 등은 InputHTMLAttributes
+}
+```
+- forwardRef: O (`HTMLInputElement`) — EventList 의 `/` 단축키로 외부 focus() 호출 필요
+- `id` 미지정 시 `useId()` 로 자동 생성 후 label 연결.
+- 자체 `size` prop 은 안 씀 (HTML `size` 와 충돌). 컨테이너 폭은 className 으로.
+
+---
+
+### 3.3 PR 3 — Container / Display
+
+#### Card
+
+```ts
+import type { HTMLAttributes, ReactNode } from 'react';
+
+export type CardPadding = 'none' | 'sm' | 'md' | 'lg' | number;
+
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  padding?: CardPadding;   // default 'md' (16px). number 면 raw px
+  interactive?: boolean;   // hover lift + cursor pointer. default false
+  children: ReactNode;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- `onClick` 은 HTMLAttributes 로 통과. `interactive=true` 일 때만 의미.
+- compound API 도입 안 함 (`Card.Header` 등). padding=0 + 자식 요소 직접 배치로 충분.
+
+#### SectionHead
+
+```ts
+import type { ReactNode } from 'react';
+
+export interface SectionHeadProps {
+  title: string;             // h2 텍스트
+  hint?: string;             // mono '// hint' (자동 prefix 추가)
+  caption?: string;          // 부제 1줄
+  action?: ReactNode;        // 우측 슬롯 ('전체 보기 →' 링크 등)
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- `// ` prefix 는 컴포넌트 내부에서 자동으로 붙임 (호출자가 `'category'` 만 전달).
+
+---
+
+### 3.4 PR 4 — Composite shared
+
+#### TermDot
+
+```ts
+export type DotTone = 'term-green' | 'brand' | 'danger';
+
+export interface TermDotProps {
+  size?: number;        // px. default 6
+  tone?: DotTone;       // default 'term-green'
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLSpanElement`)
+
+#### Avatar
+
+```ts
+export type AvatarSize = 'sm' | 'md' | 'lg' | number;
+
+export interface AvatarProps {
+  initial: string;       // 1~2 글자. 컴포넌트가 toUpperCase 처리
+  size?: AvatarSize;     // 'sm'=36 / 'md'=52 / 'lg'=72. default 'md'
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- 이미지 URL 지원은 v2 phase 2. 현재는 initial only.
+
+#### AccentMediaBox
+
+```ts
+import type { ReactNode } from 'react';
+
+export type AccentMediaSize = 'xs' | 'sm' | 'md' | 'lg' | 'hero';
+
+export interface AccentMediaBoxProps {
+  accent: string;            // hex color. 호출자가 accent(eventId) 호출
+  size?: AccentMediaSize;    // 'xs'=48 / 'sm'=56 / 'md'=72 / 'lg'=120 / 'hero'=240. default 'md'
+  glyph?: ReactNode;         // default <span>{'</>'}</span>. 'terminal' 변형은 '❯_'
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- 그라디언트 alpha (`15`/`35` 등) 는 size 별로 컴포넌트 내부에서 결정.
+
+#### QuantityStepper
+
+```ts
+export interface QuantityStepperProps {
+  value: number;                    // 현재 수량
+  onChange: (next: number) => void; // 변경 콜백
+  min?: number;                     // default 1
+  max?: number;                     // 잔여 좌석. 없으면 무제한
+  size?: 'sm' | 'md';               // 'sm'=28px / 'md'=34px. default 'md'
+  disabled?: boolean;
+  className?: string;
+}
+```
+- forwardRef: X — 내부 `−` / `+` 두 버튼 + 숫자 span 으로 ref 대상이 모호. 필요해지면 imperative handle.
+- controlled 강제. `defaultValue` 미지원.
+
+#### MetaLine
+
+```ts
+import type { ReactNode } from 'react';
+
+export interface MetaLineProps {
+  label: string;          // 'WHEN' / 'WHERE' / 'HOST' (자동 uppercase 처리)
+  icon?: ReactNode;       // 좌측 이모지/Icon 슬롯
+  children: ReactNode;    // 값
+  truncate?: boolean;     // default true (whitespace nowrap + ellipsis)
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- 라벨/값 폭 비율은 컴포넌트 내부 표준 (라벨 30~66px). 인라인 override 미허용.
+
+#### EmptyState
+
+```ts
+import type { ReactNode } from 'react';
+
+export interface EmptyStateProps {
+  emoji?: string;           // '🔍' / '🛒' / '💳'
+  title: string;
+  message?: ReactNode;      // 본문 (한 줄 권장)
+  action?: ReactNode;       // <Button>
+  className?: string;
+}
+```
+- forwardRef: O (`HTMLDivElement`)
+- 자체 surface (`.stack-trace` 변형) 갖음 → Card 로 감쌀 필요 없음. § 2.2 PR 4 의 Card 의존은 선택적.
+
+---
+
+### 3.5 부속 (B 카테고리)
+
+#### FileIcon
+
+```ts
+import type { SVGAttributes } from 'react';
+
+export type FileKind =
+  | 'jsx' | 'ts' | 'tsx' | 'go' | 'rs'
+  | 'json' | 'md' | 'py' | 'css';
+
+export interface FileIconProps extends Omit<SVGAttributes<SVGSVGElement>, 'kind'> {
+  kind?: FileKind;     // default 'jsx'
+  size?: number;       // default 14
+}
+```
+- forwardRef: O (`SVGSVGElement`)
+- 색은 `kind` 가 결정 (common.jsx 의 `colors` 맵 그대로 이전).
+
+---
+
+### 3.6 본 plan 범위 밖 (signature 정의 위치)
+
+| 카테고리 | 컴포넌트 | 정의 위치 |
+|---|---|---|
+| Layout chrome | TitleBar, ActivityBar, Sidebar, TabBar, Minimap, StatusBar, CommandPalette, EditorScroll+Gutter (#14~21) | `layout.plan.md` § 3 |
+| Landing 전용 | TypedTerminal, StatCard, CategoryTile, FeaturedRow (#32~34, #36) | Landing page plan |
+| MyPage 전용 | DataTable, SegmentedTabs (#30~31) | MyPage page plan |
+| EventList 전용 | EventCard (#35) | EventList page plan |
+| EventDetail 전용 | InfoCallout (#37), Breadcrumb (#29) | EventDetail page plan |
+| Cart 전용 | SummaryRow (#25) | Cart page plan |
+
+> 위 목록은 § 1.5 의 "공용 승격 안 함" 결정에 따라 본 § 3 에서 props 시그니처를 정의하지 않음. 각 페이지 plan 의 § 3 동등 섹션에서 정의.
+
+---
+
+### 3.7 내보내기 / 디렉토리 매핑 (요약)
+
+```
+src/components-v2/
+├── Icon/             ← PR 1
+├── Kbd/              ← PR 1
+├── Eyebrow/          ← PR 1
+├── StatusChip/       ← PR 1
+├── Chip/             ← PR 1
+├── Button/           ← PR 2
+├── Input/            ← PR 2
+├── Card/             ← PR 3
+├── SectionHead/      ← PR 3
+├── TermDot/          ← PR 4
+├── Avatar/           ← PR 4
+├── AccentMediaBox/   ← PR 4
+├── QuantityStepper/  ← PR 4
+├── MetaLine/         ← PR 4
+├── EmptyState/       ← PR 4
+├── FileIcon/         ← PR 1 (Icon 과 같은 PR, 다른 디렉토리)
+└── index.ts          ← 모든 컴포넌트 + 타입 re-export
+```
+
+상세 구조/명명 규칙은 § 5 에서 확정.
+
 
 ## 4. 컴포넌트별 variant / state
 (작성 예정)
