@@ -133,7 +133,56 @@
 - localStorage 방식은 명시적 끄기(`?v=1`)와 자연스러운 만료(브라우저 데이터 삭제) 둘 다 지원.
 
 ## 3. 헬퍼 컴포넌트/훅 API 설계
-(작성 예정)
+
+### 채택 옵션: A (컴포넌트 wrapper) + 보조 훅
+
+이름: `<VersionedRoute>` (메인) + `useUiVersion()` (보조).
+
+**왜 옵션 A인가**:
+- §1-3: 라우터가 `<Route element={...}>` JSX 선언 방식이라, element 슬롯에 그대로 꽂히는 컴포넌트가 가장 적은 구조 변경으로 들어감. 옵션 C는 `createBrowserRouter([...])` 객체 정의 방식 전제 → §1과 어긋남.
+- §1-4: 가드(`RequireAuth` 등)가 wrapping 컴포넌트라 `<RequireAuth><VersionedRoute .../></RequireAuth>` 합성이 자연스러움. 옵션 B(훅)는 page 본체 또는 별도 라우트 컴포넌트에 코드를 또 넣어야 해 §2의 "분기 코드 중복 없게" 위배.
+- §2-4: v2 prop 부재 = 자동 fallback. 컴포넌트 props로 표현하면 호출부 한 줄에서 의도가 드러남.
+
+### 시그니처
+
+```ts
+// src/router-v2/VersionedRoute.tsx (이름·경로 안)
+
+type UiVersion = '1' | '2'
+
+type VersionedRouteProps = {
+  v1: React.ReactElement                 // 필수: 기존 페이지
+  v2?: React.ReactElement                // 옵션: v2 페이지 (없으면 자동 v1)
+}
+
+declare function VersionedRoute(props: VersionedRouteProps): React.ReactElement
+
+// 보조 훅 (UI 버전을 알아야 하는 비-라우트 컴포넌트, 예: 디버그 토글 배지용)
+declare function useUiVersion(): UiVersion
+```
+
+**동작 요약** (§2 결정 반영, 구현은 ## 5에서):
+- `VersionedRoute` 는 내부에서 `useUiVersion()` 호출.
+- `useUiVersion` 우선순위: `URLSearchParams.get('v')` → `localStorage['ui.version']` → `import.meta.env.VITE_UI_DEFAULT_VERSION` → `'1'`. URL 값이 있으면 `useEffect` 로 localStorage 동기화 (v=1이면 키 제거).
+- 활성 버전이 `'2'` && `v2` truthy → `v2` 반환, 그 외 `v1`.
+- 반환값은 단일 `ReactElement` (Suspense·Outlet과 트리상 동일 위치라 `<Route element={...}>` 슬롯에 그대로 적합).
+
+### 사용 예시 — `src/App.tsx` 에 들어가는 형태
+
+```tsx
+{/* 단순 교체: 공개 라우트 */}
+<Route path="/login" element={<VersionedRoute v1={<Login />} v2={<LoginV2 />} />} />
+
+{/* 가드와 합성: §1-4 RequireAuth 패턴 그대로 유지 */}
+<Route path="/cart"
+  element={<RequireAuth><VersionedRoute v1={<Cart />} v2={<CartV2 />} /></RequireAuth>} />
+
+{/* v2 미존재 → v2 prop 생략 → 토글 켜져 있어도 자동으로 v1 렌더 (§2-4) */}
+<Route path="/payment"
+  element={<RequireAuth><VersionedRoute v1={<Payment />} /></RequireAuth>} />
+```
+
+페이지별 v2 도입 = 위 한 줄에 `v2={<XxxV2 />}` 만 추가. 분기 로직은 `VersionedRoute` 한 곳에만 존재 (§2 요구사항 충족).
 
 ## 4. 영향받는 파일 목록
 (작성 예정)
