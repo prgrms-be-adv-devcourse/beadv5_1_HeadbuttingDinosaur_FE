@@ -568,10 +568,135 @@ export function useEventListKeyboard(opts: {
 ```
 
 ## 8. 라우터 등록 방법
-(작성 예정)
+
+Phase 0의 `router-toggle.plan.md`에서 만들어 둔 `<VersionedRoute>` 헬퍼를 그대로 사용. 별 path 신설 없이 **기존 라우트 element만 교체**.
+
+### 1) 대상 라우트
+
+`src/App.tsx:89`에 이미 존재.
+
+```tsx
+// before
+<Route path="/" element={<EventList />} />
+```
+
+- 경로: **`/`** (`/events` 아님). INVENTORY § 1·SPEC § 9 모두 "현재 `/`는 EventList"라고 명시. 별 path 신설 시 북마크/외부 링크/이미 받은 공유 URL이 깨지므로 그대로 유지.
+- 위치: `<Route element={<Layout />}>` 내부 (`src/App.tsx:88`). Layout chrome(사이드바/탭/상태바)이 그대로 EventList v2 위에 입혀짐.
+- 가드 없음 (공개 페이지). `RequireAuth` 등은 합성하지 않는다.
+
+### 2) 변경 코드 (정확한 줄 단위)
+
+`src/App.tsx`에 두 줄 추가 + 한 줄 교체.
+
+```tsx
+// (a) lazy import — LoginV2 인접 위치 (현재 src/App.tsx:22)
+const LoginV2     = lazy(() => import('./pages-v2/Login'))
+const EventListV2 = lazy(() => import('./pages-v2/EventList'))   // ← 추가
+
+// (b) 라우트 element 교체 (현재 src/App.tsx:89)
+- <Route path="/" element={<EventList />} />
++ <Route path="/" element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />
+```
+
+- 기존 `import EventList from './pages/EventList'`(`src/App.tsx:11`)은 **유지** — eager import. v1 fallback 경로에서 즉시 렌더 가능해야 하므로 유지(첫 화면이라 chunk split 이득보다 LCP 손해가 큼).
+- v2는 LoginV2와 동일 패턴으로 lazy import. 외곽 `<Suspense fallback={<Loading fullscreen />}>`(`src/App.tsx:76`)이 v2 chunk 로딩을 그대로 받아 처리.
+
+### 3) `VersionedRoute` 동작 재확인
+
+`docs/redesign/router-toggle.plan.md` § 3 시그니처 그대로:
+
+| 토글 신호 | 동작 |
+|---|---|
+| `?v=2` | v2 렌더 + `localStorage['ui.version'] = '2'` 동기화 |
+| `?v=1` | v1 렌더 + `localStorage['ui.version']` 키 제거 |
+| 쿼리 없음 + localStorage `'2'` | v2 렌더 (sticky) |
+| 쿼리 없음 + localStorage 없음 + `VITE_UI_DEFAULT_VERSION='2'` | v2 렌더 |
+| 모두 없음 | v1 (`<EventList />`) |
+| 토글 켜짐 + `v2` prop 없음 | 자동 v1 fallback (본 페이지엔 해당 없음) |
+
+### 4) 검증 시나리오
+
+PR 시점에 수동 QA로 모두 확인:
+
+| # | 액션 | 기대 |
+|---|---|---|
+| 1 | `/?v=2` 직접 입력 | EventList v2 렌더 (Hero·Filter·Grid 새 톤) + localStorage `'2'` 기록 |
+| 2 | (1) 후 `/cart`로 `<Link>` 이동 후 다시 `/`로 복귀 | 쿼리 없어도 EventList v2 유지 (localStorage sticky) |
+| 3 | `/?v=1` 직접 입력 | EventList v1(현행) 렌더 + localStorage 키 제거 |
+| 4 | (3) 후 새 탭에서 `/` 진입 | localStorage 비었으니 env 기본값 적용 (v1) |
+| 5 | `VITE_UI_DEFAULT_VERSION=2` 빌드에서 `/` 진입 | 쿼리/스토리지 없어도 v2 |
+| 6 | URL `/?v=2&q=react&cat=컨퍼런스&page=2` 공유 링크 | v2 렌더 + § 4 URL 복원 동시 동작 (검색어/카테고리/페이지 모두 반영) |
+| 7 | v2 chunk 로딩 중 (느린 네트워크 시뮬) | `<Suspense fallback={<Loading fullscreen />}>` 표시되다가 v2로 교체 |
+| 8 | 다크 테마 토글 + v2 | 토큰(SPEC § 8) 반영, v1과 톤 차이 명확 |
+
+### 5) 영향 받지 않는 항목
+
+- 다른 라우트(`/events/:id`, `/cart`, `/mypage`, seller·admin)는 손대지 않음. EventList v2가 EventDetail로 이동하는 링크는 기존 `/events/:id`(v1) 그대로 가리킴 — EventDetail PR이 들어오면 그때 같은 패턴으로 토글.
+- `BrowserRouter` 마운트(`src/main.tsx:16`), 인증 가드 3종(`RequireAuth`/`RequireSeller`/`RequireAdmin`), `Layout` 트리, catch-all `*` 모두 변경 없음.
 
 ## 9. 의사결정 필요 지점
-(작성 예정)
+
+이 단계에서 **확정된 결정**과, 여전히 **열려 있는 결정**을 분리해서 기록한다. 확정된 항목은 § 1~§ 8의 본문이 따른다. 열린 항목은 PR 분할(§ 10) 시점에 다시 점검.
+
+### 확정된 결정
+
+| 항목 | 결정 | 출처 / 영향 섹션 |
+|---|---|---|
+| 페이지네이션 vs 무한스크롤 | **숫자 페이지네이션** 채택 | § 5 비교표, § 6 Pagination 분기 |
+| 카테고리 선택 모드 | **단일 선택** (`'전체'` 포함). 현재 API도 `category?: string` 단일 | § 3 표 1, § 4 키 `cat` |
+| 기술 스택 선택 모드 | **단일 토글** 유지. API는 `number[]` 다중 지원하지만 UI는 단일. 다중 도입 시 § 4의 콤마 join 규약 준비됨 | § 3 표 1, § 4 다중값 처리 |
+| 정렬 옵션 추가 | **추가** — 최신순(기본) / 임박순(이벤트 일시 가까운 순) / 가격순(낮은→높은) | 본 § 9 (아래 "정렬 도입 후속 작업" 참고) |
+| 빈 상태 추천 이벤트 노출 | **노출** — 필터 적용 + 0건 / 필터 없음 + 0건 두 케이스 모두 하단에 추천 섹션 추가 | § 6 빈 결과(아래 "추천 이벤트 후속 작업" 참고) |
+| URL 동기화 시 디바운스 | **적용** — 검색어 300ms, URL은 `replace: true` push | § 4·§ 5 |
+| `⌘K` 빠른 검색 팔레트 | **이번 PR 범위 안** (§ 7의 잠정 "범위 밖" 결정을 본 § 9에서 뒤집음) | 아래 "팔레트 PR 통합" 참고. § 7 코드 골격의 `onOpenPalette` 분기를 실제 핸들러로 연결 |
+| API/DTO 변경 | **최소화** — 백엔드 변경 없이 어댑터로 흡수. 단 `location/host` 누락은 별도 옵션 필요 (아래 열린 항목) | SPEC § 9, § 3 표 2 |
+
+### 후속 작업 — 확정 사항으로 인해 추가되는 일
+
+#### 1) 정렬 도입 후속 작업
+
+- URL 키 추가: `sort` (`'recent' | 'soon' | 'cheap'`, 기본 `'recent'` → URL에서 생략).
+- 컴포넌트 추가: `components/SortSelect.tsx` (드롭다운 또는 segmented). § 1 디렉토리 / § 2 분해 표에 한 줄 추가 필요.
+- API 파라미터: 현 `events.api.ts`의 `EventListRequest`/`EventSearchRequest`/`EventFilterRequest`에 `sort?: string` 없음 → **백엔드 변경 필요** (또는 클라이언트 정렬은 페이지 단위라 의미 약함). 백엔드 합의가 안 되면 1차 릴리스에선 정렬 UI 비활성 처리 + § 9 미해결로 강등.
+- types.ts에 `EventListFilters.sort` 추가, adapters의 `toFilterRequest`에 매핑 추가.
+
+#### 2) 추천 이벤트 후속 작업
+
+- API: `recommendEvents`(`src/api/events.api.ts:103`, `GET /events/user/recommendations`) 사용. 비로그인은 빈 배열 또는 인기 이벤트 폴백 — 백엔드 동작 확인 필요.
+- 컴포넌트 추가: `components/RecommendedEvents.tsx` — 가로 스크롤 또는 4개 카드 그리드. § 1/§ 2에 한 줄 추가.
+- 위치: `EmptyStackTrace` 박스 아래 24px 간격으로 노출. 두 빈 케이스(필터 적용 / 필터 없음) 모두 동일 노출.
+- 카드 표현: 본 페이지의 `EventCard` 재사용 (props 동일). 어댑터도 같은 `toEventVM`으로.
+- fetch는 `useEvents`와 별 hook(`useRecommendedEvents`) — 빈 상태 진입 시점에 한 번 fetch + § 5 캐시 정책(LRU/stale) 준용.
+
+#### 3) 팔레트 PR 통합
+
+- § 7의 `onOpenPalette?: () => void`를 **선택적 → 필수**로 승격. `index.tsx`에서 항상 주입.
+- 팔레트 컴포넌트는 EventList 디렉토리 외부(공통 chrome 또는 별 v2 디렉토리)에서 가져와 mount. 위치 합의는 Layout PR과 협의 필요.
+- 본 PR에서 함께 들어가면 PR 분할(§ 10)에서 팔레트 단계가 EventList 본체보다 먼저 또는 동시 처리되어야 함. PR 순서 재정렬 필요.
+
+### 열린 결정 (해결 필요)
+
+| 항목 | 옵션 | 의견 / 권장 |
+|---|---|---|
+| **`location` / `host` 누락** (§ 3 표 2) | A: 백엔드가 `EventListResponse.content[*]`에 두 필드 추가 / B: 카드에서 라인 제거 / C: hover 시 lazy detail | 권장 **A** (UX 손실 0). 백엔드 합의 미달 시 1차 **B**로 출시 후 후속 PR에서 A로 전환. C는 N+1 위험으로 비추천. |
+| **페이지 인덱싱 0/1-base** (§ 3 표 1, § 4) | API 응답 `page` / `totalPages`의 의미 확인 | 백엔드 코드 또는 실 응답 1건 확인 후 어댑터에서 정규화. 그 전까지 `Pagination`은 `page` 표시를 `+1`/그대로 양쪽 어느 쪽이든 한 줄 변경. |
+| **기본 페이지 사이즈** (§ 3 표 1) | 12 / 24 / 36 | 권장 **24** (3행 × 8칸 안팎, 그리드 minmax 280px와 어울림). 합의 후 `EventListFilters` 기본값 고정. |
+| **카테고리 카운트 산출** (§ 3 표 1) | A: 별 집계 API / B: 클라이언트(현재 페이지 기준) / C: 표시 안 함 | 현재 카운트 응답 없음. 권장 **C로 1차 출시** → 백엔드 집계 API가 생기면 A로 전환. B는 페이지 단위 분포라 오해 소지. |
+| **0건 + 비로그인** | 추천을 어떻게 채울지 | `recommendEvents`가 비로그인에 어떤 응답을 주는지 백엔드 확인 후 결정. 인기 이벤트 폴백을 권장. |
+| **디바운스 진행 인디케이터** (§ 6.5) | 표시 / 생략 | § 6 기본 "표시". 사용자 테스트에서 noise라는 피드백 나오면 생략으로 변경. |
+| **다크모드 톤** | EventList 카드의 accent 채도 | SPEC § 8 토큰 통과 후 dark에서 accent가 너무 튀면 채도 한 단계 낮춘 alias 추가. 디자인 리뷰 후 확정. |
+| **카드 썸네일 (`thumbnailUrl`)** (§ 3 표 2) | A: 항상 그라디언트 / B: thumbnailUrl 있으면 좌측 슬롯에 표시 | 권장 **A로 1차 출시** (디자인 톤 일관성). B는 디자인 시안 확정 후 후속. |
+| **신규 이벤트 등록 → 캐시 stale 60s 동안 안 보임** (§ 5) | 60s 정책 유지 / 줄임 / refetch 트리거 추가 | 1차 60s 유지. 정확성 이슈 보고되면 30s로 단축 또는 라우트 진입 시 강제 refetch.|
+
+### 의사결정 → 코드 영향 매핑 (요약)
+
+| 결정 | 영향 파일 / 섹션 |
+|---|---|
+| 정렬 도입 | `types.ts`, `adapters.ts`, `hooks.ts`, `components/SortSelect.tsx` 신규, § 1·§ 2·§ 3·§ 4 갱신 |
+| 추천 이벤트 노출 | `hooks.ts` (`useRecommendedEvents`), `components/RecommendedEvents.tsx` 신규, § 6 빈 결과 갱신 |
+| 팔레트 범위 안 포함 | `index.tsx` (palette mount + onOpenPalette 주입), § 7·§ 10 갱신 |
+| location/host A안 채택 시 | `adapters.ts` 매핑 복원, `EventCard` 메타 라인 3개 유지 |
+| location/host B안 채택 시 | `adapters.ts` 메타 1줄(일시)만, § 2 `MetaLine` 사용 횟수 1회로 축소 |
 
 ## 10. PR 분할 + 파일 생성 순서
 (작성 예정)
