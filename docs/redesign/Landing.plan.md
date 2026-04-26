@@ -1244,5 +1244,139 @@ D. **a11y / 빌드**
 | `index.html` | 미수정 (메타 태그는 PR 4) |
 
 ### 12.3 PR 3: Categories + Featured
+
+**목적**: Categories 섹션(6 타일 그리드)과 Featured 섹션(5 rows)을 데이터 페칭 + 어댑터까지 연결해 단독 렌더 가능 상태로 완성.
+
+**의존**: PR 1 (TypedTerminal) **머지 후**. 디렉토리 스캐폴딩(`landing.css`, `types.ts` 초기 파일, dev 라우트 패턴)을 PR 1 이 만들어 두므로 그 위에 append.
+
+**PR 2 와 병렬 가능 (서로 의존 X)**:
+- 컴포넌트 의존 0 (PR 2 의 Hero / Stats 를 import 하지 않음).
+- 데이터 fetcher 도 분리 — PR 2 의 `getFirstPage` 를 **재사용하지 않음**. 대신 Featured 자체 fetcher(`/events/recommendations` 또는 별도 `getEvents` 호출)를 둬서 PR 2 미머지 상태에서도 PR 3 단독 빌드 가능.
+- 단, 두 PR 모두 `hooks.ts` / `adapters.ts` / `types.ts` / `landing.css` 의 **같은 파일에 append** → 충돌 위험. 해소 전략은 § 12.5 에서 정리.
+  - 본 PR 3 의 추가는 **항상 파일 맨 아래** (PR 2 가 먼저 머지된 경우 그 아래 append, 반대도 동일). diff 영역이 분리돼 자동 머지 또는 짧은 rebase 1회로 끝남.
+
+**§ 11 결정 반영**:
+- #4 (Featured 출처): 1차 `getEventRecommendations` (`/events/recommendations`, `ai.api.ts:4`, 비-auth) → 실패/빈 응답 시 `getEvents({ page:0, size:10 })` → 클라에서 `status==='ON_SALE'` 필터 → `eventDateTime` 오름차순 정렬 → 앞 5개.
+- #5 (Categories 카운트): `filterEvents({ category, page:0, size:1 })` 6 병렬 (`Promise.allSettled` — 부분 실패는 타일 단위 격리, § 6.3).
+- #6 (카운트 0 클릭): 이동 유지. CategoryTile 의 `disabled` 분기 없음.
+- #7 (Featured 빈): `EmptyState` 노출 (섹션 숨김 X).
+- #8 (로그인 분기): **PR 3 범위 밖** — 비로그인 동선만 구현. 로그인 시 `recommendEvents` 로 교체하는 분기는 별 후속 PR 또는 PR 4 cleanup 에서 추가 (§ 12.5 결정 항목).
+
+#### 포함 파일
+
+| 파일 | 종류 | 추정 LOC | 비고 |
+|---|---|---|---|
+| `src/pages-v2/Landing/types.ts` | 수정 | +25 | `CategoryTileVM`, `FeaturedItemVM` (= `Pick<EventVM, …> & { rank: number; accent: string }`), `LandingCategoriesQuery`, `LandingFeaturedQuery` 추가 |
+| `src/pages-v2/Landing/adapters.ts` | 수정 | +40 | `CATEGORY_DEFINITIONS` (6 카테고리 마스터, § 2 의 색·약자 매핑), `toCategoryTileVM(masterEntry, totalElements)`, `toFeaturedItemVM(EventVM, rank)`, `sortByDateAsc`, `pickAccentByEventId` |
+| `src/pages-v2/Landing/hooks.ts` | 수정 | +95 | `useLandingCategories()` (6 병렬 `filterEvents` + `Promise.allSettled` + 모듈 캐시 키 `landing:categories:counts`, stale 10분), `useFeaturedEvents()` (1차 `getEventRecommendations` → 실패 시 `getEvents` 폴백, 캐시 키 `landing:featured`, stale 5분, 두 단계 모두 `AbortController`) |
+| `src/pages-v2/Landing/sections/CategoriesSection.tsx` | 신규 | ~30 | `SectionHead` (components-v2) + 6-col 그리드 + `onSelect` 내부 결선 (§ 8.2 — `useNavigate('/events?v=2&cat=…')`). 로딩/에러/부분 실패 상태 분기 (§ 6.3) |
+| `src/pages-v2/Landing/components/CategoryTile.tsx` | 신규 | ~30 | `<button>` + 34×34 아이콘 박스 (`aria-hidden`) + 카테고리명 + `N개 이벤트`. 카운트 미수신 시 `—`. hover 토큰 `--accent` 결선 |
+| `src/pages-v2/Landing/sections/FeaturedSection.tsx` | 신규 | ~40 | `SectionHead` + action ("전체 보기 →") + 행 stack. 빈 결과 시 `EmptyState` (§ 6.4) |
+| `src/pages-v2/Landing/components/FeaturedRow.tsx` | 신규 | ~50 | grid `36px 56px 1fr auto` (순번/그라디언트 박스/정보/가격). **`<button>` 요소 (§ 9.6)** — 프로토타입 `<div onClick>` 회피. `StatusChip` (components-v2) 재사용 |
+| `src/styles-v2/pages/landing.css` | 수정 | +85 | `.categories-section`, `.category-tile*`, `.featured-section`, `.featured-row*`, accent 그라디언트 utility. PR 1·2 부분은 그대로 |
+| `src/pages-v2/_dev/CategoriesFeaturedShowcase.tsx` | 신규 | ~30 | `<CategoriesSection>` + `<FeaturedSection>` 단독 렌더. `onSelect` 는 alert (실 `navigate` 는 PR 4 통합 시 자연 결선) |
+| `src/App.tsx` | 수정 | +3 | 라우트 `/_dev/landing-categories-featured` 추가. PR 1·2 의 dev 라우트는 유지 |
+
+**총 추정 LOC**: 데이터 (types 25 + adapters 40 + hooks 95) 160 + 컴포넌트 (Categories 30 + Tile 30 + Featured 40 + Row 50) 150 + 스타일 85 + dev (showcase 30 + route 3) 33 = **~428 LOC**.
+
+> 목표 250~400 을 약간 초과. 트리밍 옵션:
+> - `useFeaturedEvents` 의 fallback 체인을 PR 3 에서 1차 엔드포인트만 구현하고 fallback 은 PR 4 에서 결선 → ~30 LOC 감소 (단 § 11 #4 결정과 어긋남, 머지 검증 시 빈 화면 케이스 발생 위험).
+> - `CATEGORY_DEFINITIONS` 를 SPEC § 0 의 accent 팔레트 직접 참조로 줄이기 → ~10 LOC 감소.
+> - 트리밍 적용 시 ~390 LOC. 범위 안. 우선은 트리밍 미적용으로 작성하고 PR 리뷰에서 결정.
+
+#### 파일 생성 순서
+
+1. **데이터 레이어** (PR 2 와 같은 패턴):
+   1. `types.ts` 확장 — `CategoryTileVM`, `FeaturedItemVM`, query unions.
+   2. `adapters.ts` 확장 — `CATEGORY_DEFINITIONS`, `toCategoryTileVM`, `toFeaturedItemVM`, `sortByDateAsc`, `pickAccentByEventId`.
+   3. `hooks.ts` 확장 — `useLandingCategories` 먼저 (단순), `useFeaturedEvents` 다음 (fallback 체인).
+2. **컴포넌트 (작은 것부터)**:
+   4. `components/CategoryTile.tsx`.
+   5. `sections/CategoriesSection.tsx` — `useNavigate` 직결 (§ 8.5 결정 — props 끌어올리지 않음).
+   6. `components/FeaturedRow.tsx`.
+   7. `sections/FeaturedSection.tsx` — `EmptyState` 분기 포함.
+3. **스타일**:
+   8. `styles-v2/pages/landing.css` 에 Categories / Featured 클래스 append. PR 2 의 Hero / Stats 부분과 코드 영역 분리 (`/* ===== Categories ===== */` 헤더 코멘트로 구분 — 머지 충돌 시 식별 쉬움).
+4. **검증 환경**:
+   9. `_dev/CategoriesFeaturedShowcase.tsx`.
+   10. `src/App.tsx` 라우트 1 줄 추가.
+5. **로컬 검증** (아래 절차).
+
+#### Commit 메시지 시퀀스
+
+작은 커밋 5개 권장:
+
+1. `feat(landing): add categories/featured VM types`
+   - `types.ts` 확장만.
+2. `feat(landing): add adapters for category tiles and featured items`
+   - `adapters.ts` 확장 (`CATEGORY_DEFINITIONS` 포함).
+3. `feat(landing): add useLandingCategories and useFeaturedEvents (PR 3/4)`
+   - `hooks.ts` 확장. 1차/폴백 체인 + `Promise.allSettled` 부분 실패 처리.
+4. `feat(landing): add Categories and Featured sections (PR 3/4)`
+   - 4개 컴포넌트 (`CategoryTile`, `CategoriesSection`, `FeaturedRow`, `FeaturedSection`) + `landing.css` append.
+5. `chore(landing): add dev showcase route /_dev/landing-categories-featured`
+   - showcase + route.
+
+#### 검증 방법
+
+A. **`/_dev/landing-categories-featured` 시각 검증**
+
+| 케이스 | 확인 |
+|---|---|
+| 1 | 마운트 직후 Categories 6 타일 + Featured 5 rows 모두 스켈레톤 (§ 6.3 / § 6.4) |
+| 2 | Categories 응답 완료 시 6 타일에 카운트 채워짐. 마스터 6개 그대로 노출 (응답이 0인 카테고리도 타일 표시 + `0개 이벤트`) |
+| 3 | Featured 응답 완료 시 1차 `/events/recommendations` 결과로 5 rows. 응답 빈 경우 `getEvents` 폴백 발동 — DevTools Network 탭에서 두 번째 요청 확인 |
+| 4 | Featured 5 rows 모두 ON_SALE 상태. SOLD_OUT / 매진 임박 chip 정상 |
+| 5 | "전체 보기 →" 클릭 시 alert (PR 4 에서 `useNavigate('/events?v=2')` 로 교체) |
+| 6 | 타일 클릭 시 `/events?v=2&cat=컨퍼런스` 등으로 실제 navigate (`useNavigate` 가 dev 라우트에서도 동작 — react-router-dom Provider 가 App.tsx 위에 있으므로) |
+| 7 | Featured 행 클릭 시 `/events/:eventId?v=2` navigate |
+
+B. **부분 실패 / 에러 검증**
+
+- DevTools Network 에서 카테고리 호출 중 1개를 fail 처리 (`filterEvents` 의 특정 category 호출 차단).
+- 기대: 해당 타일만 카운트 `—` 표시, 나머지 5개는 정상 (§ 6.3 부분 에러).
+- `/events/recommendations` 와 `/events` 모두 fail → Featured 섹션 인라인 에러 박스 + "다시 시도".
+- 정상 응답이 0건 → Featured `EmptyState` 노출 (§ 6.4).
+
+C. **카운트 0 카테고리 클릭 검증**
+
+- mock 으로 한 카테고리의 응답을 빈 페이지로 흉내.
+- 기대: 타일에 `0개 이벤트` 표시 + 클릭 가능 → `/events?v=2&cat=…` 로 이동 (EventList 빈 상태 노출 — § 8.4).
+
+D. **공유 fetcher 미발생 검증** (PR 2 와 격리)
+
+- DevTools Network 에서 `/events?page=0&size=10` 요청이 PR 3 에서 발생하지 않음 (Featured 폴백은 별 캐시 키 `landing:featured`, PR 2 의 `landing:events:firstpage` 와 충돌 X).
+- 단 PR 2 머지 후 통합 라우트(PR 4)에서 두 번째 호출이 일어날 가능성 — § 12.5 의존성 정리에서 통합 시 cache 키 통합 여부 검토.
+
+E. **a11y / 빌드**
+
+- `Tab`: Categories 6 타일 → "전체 보기" → Featured 5 행 순회.
+- 약자 아이콘 `aria-hidden="true"` 검증 (§ 9.6) — 스크린리더가 "CF" 안 읽음, 카테고리명 "컨퍼런스" + "8개 이벤트" 만 낭독.
+- FeaturedRow 가 `<button>` 으로 렌더되어 `Enter`/`Space` 활성. 우클릭/Cmd+클릭 새 탭은 v1 미지원 (§ 8.4 / § 11.5).
+- `npm run build` 통과, `tsc --noEmit` 통과, 콘솔 경고 0.
+
+#### 머지 조건
+
+- [ ] PR 1 머지 완료 후 rebase
+- [ ] PR 2 와 동시 진행 시 `hooks.ts` / `adapters.ts` / `types.ts` / `landing.css` 의 추가 위치가 파일 맨 아래에 append 되어 있는지 확인 (자동 머지 가능성 보장)
+- [ ] A~E 검증 통과
+- [ ] § 11 #4 (1차/폴백 체인), #5 (6 병렬 + 부분 실패), #6 (이동 유지), #7 (EmptyState) 정합
+- [ ] 카테고리 카운트 0 vs 미수신 구분 정확 (`—` vs `0개 이벤트`)
+- [ ] `/`, `/events/:id`, `/cart` 등 기존 라우트 동작 변화 없음
+
+#### 영향 받지 않는 영역
+
+| 영역 | 보장 |
+|---|---|
+| `src/pages-v2/EventList/` | 미수정. `EventVM` 만 import (§ 1) |
+| `src/pages-v2/Landing/components/TypedTerminal.tsx` | PR 1 결과물 그대로 — 본 PR 미사용 |
+| PR 2 의 `HeroSection` / `StatsSection` / `Stat` | 본 PR 에서 import 없음. PR 2 머지 전이어도 PR 3 빌드 가능 |
+| `src/pages-v2/_shared/eventFormat.ts` | 미수정. `isLowStock` / `toStatus` 등은 PR 3 어댑터에서 import 만 |
+| `src/api/*` | 미수정. `getEventRecommendations` / `filterEvents` / `getEvents` 호출만 |
+| `src/components-v2/*` | 미수정. `SectionHead`, `EmptyState`, `StatusChip` 등 import 만 |
+| `src/pages/*` (v1) | 미수정 |
+| 라우트 `/`, `/events/:id` 등 | 미수정 — 라우트 변경은 PR 4 |
+| `index.html` | 미수정 — 메타 태그는 PR 4 |
+
 ### 12.4 PR 4: CTA + 통합 + 라우터
 ### 12.5 PR 간 의존성
