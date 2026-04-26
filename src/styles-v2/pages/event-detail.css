@@ -2,6 +2,17 @@
    Source: docs/redesign/prototype/EventDetail.jsx + docs/redesign/EventDetail.plan.md
    Scope: classes prefixed with `ed-` are local to /events/:id (v2). */
 
+/* Layout grid (§2 EventDetail container) — 2-column main + sticky right panel */
+.ed-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  align-items: start;
+}
+.ed-main {
+  min-width: 0;
+}
+
 /* Breadcrumb (§2 Breadcrumb) */
 .ed-breadcrumb {
   display: flex;
