@@ -29,6 +29,12 @@ import {
 import type { OrderRequest, OrderResponse } from '@/api/types';
 import { useToast } from '@/contexts/ToastContext';
 
+import {
+  toRecommendedCards,
+  type RecommendationResponse,
+  type RecommendedCardVM,
+} from '@/pages-v2/_shared/recommendation';
+
 import { mergeQuantityUpdate, toCartVM, toOrderResultVM } from './adapters';
 import type { CartItemVM, CartQuery, CartVM, OrderResultVM } from './types';
 
@@ -284,4 +290,84 @@ export function useCheckout(
   }, []);
 
   return { checkoutState, paymentTarget, inlineError, submit, closeModal };
+}
+
+// ── useRecommendedEvents ─────────────────────────────────────────────────────
+
+/**
+ * 카트 하단 "이런 이벤트는 어떠세요?" 섹션의 데이터 훅.
+ *
+ * Cart.plan.md § 10.3 PR 4. EventDetail 의 동명 훅과 유사하지만
+ *  - `currentEventId` 인자 없음 (카트엔 단일 "현재 이벤트" 가 없음 → 필터 패스)
+ *  - 모듈 캐시 미공유 (의도적 분리 — EventDetail 와 카트가 같은 사이트
+ *    세션에 동시에 존재하는 흐름은 드뭄. 향후 `_shared` 로 끌어올리는 건
+ *    별도 정리 PR)
+ *
+ * 페치 실패 (401 / 5xx / network) 는 모두 `'hidden'` 으로 흡수해 메인 카트
+ * 동작을 침해하지 않는다 (§ 10.3.6 PR 4 시나리오).
+ */
+export type RecommendedQuery =
+  | { status: 'loading' }
+  | { status: 'ready'; cards: RecommendedCardVM[] }
+  | { status: 'hidden' };
+
+const RECOMMEND_STALE_MS = 60_000;
+let cartRecommendCache: {
+  api: RecommendationResponse;
+  fetchedAt: number;
+} | null = null;
+
+const deriveCartRecommended = (): RecommendedQuery => {
+  if (!cartRecommendCache) return { status: 'loading' };
+  // currentEventId 자리에 빈 문자열 — eventId 가 비는 경우는 없으므로 필터 무효.
+  const cards = toRecommendedCards(cartRecommendCache.api, '');
+  return cards.length > 0 ? { status: 'ready', cards } : { status: 'hidden' };
+};
+
+const fetchCartRecommendations = async (
+  signal: AbortSignal,
+): Promise<RecommendationResponse> => {
+  const res = await apiClient.get<ApiResponse<RecommendationResponse>>(
+    '/events/user/recommendations',
+    { signal },
+  );
+  return unwrapApiData(res.data);
+};
+
+export function useRecommendedEvents(): RecommendedQuery {
+  const [state, setState] = useState<RecommendedQuery>(() => {
+    if (
+      cartRecommendCache &&
+      Date.now() - cartRecommendCache.fetchedAt < RECOMMEND_STALE_MS
+    ) {
+      return deriveCartRecommended();
+    }
+    return { status: 'loading' };
+  });
+
+  useEffect(() => {
+    const fresh =
+      cartRecommendCache &&
+      Date.now() - cartRecommendCache.fetchedAt < RECOMMEND_STALE_MS;
+    if (fresh) {
+      setState(deriveCartRecommended());
+      return;
+    }
+    setState({ status: 'loading' });
+
+    const ctrl = new AbortController();
+    fetchCartRecommendations(ctrl.signal)
+      .then((api) => {
+        cartRecommendCache = { api, fetchedAt: Date.now() };
+        setState(deriveCartRecommended());
+      })
+      .catch(() => {
+        if (ctrl.signal.aborted) return;
+        setState({ status: 'hidden' });
+      });
+
+    return () => ctrl.abort();
+  }, []);
+
+  return state;
 }
