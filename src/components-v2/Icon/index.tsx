@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { forwardRef } from 'react';
+import type { ReactNode, SVGAttributes } from 'react';
 
 /**
  * Source: docs/redesign/prototype/common.jsx — Icon + FileIcon set, ported to
@@ -162,15 +163,18 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
 };
 
-export interface IconProps {
+export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, 'name'> {
   name: IconName;
   size?: number;
-  className?: string;
 }
 
-export function Icon({ name, size = 16, className }: IconProps) {
+export const Icon = forwardRef<SVGSVGElement, IconProps>(function Icon(
+  { name, size = 16, ...rest },
+  ref,
+) {
   return (
     <svg
+      ref={ref}
       width={size}
       height={size}
       viewBox="0 0 24 24"
@@ -180,12 +184,14 @@ export function Icon({ name, size = 16, className }: IconProps) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={className}
+      {...rest}
     >
       {PATHS[name]}
     </svg>
   );
-}
+});
+
+Icon.displayName = 'Icon';
 
 /* File-tree / tab icons. Language brand colors are intentionally hard-coded —
  * these are identity colors (React cyan, TS blue, …), not theme tokens. */
