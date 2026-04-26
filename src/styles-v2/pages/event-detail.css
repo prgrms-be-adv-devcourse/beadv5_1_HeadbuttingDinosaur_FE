@@ -1,0 +1,30 @@
+/* DevTicket v2 — EventDetail page styles
+   Source: docs/redesign/prototype/EventDetail.jsx + docs/redesign/EventDetail.plan.md
+   Scope: classes prefixed with `ed-` are local to /events/:id (v2). */
+
+/* Breadcrumb (§2 Breadcrumb) */
+.ed-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text-3);
+  min-width: 0;
+}
+.ed-breadcrumb__link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ed-breadcrumb__link:hover {
+  color: var(--text-2);
+}
+.ed-breadcrumb__sep {
+  color: var(--text-3);
+}
+.ed-breadcrumb__current {
+  color: var(--text-2);
+  min-width: 0;
+}
