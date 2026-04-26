@@ -717,8 +717,119 @@ export function useTickets(): FetchState<TicketsData> & { refetch: () => void };
 - `TicketsTab` 자체는 자식만 가지므로 mutation 없음. 향후 "환불 요청" 버튼 등이 카드에 추가되면(§ 11 — 5.2.5 의 좌석/환불 동선과 함께) `useTickets.refetch()` 와 mutation 결과의 경합 처리 필요. 1차 PR 범위 외.
 
 ## 6. 탭 2: 주문 내역
-(작성 예정)
+
+`prototype/MyPage.jsx:104-131` (orders 탭 본문). shell + 외부 자산은 § 3·§ 4. 이 절은 탭 본문만 다룬다.
+
 ### 6.1 컴포넌트 분해
+
+#### 6.1.1 시각 구조 (프로토타입 매핑)
+
+```
+[탭 본문 영역]
+ └─ flat-card (padding 0 / overflow hidden)
+     └─ <table width=100% borderCollapse=collapse>
+         ├─ <thead> (background surface-2)
+         │   └─ <tr>
+         │       ├─ <th>주문번호</th>      ← uppercase / mono-ish 11.5px / fontWeight 600 / text-3 / letterSpacing 0.04em
+         │       ├─ <th>이벤트</th>
+         │       ├─ <th>금액</th>
+         │       ├─ <th>상태</th>
+         │       └─ <th>주문일시</th>
+         └─ <tbody>
+             └─ <tr> × N (border-top: 1px solid var(--border))
+                 ├─ <td mono 12px syn-fn>{order.id}</td>      ← ORD_a8f3 형태
+                 ├─ <td 14px text>{order.eventTitle}</td>
+                 ├─ <td 14px fontWeight 600 text>{amount.toLocaleString()}원</td>
+                 ├─ <td><StatusChip variant=ok|end|sold>{statusLabel}</StatusChip></td>
+                 └─ <td 13px text-3>{order.date}</td>
+[페이저 자리 — 프로토타입엔 없음. SPEC § 3 의 "페이지네이션 또는 무한스크롤 추가" 요구를 v2 에서 신규]
+```
+
+#### 6.1.2 컴포넌트 표
+
+| 이름 | 역할 | 위치 | props | 의존 |
+|---|---|---|---|---|
+| `OrdersTab` | 탭 진입점. URL `?page=N` 동기화 + `useOrders(page)` 호출 → `TabFetchState` 로 분기 | `tabs/Orders/OrdersTab.tsx` | (라우트 element. props 없음) | `useOrders` (§ 6.3), `TabFetchState` (§ 4.2.2), `OrdersTable`, `OrdersPager`, `EmptyOrders`, `OrdersSkeleton`, `react-router-dom` `useSearchParams` |
+| `OrdersTable` | `flat-card` 래퍼 + `<table>` 골격(`<thead>` 인라인 + `<tbody>` 슬롯). 행은 `rows.map` 으로 `<OrderRow/>` 렌더 | `tabs/Orders/components/OrdersTable.tsx` | `{ rows: OrderRowVM[] }` | Phase 0 `Card` (`variant='flat'`), `TableHeader`, `OrderRow` |
+| `TableHeader` | `<thead>` 한 줄. 5개 컬럼 라벨을 `ORDER_COLUMNS` 상수에서 매핑 | `tabs/Orders/components/TableHeader.tsx` | (props 없음 — 컬럼 고정) | `ORDER_COLUMNS` 상수 (`tabs/Orders/columns.ts`) |
+| `OrderRow` | `<tr>` 1개. 5개 `<td>` 렌더. 상태 셀만 `<StatusChip/>`, 나머지는 텍스트 | `tabs/Orders/components/OrderRow.tsx` | `{ row: OrderRowVM }` | Phase 0 `StatusChip` |
+| `OrdersPager` | 페이지네이션 컨트롤. 현재/총 페이지 + prev/next + 직접 입력(선택) | `tabs/Orders/components/OrdersPager.tsx` | `{ page: number; totalPages: number; onPageChange(next: number): void }` | Phase 0 `Button` (또는 `Icon` ghost-sm 직접) |
+| `EmptyOrders` | 빈 상태. `EmptyState` thin wrapper — 이모지 + 제목 + 메시지 + "이벤트 둘러보기" CTA | `tabs/Orders/components/EmptyOrders.tsx` | `{ onBrowse(): void }` | Phase 0 `EmptyState`, Phase 0 `Button` |
+| `OrdersSkeleton` | placeholder 8행. `OrdersTable` 와 같은 `flat-card` + `<table>` 안에 `<tr>` 빈 행 8개 | `tabs/Orders/components/OrdersSkeleton.tsx` | `{ rows?: number }` (기본 8) | Phase 0 `Card` |
+
+`OrderRowVM` 시그니처는 § 6.2(API 매핑) 에서 확정. 본 표는 `{ orderId, displayId, eventTitle, amountLabel, statusVariant, statusLabel, dateLabel }` 형태가 들어온다고 가정.
+
+#### 6.1.3 합성 결정 — `OrdersTable = TableHeader + OrderRow[]`
+
+- 헤더(고정 라벨)와 행(가변 데이터) 의 변경 축이 다름. 헤더가 컬럼 추가/정렬 토글로 확장될 때 행 컴포넌트는 그대로 두고 헤더만 수정.
+- `OrdersTable` 자체는 컨테이너만:
+  ```tsx
+  <Card variant="flat" className="orders-card">
+    <table className="orders-table">
+      <TableHeader />
+      <tbody>
+        {rows.map(row => <OrderRow key={row.orderId} row={row} />)}
+      </tbody>
+    </table>
+  </Card>
+  ```
+- 페이저는 `OrdersTable` 외부(자매 위치)에 둠. 테이블이 비어 있어도(에러/스켈레톤 상태) 페이저는 표시 안 됨 — `OrdersTab` 의 `TabFetchState` 분기 안에서 `ready` 상태일 때만 페이저 마운트.
+
+#### 6.1.4 `TableHeader` 를 별도 파일로 두는 이유 (얇아도)
+
+- 현재 props 0 / 컬럼 5개 고정이라 `OrdersTable.tsx` 안에 인라인 두는 게 LOC 절약은 됨.
+- 그래도 분리하는 이유:
+  1. **컬럼 정의(`ORDER_COLUMNS`) 의 단일 소스**: `TableHeader` 의 라벨과 `OrderRow` 의 셀 순서가 어긋나면 화면이 망가진다. 두 곳이 같은 상수를 참조하는 구조여야 안전 — `columns.ts` 가 의미를 가짐. `TableHeader` 는 그 상수의 시각화 책임 1개를 갖는다.
+  2. **향후 정렬/필터 추가 시 단일 진입점**: 컬럼 헤더 클릭으로 sort, sticky thead 등 시각 변경이 들어올 때 `OrdersTable` 본문을 안 건드리고 작업 가능.
+- 컬럼 정의는 별도 모듈:
+  ```ts
+  // tabs/Orders/columns.ts
+  export const ORDER_COLUMNS = [
+    { key: 'displayId',   label: '주문번호',   align: 'left' },
+    { key: 'eventTitle',  label: '이벤트',     align: 'left' },
+    { key: 'amountLabel', label: '금액',       align: 'left' },
+    { key: 'statusLabel', label: '상태',       align: 'left' },
+    { key: 'dateLabel',   label: '주문일시',   align: 'left' },
+  ] as const;
+  ```
+  `OrderRow` 는 `ORDER_COLUMNS.map(...)` 으로 셀을 그리지 않음 — 상태 셀이 텍스트가 아니라 `<StatusChip/>` 이라 일반화가 어색. 행은 5칸을 명시적으로 작성해 가독성 우선.
+
+#### 6.1.5 `OrdersPager` — 페이지네이션 vs 무한스크롤
+
+SPEC § 3 은 둘 중 하나. 1차 PR 결정은 § 6.2/§ 6.3 에서. 본 절은 두 안에 공통인 props 로 컴포넌트만 정의해 추후 결정에 흔들리지 않게 한다.
+
+| 안 | `OrdersPager` 가 그릴 모양 | URL 동기화 |
+|---|---|---|
+| A. 페이지네이션 (추천 기본값) | `‹ 1 2 3 … N ›` 형태. `Button` ghost sm 또는 native `<button>` | `OrdersTab` 이 `?page=N` 쿼리스트링 owner. `useSearchParams` |
+| B. 무한스크롤 | 페이저 미사용. `OrdersTab` 이 `IntersectionObserver` 로 누적 fetch. 페이저 컴포넌트 자체가 등장 X | URL 미동기화 (또는 `?page=N` 으로 누적 페이지 추적) |
+
+**권장 — 옵션 A**.
+- 테이블 뷰는 행이 길게 흐르고 헤더가 떠 있어야 비교가 쉬워서 무한스크롤과 시각적으로 어색.
+- § 2 (`/mypage/orders?page=N`) 가 이미 옵션 A를 전제(쿼리 네임스페이스 분리한 이유의 반).
+- 무한스크롤은 § 11 안건으로 등록 (모바일 카드 폴백 결정과 묶어서).
+
+#### 6.1.6 Phase 0 자산 사용 — 신규 작성 X
+
+| 자산 | 사용처 | API |
+|---|---|---|
+| `Card` | `OrdersTable`, `OrdersSkeleton` | `variant='flat'` (`padding=0` overlay 위해 className 으로 padding 0 강제) |
+| `StatusChip` | `OrderRow` | `variant='ok' / 'end' / 'sold' / 'free'` 매핑 — § 6.2 |
+| `Button` | `EmptyOrders`(CTA), `OrdersPager`(필요 시) | `variant='primary'` / `'ghost'` |
+| `EmptyState` | `EmptyOrders` | § 4.2.1 |
+
+#### 6.1.7 페이지 전용 신규 — 모두 `tabs/Orders/components/` 안
+
+- `shared-components.plan.md § 1.4 #31 DataTable` 분류 그대로 **MyPage 페이지 전용**. 다른 페이지에서 표 형태가 등장하면 `src/components-v2/DataTable/` 로 승격 후속 PR.
+- `OrdersTable` / `TableHeader` / `OrderRow` / `OrdersPager` / `OrdersSkeleton` / `EmptyOrders` 6개. 모두 1탭 전용이므로 `MyPage/shared/` 로도 올리지 않음 (§ 4.5 기준).
+
+#### 6.1.8 분해 원칙 (요약)
+
+- 데이터 fetching 은 `OrdersTab` 1곳. URL 의 `?page=N` 동기화도 `OrdersTab` 책임 — `OrdersTable` 이하는 prop drilling 만.
+- `OrderRow` 는 도메인 prop(`row: OrderRowVM`)을 받지만, 자식 셀 마크업은 직접 작성(상태 셀만 `<StatusChip/>`). 내부에 별도 `<OrderCell/>` 추상화 안 함 — 5칸 고정에 일반화는 비용 대비 이득 없음.
+- Skeleton 행 8개 = 첫 fold 가시 영역(데스크톱 가정). Tickets 의 6개와 다른 숫자 — 행 높이가 카드보다 낮아 더 많은 placeholder 가 fold 안에 들어감.
+- 모바일 카드 폴백(좁은 화면에서 `<table>` 가 카드 stack 으로 변형)은 § 11 결정. 1차 PR 은 데스크톱 한정 — 모바일에서 가로 스크롤 허용.
+- 프로토타입의 인라인 `style={{}}` / `r.amt.toLocaleString()` 직접 호출 / 인라인 status `cls` 분기는 가져오지 않음 (SPEC § 0). 금액/상태 매핑은 어댑터에서 (§ 6.2).
+
 ### 6.2 API 매핑
 ### 6.3 상태 처리
 
