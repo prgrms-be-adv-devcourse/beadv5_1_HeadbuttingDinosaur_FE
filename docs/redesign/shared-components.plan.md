@@ -560,7 +560,207 @@ src/components-v2/
 
 
 ## 4. 컴포넌트별 variant / state
-(작성 예정)
+
+> 본 섹션은 점진적으로 채움. **PR 1 (Primitives)** 부터 시작.
+
+### 4.1 Icon
+
+#### variant
+- 변종(variant) 개념 없음. **`name`** prop 의 enum 값이 사실상 콘텐츠 식별자.
+
+#### name (prototype 에서 정의 + 사용 현황)
+
+| name | 정의 (`common.jsx`) | 페이지 사용처 |
+|---|:---:|---|
+| `folder` | O | LY ActivityBar / Sidebar / TabBar, CommandPalette |
+| `file` | O | LY TabBar (이벤트 상세 탭), MyPage(orders 탭 라벨) |
+| `search` | O | LY TitleBar / ActivityBar / CommandPalette, EventList(검색바), Landing(빠른 검색 버튼) |
+| `git` | O | LY StatusBar |
+| `ext` | O | (정의만, 페이지 직접 사용 0) |
+| `user` | O | LY ActivityBar / Sidebar / TabBar / CommandPalette, MyPage(탭) |
+| `cart` | O | LY ActivityBar / Sidebar / TabBar, EventDetail(장바구니 담기 버튼), CommandPalette |
+| `ticket` | O | MyPage(탭, 티켓 카드 stripe), CommandPalette(이벤트 항목) |
+| `sun` | O | LY TitleBar (다크 테마일 때) |
+| `moon` | O | LY TitleBar (라이트 테마일 때), CommandPalette(테마 전환) |
+| `x` | O | LY TabBar (탭 close) |
+| `chev` | O | LY Sidebar (접힘) |
+| `chevd` | O | LY Sidebar (펼침) |
+| `bell` | O | (정의만, 사용 0) |
+| `check` | O | (정의만, 사용 0) |
+| `play` | O | (정의만, 사용 0) |
+| `wallet` | O | LY ActivityBar(없음), MyPage(탭, 출금 버튼) |
+| `refund` | O | MyPage(탭) |
+| `terminal` | O | LY ActivityBar / Sidebar(홈/로그인), CommandPalette |
+| `trash` | O | Cart(아이템 삭제 버튼) |
+| `plus` | O | EventDetail(qtyBtn), Cart(qtyBtnSm), MyPage(충전 버튼) |
+| `minus` | O | EventDetail(qtyBtn), Cart(qtyBtnSm) |
+| `settings` | O | LY ActivityBar(하단) |
+| `zap` | O | (정의만, 사용 0) |
+| `calendar` | O | (정의만, 사용 0) |
+| `pin` | O | (정의만, 사용 0) |
+
+> **이전 정책**: 정의만 있고 사용처 0 인 7개(`ext`, `bell`, `check`, `play`, `zap`, `calendar`, `pin`) 도 `IconName` union 에 포함해 그대로 이전. v2 phase 2 에서 사용처 생기면 추가 검토.
+
+#### size (실제 사용된 px 값)
+
+| 사용처 | size |
+|---|---|
+| `common.jsx` 기본값 | **16** (default) |
+| Sidebar `chev` / `chevd` | 10 |
+| TitleBar(search), Cart 버튼(trash 등) | 11~12 |
+| 대부분의 인라인 버튼 (Sidebar, Tab close, qty 버튼, MyPage 탭) | 13 |
+| TitleBar 테마 토글, EventList 검색바, CommandPalette, Landing 검색 버튼 | 14 |
+| EventList 검색바(별도), `common.jsx` 기본값 | 16 |
+| ActivityBar 설정 | 18 |
+| ActivityBar 메인 아이콘, MyPage 티켓 stripe | 20 |
+
+→ `size?: number` 자유 입력. 권장 값은 **16 default**, **20 큰 액션**, **13 인라인**.
+
+#### state
+- 자체 state 없음. `currentColor` + 부모 hover/disabled/active 영향만 받음.
+- stroke-width 는 `1.8` 고정 (props 화 안 함).
+
+#### modifier
+- 없음. 색상은 CSS `color` 로 외부 제어.
+
+---
+
+### 4.2 Kbd
+
+#### variant
+- **default**: 표준 라이트 surface 위 (`var(--kbd-bg)` 토큰 가정)
+- **inverse**: 다크 surface 위 (StatusBar). 흰색 반투명 배경.
+
+#### size
+- 단일 사이즈. CSS 클래스에서 mono ~10.5~11.5px / padding 0~4px 고정.
+
+#### state
+- 자체 state 없음 (정보 표시용, 인터랙션 없음).
+
+#### modifier
+- 없음.
+
+#### prototype 에서 실제 사용된 콘텐츠
+
+| 콘텐츠 | 사용처 |
+|---|---|
+| `⌘K` | LY TitleBar, LY StatusBar (inverse), Landing(빠른 검색 버튼), EventList Hero |
+| `/` | EventList Hero, EventList 검색바(우측) |
+| `j`, `k` | EventList Hero (카드 이동 힌트) |
+| `↵` | EventList Hero, CommandPalette(실행 힌트) |
+| `↑↓` | CommandPalette(이동 힌트) |
+| `esc` | CommandPalette(닫기 힌트) |
+| `g h`, `g e`, `g c`, `g m` | CommandPalette(라우트 단축키 표시) |
+
+→ inverse variant 는 **LY StatusBar 1곳에서만** 사용. 인라인 style 로 처리되어 있던 것을 `<Kbd inverse>` 로 통합.
+
+```ts
+// 시그니처 보강 (§ 3.1 에 추가)
+export interface KbdProps extends HTMLAttributes<HTMLElement> {
+  inverse?: boolean;   // 다크 surface 위. default false
+  children: ReactNode;
+}
+```
+
+---
+
+### 4.3 Eyebrow
+
+#### variant (tone)
+
+| tone | 색 매핑 | prototype 사용처 |
+|---|---|---|
+| `term-green` (default) | bg `var(--term-green-soft)` / text `var(--term-green-dim)` / dot `var(--term-green)` | EventList Hero ("개발자를 위한 이벤트 플랫폼"), Landing Hero ("v1.0 · 베타 서비스 운영 중") |
+| `brand` | bg `var(--brand-light)` / text `var(--brand)` / dot `var(--brand)` | (prototype 미사용, v2 향후 확장 슬롯) |
+
+#### size
+
+| size | 적용 | prototype 사용처 |
+|---|---|---|
+| `md` (default) | padding `5px 12px`, mono 11.5px, radius 999 | EventList Hero, Landing Hero |
+| `sm` | padding `2px 7px`, mono 10.5px, radius 4 | MyPage 프로필 헤더 "● ONLINE" 배지 — 인라인이지만 동일 패턴 |
+
+> **이전 결정**: MyPage 의 ONLINE 배지는 dot 이 `●` 문자였고 radius 가 작아 별도처럼 보이지만, 시각 토큰(term-green-soft / term-green-dim) 이 동일하므로 `<Eyebrow size="sm" tone="term-green">● ONLINE</Eyebrow>` 로 통합. dot 은 `dot=false` 로 끄고 children 안에 `●` 직접 넣거나, `dot=true` + size 별 dot 크기 자동 조정 — § 5 명명 확정 시 결정.
+
+#### state
+- 자체 state 없음 (정보 표시용).
+
+#### modifier
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `dot` (default `true`) | 좌측 6px(`md`) / 4px(`sm`) 도트 표시 | EventList Hero, Landing Hero (모두 dot 있음). MyPage 는 인라인 `●` 문자라 dot=false 로 이전 가능 |
+
+---
+
+### 4.4 StatusChip
+
+#### variant (4종, 색/도트 자동 매핑)
+
+| variant | bg / text 색 | dot 색 | prototype 사용 라벨 |
+|---|---|---|---|
+| `ok` | term-green soft / term-green dim | term-green | "판매중" (EventList card, EventDetail header, Landing FeaturedRow), "결제 완료" (MyPage orders), "사용 가능" (MyPage tickets) |
+| `sold` | danger soft / danger dim | danger | "매진" (EventList card, EventDetail header, Landing FeaturedRow), "{N}석" (Landing FeaturedRow low-stock), "환불 완료" (MyPage orders) |
+| `free` | brand light / brand | brand | "무료" (EventList card 가격 0인 이벤트) |
+| `end` | surface-2 / text-3 | text-4 | "사용 완료" (MyPage tickets), "결제 대기" (MyPage orders) |
+
+> **재용도 메모**: prototype 의 Landing FeaturedRow 는 low-stock 표시(잔여 < 10)에 `sold` variant 를 시각적으로 빌려 씀 (빨강 톤 강조용). v2 에서는 의미 충돌 없이 같은 패턴 유지 — `sold` 가 "주의/위험" 톤을 의미하는 것으로 확장 해석.
+
+#### size
+- 단일 사이즈. CSS 토큰에서 mono ~11px / padding ~`2px 8px` / radius `4` 고정.
+- (낮은 우선순위) v2 에서 `size: 'sm'` 옵션 도입 가능 — Landing FeaturedRow 의 `{N}석` 같은 짧은 칩에 한정. **현재 PR 1 범위에선 도입 안 함.**
+
+#### state
+- 자체 state 없음 (비-인터랙션 표시용).
+- 클릭 가능 칩이 필요해지면 **`<Chip>` 사용**, StatusChip 은 정보 표시 전용으로 유지.
+
+#### modifier
+
+| modifier | 효과 | prototype |
+|---|---|---|
+| `dot` (default `true`) | 좌측 도트 (variant 색 자동) | prototype 의 모든 사용처가 dot 사용 |
+
+---
+
+### 4.5 Chip
+
+#### variant
+- 변종 없음 (단일 외형). 활성/비활성은 **state** 의 `active` 로 처리.
+
+#### size
+- 단일 사이즈. CSS 토큰 ~`5px 10px` padding / 13px / radius 6.
+- (낮은 우선순위) v2 에서 EventDetail 기술 스택 칩이 EventList 필터 칩보다 살짝 작음 — 통합 후 단일 사이즈 표준화. 시각 차이는 § 4 검토 대상.
+
+#### state
+
+| state | 효과 | prototype 사용처 |
+|---|---|---|
+| `default` | 기본 surface + border | EventList 비활성 카테고리 / 비활성 기술 스택, EventDetail 기술 스택 |
+| `hover` | borderColor → text-2 (CSS 클래스) | 모든 인터랙션 칩 (EventList 필터) |
+| `active` | brand light bg + brand text + brand border | EventList "전체" / 선택된 카테고리 / 선택된 기술 스택 |
+| `focus-visible` | brand outline ring (키보드 접근성) | prototype 미구현 → v2 에서 신규 추가 |
+| `disabled` | opacity 0.5 + cursor not-allowed | prototype 미사용 → v2 에서 미래 확장 슬롯 |
+
+> EventDetail 의 기술 스택 칩은 active/onClick 없이 표시 전용으로 사용됨 — `active` prop 미지정 + `onClick` 미지정 시 비-인터랙션 모드(`pointer-events: none` 또는 `<span>` 으로 렌더). § 5 에서 polymorphic 회피 위해 단순히 onClick 유무로 분기하는 정책 채택 검토.
+
+#### modifier
+
+| modifier | 효과 | prototype 사용처 |
+|---|---|---|
+| `count` | 라벨 우측에 작은 카운트 숫자 (opacity 0.6, 10.5px) | EventList 카테고리 칩 (`전체 8`, `컨퍼런스 3` 등) |
+
+#### prototype 에서 실제 사용된 케이스
+
+| 콘텐츠 | active | count | onClick | 사용처 |
+|---|:---:|:---:|:---:|---|
+| 카테고리 라벨 (`전체` / `컨퍼런스` / ...) | toggle | O | O (setCat) | EventList SearchAndFilters |
+| 기술 스택 라벨 (`Java` / `React` / ...) | toggle | X | O (setStack 토글) | EventList SearchAndFilters |
+| 기술 스택 라벨 (`Java` / `React` / ...) | X | X | X | EventDetail 헤더 (표시 전용) |
+
+---
+
+> **다음 턴**: § 4.6 Button, § 4.7 Input (PR 2). § 4.8 Card, § 4.9 SectionHead (PR 3). 이후 § 4.10~ PR 4 composite.
+
 
 ## 5. 파일 구조 / 명명 규칙
 (작성 예정)
