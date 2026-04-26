@@ -738,8 +738,130 @@ const CartV2 = lazy(() => import('./pages-v2/Cart'))
 ## 10. PR 분할 (골격만)
 (작성 예정)
 
-## 10.1 PR 1
-(작성 예정)
+## 10.1 PR 1 — 골격 + 시각 컴포넌트 (mock 데이터)
+
+### 목표
+`/cart?v=2`로 진입했을 때 **v2 디자인 시스템 기반 정적 화면**(빈/리스트/요약 모두)이 mock 데이터로 그려지는 상태까지. 데이터 페칭·낙관적 업데이트·결제·추천은 **포함 안 함**(PR 2·3·4).
+
+### 포함 / 제외
+
+| 영역 | 포함 ✅ | 제외 ❌ (다음 PR) |
+|---|---|---|
+| 타입 (`types.ts`) | `CartItemVM`, `CartVM`, `CartQuery` 인터페이스만 (정적 — query는 PR 2에서 사용) | `OrderResultVM` (PR 3) |
+| 어댑터 (`adapters.ts`) | — | 전부 PR 2 |
+| 훅 (`hooks.ts`) | — | 전부 PR 2 |
+| 페이지 (`index.tsx`, `Cart.tsx`) | mock fixture를 `Cart`에 직접 주입한 컨테이너. `RequireAuth`는 `App.tsx`에서 처리 | 실 API 연동 (PR 2) |
+| 컴포넌트 (`components/`) | `CartHeader`, `EmptyCart`, `CartItemList`, `CartItem`, `OrderSummary`, `SummaryRow`, `CartSkeleton` (전부 정적 props만) | 동작 — 결제 버튼은 `onClick={() => alert('PR 3 예정')}` 또는 `disabled` |
+| 공용 자산 승격 | `RecommendedCardVM`/`toRecommendedCards`를 `_shared/recommendation.ts`로 이동 (§ 9.2-17). 단, 이번 PR엔 **사용하지 않음**(추천 영역 미렌더) — 이동만 | 실 사용은 PR 4 |
+| 라우터 (`App.tsx`) | `lazy CartV2` import + `<RequireAuth><VersionedRoute v1={<Cart/>} v2={<CartV2/>}/></RequireAuth>` 교체 (§ 8.2) | — |
+| `idempotencyConfig` 부착 | — | PR 3 (결제) |
+| PaymentModal v2 | — | PR 3 |
+| 결제 콜백 페이지 v2 | — | PR 5 (별도) |
+
+### 추정 LOC
+
+| 파일 | LOC |
+|---|---|
+| `Cart/types.ts` | ~35 |
+| `Cart/__mocks__/cartFixtures.ts` | ~40 |
+| `Cart/components/SummaryRow.tsx` | ~15 |
+| `Cart/components/CartHeader.tsx` | ~15 |
+| `Cart/components/EmptyCart.tsx` | ~25 |
+| `Cart/components/CartItem.tsx` | ~55 |
+| `Cart/components/CartItemList.tsx` | ~20 |
+| `Cart/components/OrderSummary.tsx` | ~45 |
+| `Cart/components/CartSkeleton.tsx` | ~30 |
+| `Cart/Cart.tsx` | ~70 |
+| `Cart/index.tsx` | ~25 |
+| `_shared/recommendation.ts` (이동) | ~50 (이동분, EventDetail/adapters.ts에서 빠짐) |
+| `EventDetail/adapters.ts` (수정 — import 경로) | -50 / +1 |
+| `App.tsx` (수정) | +2 / -1 |
+| 합계 (신규+이동) | **~430 LOC** (목표 200~400 약간 상회) |
+
+> 400 초과를 줄이고 싶으면 `RecommendedCardVM` 승격을 PR 4(추천 도입 PR)로 미룰 수 있음. 본 plan 권고는 **PR 1에서 함께 이동** — 어차피 정적 이동 + import 경로만 바뀌어 리뷰 부담 작음.
+
+### 파일 생성 순서
+
+의존성 기준으로 leaf → root.
+
+1. **`src/pages-v2/Cart/types.ts`** — `CartItemVM`, `CartVM`, `CartQuery`. 외부 의존 없음(원자 타입만).
+2. **`src/pages-v2/Cart/__mocks__/cartFixtures.ts`** — 3종 fixture: `mockEmptyCart`, `mockCartWithItems`(3개 항목, 다른 accent 분포), `mockLoadingCart`. types만 import.
+3. **`src/pages-v2/_shared/recommendation.ts`** — `EventDetail/adapters.ts`에서 `RawRecommendedEvent`, `RecommendationResponse`, `RecommendedCardVM`, `toRecommendedCards` 일체 이동.
+4. **`src/pages-v2/EventDetail/adapters.ts`** 수정 — 위 4개를 `_shared/recommendation`에서 re-import + 기존 정의 제거. `EventDetail.tsx`/`hooks.ts`의 import 경로도 동기 수정.
+5. **`src/pages-v2/Cart/components/SummaryRow.tsx`** — props: `{ label, value, bold? }`. 의존 없음.
+6. **`src/pages-v2/Cart/components/CartHeader.tsx`** — props: `{ itemCount }`. 의존 없음.
+7. **`src/pages-v2/Cart/components/EmptyCart.tsx`** — props: `{ onBrowse }`. 공용 `EmptyState` + `Button` 사용.
+8. **`src/pages-v2/Cart/components/CartItem.tsx`** — props: `{ item, onQuantityChange, onRemove, pending? }`. 공용 `Card`, `AccentMediaBox`, `QuantityStepper`, `Button`, `Icon`. types에서 `CartItemVM`.
+9. **`src/pages-v2/Cart/components/CartItemList.tsx`** — `CartItem` 매핑. props: `{ items, onQuantityChange, onRemove, pendingItemIds? }`.
+10. **`src/pages-v2/Cart/components/OrderSummary.tsx`** — props: `{ subtotal, fee, discount, total, onCheckout, submitting?, disabled? }`. `SummaryRow` + 공용 `Card`/`Button`.
+11. **`src/pages-v2/Cart/components/CartSkeleton.tsx`** — placeholder 정적 마크업. 공용 `Card`.
+12. **`src/pages-v2/Cart/Cart.tsx`** — `CartQuery` 분기(`loading`/`success(empty)`/`success(non-empty)`). 결제 버튼은 `disabled`. 1~11 모두 의존.
+13. **`src/pages-v2/Cart/index.tsx`** — 컨테이너. `import { mockCartWithItems } from './__mocks__/cartFixtures'` 후 `<Cart query={{ status: 'success', data: mockCartWithItems, fetchedAt: 0 }} ... />`. URL 쿼리 `?cartFixture=empty|loading|success`로 3종 전환 가능(QA 편의, PR 2에서 제거).
+14. **`src/App.tsx`** — `const CartV2 = lazy(() => import('./pages-v2/Cart'))` 추가 + `/cart` 라우트 element 교체 (§ 8.2).
+
+### 권장 커밋 분할
+
+| # | 커밋 메시지 | 포함 파일 |
+|---|---|---|
+| 1 | `refactor(event-detail-v2): hoist RecommendedCardVM to _shared/recommendation` | step 3·4 |
+| 2 | `feat(cart-v2): add types and mock fixtures` | step 1·2 |
+| 3 | `feat(cart-v2): add SummaryRow, CartHeader, EmptyCart leaf components` | step 5·6·7 |
+| 4 | `feat(cart-v2): add CartItem and CartItemList` | step 8·9 |
+| 5 | `feat(cart-v2): add OrderSummary and CartSkeleton` | step 10·11 |
+| 6 | `feat(cart-v2): assemble Cart page with mock fixtures` | step 12·13 |
+| 7 | `feat(cart-v2): wire /cart route through VersionedRoute` | step 14 |
+
+> 7개가 부담스러우면 (3,4,5)를 묶어 `feat(cart-v2): add presentation components` 1커밋으로 합쳐도 무방. 다만 커밋 1(EventDetail 영향)은 **반드시 분리** — 회귀 시 revert 단위가 되어야 함.
+
+### 검증 방법 (mock 데이터로 렌더 확인)
+
+자동화 테스트 인프라 없음(SPEC § 5). **수동 QA** 체크리스트:
+
+#### 정적 시각 검증 (mock fixture 토글)
+
+- [ ] `/cart?v=2&cartFixture=success` — 3개 아이템 렌더. 각 row: 72×72 accent 그라디언트 박스(`</>` 글리프 색상이 eventId별로 다름) / 제목 15px semibold / 📅 날짜 / `−` `숫자` `+` 컨트롤 / "삭제" ghost / 우측 합계 16px bold.
+- [ ] `/cart?v=2&cartFixture=success` — 우측 sticky `OrderSummary`: 상품 합계 / 수수료 0원 / 할인 0원 / 구분선 / 총 결제금액 bold / "결제하기" primary lg full(`disabled`) / caption.
+- [ ] `/cart?v=2&cartFixture=empty` — `EmptyCart`: 🛒 + 안내 + "이벤트 둘러보기" primary. 가운데 정렬, 40px padding.
+- [ ] `/cart?v=2&cartFixture=loading` — `CartSkeleton`: 헤더 placeholder + 아이템 3개 placeholder + 요약 placeholder. **2-column 레이아웃 시프트 없음**.
+- [ ] 모바일 폭(<640px) 이하에서 stack — 우측 카드가 아래로 떨어짐.
+- [ ] 다크 모드 (`[data-theme="dark"]`) 토큰 정상 적용.
+
+#### 라우팅 검증
+
+- [ ] `/cart?v=1` → v1 그대로 (회귀 없음).
+- [ ] `/cart?v=2` → v2 마운트. 쿼리 제거 후 새로고침해도 `localStorage['ui.version']='2'`로 sticky.
+- [ ] 비로그인 상태로 `/cart?v=2` → `/login` redirect (`RequireAuth`가 `<VersionedRoute>` **바깥**에서 동작 — § 8.2).
+
+#### 인터랙션 검증 (mock 한정)
+
+- [ ] `+` `−` 클릭: `onQuantityChange` 콜백이 호출되어 fixture가 즉시 갱신(컨테이너 useState로 mock 보관). PR 1에선 서버 호출 없음.
+- [ ] "삭제" 클릭: 해당 row가 즉시 사라짐. fixture가 빈 배열이 되면 `EmptyCart`로 자동 전환.
+- [ ] "결제하기" 클릭: 버튼은 `disabled` 또는 `alert('결제 플로우는 PR 3에서 도입됩니다')`. 라우팅 발생 X.
+- [ ] "이벤트 둘러보기" 클릭: `navigate('/events')` 또는 `/`(EventList) — v2가 토글되어 있으면 그대로 v2 EventList.
+
+#### 회귀 검증
+
+- [ ] EventDetail v2의 "장바구니 담기" / "바로 구매하기" 동작 변경 없음 (`RecommendedCardVM` 이동만 한 단계라 동작은 동일해야 함). 콘솔 에러 없음.
+- [ ] `tsc --noEmit` 통과 (전체 프로젝트).
+- [ ] `vite build` 성공 (chunk 분리 정상, `pages-v2/Cart` 단일 chunk).
+
+### PR 본문 템플릿
+
+```
+## Summary
+- /cart 라우트에 v2 시각 골격 도입 (mock 데이터, 결제·API 미포함)
+- RecommendedCardVM을 _shared/recommendation.ts 로 승격 (Cart v2 후속 PR 대비)
+- VersionedRoute 토글 적용 — `?v=2`에서 v2, 그 외 v1 그대로
+
+## Test plan
+- [ ] /cart?v=2&cartFixture=success — 리스트·요약 렌더
+- [ ] /cart?v=2&cartFixture=empty — EmptyCart 렌더
+- [ ] /cart?v=2&cartFixture=loading — 스켈레톤 렌더
+- [ ] /cart?v=1 — v1 회귀 없음
+- [ ] 비로그인 /cart?v=2 → /login redirect
+- [ ] EventDetail v2 회귀 없음
+- [ ] tsc --noEmit / vite build 통과
+```
 
 ## 10.2 PR 2
 (작성 예정)
