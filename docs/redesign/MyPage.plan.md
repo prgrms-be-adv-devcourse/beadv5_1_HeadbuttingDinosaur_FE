@@ -1381,8 +1381,136 @@ export function useWalletBalance(): WalletBalanceState;
 - 충전/출금 콜백은 결과를 toast 로 노출 + 성공 시 `refresh()` 호출 패턴. 모달 내부 폼/검증 로직은 § 11 결정 후 별도 plan.
 
 ## 8. 탭 4: 환불 내역
-(작성 예정)
+
+`prototype/MyPage.jsx:149-155` 는 **빈 상태만** 보여줌 (💳 + "환불 내역이 없습니다" + 안내). 실제 데이터 시각은 프로토타입에 없음.
+
+### 시나리오 결정 — A (정상 구현)
+
+- `src/api/refunds.api.ts` 의 `getRefunds({ page?, size? })` 존재 — `RefundListResponse { content: RefundItem[]; totalElements; totalPages }` 반환.
+- v1 `src/pages/MyPage.tsx:457-505` 가 이미 정상 구현(테이블 + status enum 매핑 + 빈 상태). API 안정성 검증됨.
+- INVENTORY § 9 의 메모도 같은 결론: "MyPage 환불 탭 — `src/api/refunds.api.ts` 활용하여 구현 가능".
+
+→ **Scenario A 채택**. 1차 PR 에 조회/빈 상태/페이징 정상 구현. 환불 *요청* 동선은 § 11 별도(Tickets 탭 카드의 환불 버튼 + 모달). 본 탭은 *조회* 만.
+
 ### 8.1 컴포넌트 분해
+
+#### 8.1.1 시각 구조 (v2 신규 — 프로토타입에 데이터 시각 없음)
+
+프로토타입은 빈 상태뿐이므로 데이터 시각은 v1 의 테이블 구조를 토큰만 v2 로 갈아입혀 차용. Orders 탭(§ 6.1)과 동일한 `flat-card + <table>` 패턴 — 시각 일관성.
+
+```
+[탭 본문 영역]
+ ├─ (ready 시) flat-card (padding 0 / overflow hidden)
+ │   └─ <table>
+ │       ├─ <thead surface-2>
+ │       │   ├─ 환불번호
+ │       │   ├─ 주문번호
+ │       │   ├─ 환불 금액
+ │       │   ├─ 상태
+ │       │   └─ 요청일
+ │       └─ <tbody>
+ │           └─ <tr> × N (border-top)
+ │               ├─ <td mono>{shortenedRefundId}</td>
+ │               ├─ <td mono>{shortenedOrderId}</td>
+ │               ├─ <td bold>{amountLabel}</td>
+ │               ├─ <td><StatusChip variant=ok|end|sold>{label}</StatusChip></td>
+ │               └─ <td text-3>{dateLabel}</td>
+ └─ (empty 시) <EmptyState emoji="💳" title="환불 내역이 없습니다" message="환불은 내 티켓 탭에서 각 티켓의 환불 요청 버튼으로 시작할 수 있습니다." />
+```
+
+#### 8.1.2 컴포넌트 표 — 1차 PR 범위
+
+| 이름 | 역할 | 위치 | props | 의존 |
+|---|---|---|---|---|
+| `RefundTab` | 탭 진입점. URL `?page=N` 동기화 + `useRefunds(page)` 호출 → `TabFetchState` 분기 | `tabs/Refund/RefundTab.tsx` | (라우트 element. props 없음) | `useRefunds` (§ 8.3), `TabFetchState` (§ 4.2.2), `RefundList`, `RefundsPager`, `EmptyRefunds`, `RefundsSkeleton`, `react-router-dom` `useSearchParams` |
+| `RefundList` | `flat-card` 래퍼 + `<table>` 골격(`<RefundTableHeader/>` + `<tbody>` 슬롯). 행은 `rows.map` 으로 `<RefundRow/>` 렌더 | `tabs/Refund/components/RefundList.tsx` | `{ rows: RefundRowVM[] }` | Phase 0 `Card`(`variant='flat'`), `RefundTableHeader`, `RefundRow` |
+| `RefundTableHeader` | `<thead>` 한 줄. 5개 컬럼 라벨을 `REFUND_COLUMNS` 상수에서 매핑 | `tabs/Refund/components/RefundTableHeader.tsx` | (props 없음 — 컬럼 고정) | `REFUND_COLUMNS` 상수 (`tabs/Refund/columns.ts`) |
+| `RefundRow` | `<tr>` 1개. 5개 `<td>` 렌더. 상태 셀만 `<StatusChip/>`, 나머지 텍스트 | `tabs/Refund/components/RefundRow.tsx` | `{ row: RefundRowVM }` | Phase 0 `StatusChip` |
+| `RefundsPager` | 페이지네이션 컨트롤. Orders 의 `OrdersPager`(§ 6.1) 와 동일 시그니처 | `tabs/Refund/components/RefundsPager.tsx` | `{ page: number; totalPages: number; onPageChange(next: number): void }` | Phase 0 `Button` |
+| `EmptyRefunds` | 프로토타입 빈 상태 그대로. `EmptyState` thin wrapper — 이모지 💳 + 제목 + 환불 시작 안내 메시지 | `tabs/Refund/components/EmptyRefunds.tsx` | `{}` (CTA 없음 — § 8.1.5) | Phase 0 `EmptyState` |
+| `RefundsSkeleton` | placeholder 6행. `RefundList` 와 같은 `flat-card` + `<table>` 안에 빈 `<tr>` 6개 | `tabs/Refund/components/RefundsSkeleton.tsx` | `{ rows?: number }` (기본 6) | Phase 0 `Card` |
+
+`RefundRowVM` 시그니처는 § 8.2(API 매핑) 에서 확정. 본 표는 `{ refundId, displayRefundId, displayOrderId, amountLabel, statusVariant, statusLabel, dateLabel }` 형태가 들어온다고 가정.
+
+#### 8.1.3 합성 결정 — Orders 패턴 복제
+
+- `RefundList = RefundTableHeader + RefundRow[]` 로 § 6.1.3 의 Orders 합성과 동형.
+- `RefundList` 본체:
+  ```tsx
+  <Card variant="flat" className="refunds-card">
+    <table className="refunds-table">
+      <RefundTableHeader />
+      <tbody>
+        {rows.map(row => <RefundRow key={row.refundId} row={row} />)}
+      </tbody>
+    </table>
+  </Card>
+  ```
+- 페이저는 외부(자매 위치). `ready` + `totalPages > 1` 일 때만 마운트 — Orders 와 동일.
+- 컬럼 정의(`REFUND_COLUMNS`)는 `tabs/Refund/columns.ts`:
+  ```ts
+  export const REFUND_COLUMNS = [
+    { key: 'displayRefundId', label: '환불번호',  align: 'left' },
+    { key: 'displayOrderId',  label: '주문번호',  align: 'left' },
+    { key: 'amountLabel',     label: '환불 금액', align: 'left' },
+    { key: 'statusLabel',     label: '상태',      align: 'left' },
+    { key: 'dateLabel',       label: '요청일',    align: 'left' },
+  ] as const;
+  ```
+- `RefundRow` 도 `OrderRow` 와 같은 정책 — 5칸 명시적 작성. 상태 셀만 `<StatusChip/>`. `REFUND_COLUMNS.map(...)` 으로 셀 생성 안 함(상태 셀이 텍스트가 아니라 일반화 어색).
+
+#### 8.1.4 `MyPage/shared/DataTable` 승격은 1차 PR 보류
+
+- 이제 표 패턴을 쓰는 탭이 **2개**(Orders + Refund) — § 4.4.3 / § 6.1.7 의 "사용처 ≥2 시 승격" 트리거에 해당.
+- 1차 PR 에서는 **승격 보류**, 두 탭 모두 페이지 전용 컴포넌트로 복제 작성. 이유:
+  1. Orders 의 컬럼 4개(§ 6.2.4 의 `eventTitle` drop) vs Refund 5개 — 컬럼 슬롯 일반화에는 cell-renderer 패턴이 필요해 PR 1개에 두 페이지 + 추상화까지 안고 가면 회귀 검출이 어려움.
+  2. 두 탭의 status 매핑/페이저 모양/skeleton 행 수가 미세하게 다를 가능성 — 프로토타입 합류 시 안정화 후 공통점 좁히는 게 안전.
+  3. shared-components.plan.md § 1.5 의 정신("우선 페이지에 두고 등장 시 승격") 그대로 적용.
+- § 11 안건으로 등록: 두 탭 머지 후 `MyPage/shared/DataTable.tsx` 승격(컬럼 정의 prop + cell-renderer 패턴) — 별도 후속 PR.
+
+#### 8.1.5 `EmptyRefunds` — 프로토타입 카피 그대로
+
+```tsx
+// tabs/Refund/components/EmptyRefunds.tsx
+export function EmptyRefunds() {
+  return (
+    <EmptyState
+      emoji="💳"
+      title="환불 내역이 없습니다"
+      message={
+        <>환불은 <strong>내 티켓</strong> 탭에서 각 티켓의 환불 요청 버튼으로 시작할 수 있습니다.</>
+      }
+    />
+  );
+}
+```
+
+- CTA 없음 — Tickets 탭의 "환불 요청 버튼" 자체가 § 11 결정 대상이라 안내 메시지 안에 텍스트 강조만(`<strong>`).
+- § 11 에서 Tickets 카드에 환불 버튼이 추가되면, 본 컴포넌트의 메시지 안 `<strong>내 티켓</strong>` 을 `<Link to="/mypage/tickets">내 티켓</Link>` 으로 교체 — 컴포넌트 표 변경 없음.
+- 프로토타입의 `.stack-trace` 박스 외관은 v2 `EmptyState`(`src/components-v2/EmptyState/`)가 흡수했다고 가정 — 미흡 시 className 으로 보정(§ 11 시각 회귀 점검).
+
+#### 8.1.6 Phase 0 자산 사용 — 신규 작성 X
+
+| 자산 | 사용처 | API |
+|---|---|---|
+| `Card` | `RefundList`, `RefundsSkeleton` | `variant='flat'` |
+| `StatusChip` | `RefundRow` | `variant='ok' / 'end' / 'sold'` 매핑 — § 8.2 |
+| `Button` | `RefundsPager` (필요 시) | `variant='ghost'` |
+| `EmptyState` | `EmptyRefunds` | § 4.2.1 |
+
+#### 8.1.7 페이지 전용 신규 — 모두 `tabs/Refund/components/` 안
+
+- 1탭 전용 컴포넌트만 존재. `MyPage/shared/` 승격 0 (§ 8.1.4 결론).
+- 디렉토리 트리(§ 1)와 일치. 다만 § 1 의 `RefundList` 를 본 절에서 `RefundList` (테이블 컨테이너) + `RefundRow` (행) 로 분해 정의 — § 1 에는 둘 다 이미 명시.
+
+#### 8.1.8 분해 원칙 (요약)
+
+- 데이터 fetching 은 `RefundTab` 1곳. URL 의 `?page=N` 동기화도 `RefundTab` 책임 — Orders 와 동형.
+- `RefundRow` 는 도메인 prop(`row: RefundRowVM`) 받지만, 자식 셀은 직접 작성. `<RefundCell/>` 추상화 안 함.
+- Skeleton 행 6개 — 환불은 활동량이 적어 평균 표시 행 수가 Orders(8) 보다 적다는 가정. 첫 fold 채우기 충분.
+- 모바일 카드 폴백, 환불 *요청* 버튼(Tickets 탭 합류), `MyPage/shared/DataTable.tsx` 승격, `refundRate`/`completedAt` 필드 노출은 모두 § 11 안건.
+- 프로토타입의 인라인 `style={{}}` / 직접 호출 `r.refundAmount.toLocaleString()` / `slice(0, 12)` 직조립은 가져오지 않음 (SPEC § 0). 변환은 어댑터(§ 8.2)에서.
+
 ### 8.2 API 매핑
 ### 8.3 상태 처리
 
