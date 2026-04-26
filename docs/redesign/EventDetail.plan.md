@@ -531,7 +531,206 @@ canBuy    = status === 'ON_SALE' && remainingQuantity > 0;
    상태 (loading/ready/hidden) 에 따라 조건부 렌더.**
 
 ## 6. 구매 플로우 (장바구니 / 바로 구매)
-(작성 예정)
+
+`PurchasePanel` 의 두 CTA 가 트리거하는 액션을 정의. § 5-(4) (비로그인 차단)
++ § 8 항목 1 (바로 구매 → cart 이동, 담기 → 페이지 유지) + 항목 2 (백엔드
+합산) 를 전제로 하고, 본 섹션은 실제 호출 시퀀스 / 진행 상태 / 메시지 매핑을
+확정한다.
+
+### 6.1 두 CTA 비교
+
+| 항목 | 장바구니에 담기 | 바로 구매하기 |
+|---|---|---|
+| 버튼 | ghost / full | primary / lg / full |
+| API 호출 | `addCartItem({ eventId, quantity })` 1회 | 동일 (`addCartItem`) 1회 |
+| 성공 시 동작 | **현재 페이지 유지** + 토스트 노출 + `quantity` 1로 reset (선택) | `navigate('/cart')` (v2 cart 미존재 → v1 cart 가 받음) |
+| 실패 시 동작 | 에러 토스트, 페이지 그대로 | 에러 토스트, 페이지 그대로 (cart 이동 안 함) |
+| 비로그인 시 | `/login?returnTo={현재 path}` 로 navigate | 동일 |
+| 진행 중 표시 | 두 버튼 모두 disabled, 본 버튼은 "담는 중..." | 두 버튼 모두 disabled, 본 버튼은 "이동 중..." |
+| 추천 섹션 갱신 | 안 함 (§ 6.7) | (cart 페이지로 이탈하므로 무관) |
+
+### 6.2 단계별 시퀀스
+
+#### "장바구니에 담기"
+
+```
+[사용자 클릭]
+  ↓
+1. useAuth().isLoggedIn 확인
+   ├─ false → /login?returnTo=/events/{eventId} 로 navigate. 종료.
+   └─ true → 다음 단계
+  ↓
+2. setBusy('adding') — 두 버튼 disabled, "담는 중..." 라벨
+  ↓
+3. await addCartItem({ eventId, quantity })
+  ↓
+4-A. 200 OK
+   - useToast().toast('장바구니에 담았습니다 🛒', 'success')
+   - setBusy(null)
+   - (선택) 수량 컨트롤을 1로 reset — § 6.7 참조
+  ↓ 종료
+4-B. 에러 (network / 5xx / 4xx)
+   - useToast().toast(에러메시지, 'error')   // § 6.5 매핑
+   - setBusy(null)
+   - 페이지 그대로 (사용자 재시도 가능)
+  ↓ 종료
+```
+
+#### "바로 구매하기"
+
+```
+[사용자 클릭]
+  ↓
+1. useAuth().isLoggedIn 확인 (동일)
+  ↓
+2. setBusy('buying') — 두 버튼 disabled, "이동 중..." 라벨
+  ↓
+3. await addCartItem({ eventId, quantity })
+  ↓
+4-A. 200 OK
+   - navigate('/cart')   // 토스트 띄우지 않음 — 페이지가 바뀌므로 redundant
+   - busy 상태 정리는 unmount 가 처리
+  ↓ 종료
+4-B. 에러
+   - useToast().toast(에러메시지, 'error')
+   - setBusy(null)
+   - 페이지 그대로 (cart 이동 안 함)
+  ↓ 종료
+```
+
+`navigate('/cart')` 는 router-toggle 의 sticky `localStorage['ui.version']` 값을
+유지하므로 `?v=2` 로 detail 에 진입한 사용자는 cart 도 v2 (있으면) 또는 v1
+(현재) 로 들어가는 게 자동 동작. cart v2 가 없는 현재 시점에는 v1 cart 가
+받음 — **사용자에게는 동일 도메인 내 일관된 흐름으로 보임.**
+
+### 6.3 비로그인 returnTo
+
+§ 5-(4) 의 결정 (페이지 자체는 공개, CTA 시점에서만 차단) 을 따른다.
+
+**redirect URL 형식:**
+
+```
+/login?returnTo={encodeURIComponent(location.pathname + location.search)}
+```
+
+- `pathname`: `/events/{eventId}` (PR 2 의 router 등록 후 — § 7 참조)
+- `search`: 대부분 빈 문자열. `?v=2` 로 들어왔어도 router-toggle 이
+  localStorage 로 sticky 유지하므로 returnTo 에 굳이 `?v=2` 안 붙여도 됨. 단,
+  명시 안전을 원하면 `location.search` 를 그대로 포함.
+
+**login 페이지 책임 (본 plan 범위 밖, 단 의존):**
+
+- login 후 returnTo 가 같은 origin 의 path 인지 검증 (open redirect 방지).
+- 검증 통과 시 `navigate(decodedReturnTo, { replace: true })`.
+- 검증 실패 또는 returnTo 부재 → 기본 이동 경로 (예: `/`).
+
+login v1 의 현재 동작 확인 필요 — login 페이지가 returnTo 쿼리를 처리하는지
+가 본 흐름의 전제. **PR 1 시작 전 1회 확인** (404 페이지로 떨어지면 별도 작업
+필요).
+
+> 본 시리즈는 `/login` (v1) 으로 redirect. login v2 는 별도 plan/PR 영역.
+
+### 6.4 진행 중 상태 / 버튼 표시
+
+`PurchasePanel` 내부 또는 hook 에서 `busy: 'adding' | 'buying' | null` 단일
+state 관리.
+
+| busy | 장바구니 담기 버튼 | 바로 구매하기 버튼 |
+|---|---|---|
+| `null` | 활성 / "장바구니에 담기" | 활성 / "바로 구매하기" |
+| `'adding'` | disabled / "담는 중..." (본 버튼) | disabled / 라벨 그대로 |
+| `'buying'` | disabled / 라벨 그대로 | disabled / "이동 중..." (본 버튼) |
+
+수량 컨트롤 (`QuantityControl`) 도 busy 동안 disabled (값 변경 막음). 매진/
+SOLD_OUT 일 때는 § 5-(3) 의 disabled 매진 버튼 1개로 대체되므로 본 표 적용
+대상이 아님.
+
+### 6.5 토스트 / 에러 메시지 매핑
+
+`useToast()` 사용 — 보존 영역 `src/contexts/ToastContext` 그대로 import.
+
+| 상황 | 메시지 | severity |
+|---|---|---|
+| `addCartItem` 200 OK (담기) | `장바구니에 담았습니다 🛒` | `success` |
+| `addCartItem` 200 OK (바로 구매) | (토스트 미노출 — `/cart` 로 이동) | — |
+| 401 (인증 만료, 클라가 재시도 실패) | `로그인이 만료되었습니다. 다시 로그인해주세요.` + `/login?returnTo=...` redirect | `error` |
+| 409 (서버가 합산 거부 — § 8 항목 2 가정과 다른 경우) | `이미 장바구니에 담겨있습니다.` | `info` (담기 시) / `error` (바로 구매 시) |
+| 4xx 기타 (수량 초과, 매진 등) | 서버 `message` 우선 표시 / 없으면 `장바구니에 담을 수 없습니다.` | `error` |
+| 5xx | `일시적인 오류입니다. 잠시 후 다시 시도해주세요.` | `error` |
+| 네트워크 끊김 (`ERR_NETWORK` / `ECONNABORTED`) | `네트워크 연결을 확인해주세요.` | `error` |
+
+> 401 분기는 client 의 토큰 재발급 인터셉터가 한 번 시도한 결과. 그래도 401
+> 이면 인터셉터가 토큰 정리 + `/login` 강제 이동을 이미 처리 (`src/api/client.
+> ts:97`). 따라서 hook 까지 401 이 도달하는 경로는 드물고, 도달했더라도 위와
+> 같이 토스트 + redirect 의 일관 처리.
+
+### 6.6 hook 시그니처
+
+§ 9.3 에서 PR 3 산출물로 제시한 형태. 본 § 6 에서 확정.
+
+```ts
+// src/pages-v2/EventDetail/hooks.ts (추가 export)
+
+type PurchaseBusy = 'adding' | 'buying' | null;
+
+export function useAddToCart(eventId: string): {
+  addToCart: (quantity: number) => Promise<void>;
+  busy: PurchaseBusy;     // 같은 hooks 인스턴스 안에서 useBuyNow 와 공유
+};
+
+export function useBuyNow(eventId: string): {
+  buyNow: (quantity: number) => Promise<void>;
+  busy: PurchaseBusy;
+};
+```
+
+**구현 디테일:**
+
+- 두 hook 이 같은 `busy` state 를 공유하려면 `useEvents` / `useEventDetail`
+  처럼 컨테이너에서 한 번만 호출하고 결과를 `PurchasePanel` 로 prop 전달.
+  → 실제로는 **하나의 합성 hook `usePurchaseActions(eventId)`** 가 더 깔끔:
+
+```ts
+export function usePurchaseActions(eventId: string): {
+  busy: PurchaseBusy;
+  addToCart: (quantity: number) => Promise<void>;
+  buyNow:    (quantity: number) => Promise<void>;
+};
+```
+
+§ 9.3 의 두 hook 시그니처보다 본 합성 hook 가 권고. § 9.3 갱신은 § 6 머지 시
+같이 (또는 PR 3 작업 시 결정). 두 형태 어느 쪽이든 외부 동작 동일.
+
+- 내부에서 `useAuth()` + `useToast()` + `useNavigate()` 호출.
+- `addCartItem` 응답 200 검증은 단순 `await` 후 catch 안 빠지면 OK 처리.
+- `navigate('/cart')` 호출 후에는 setState 안 함 (unmount).
+- `AbortController` 는 본 hook 에선 **불필요** — POST 요청은 사용자 명시 액션
+  이라 abort 안 함 (사용자가 페이지 이탈하면 axios 가 응답 무시하고 이미
+  서버에는 도달했을 가능성이 큼; 멱등성 우려는 § 8-O5 류로 별도).
+
+### 6.7 추천 섹션과의 상호작용
+
+§ 5-(6) 의 추천 섹션이 `'장바구니에 담기'` 성공 후 자동으로 갱신될지:
+
+| 옵션 | 동작 | 평가 |
+|---|---|---|
+| (a) **갱신 안 함 (기본 채택)** | 추천 캐시 60s 유지. 같은 추천이 계속 보임. | 단순. Cart v1 의 동작과 동일 (`recommendEvents` 1회 fetch). |
+| (b) `addCartItem` 성공 후 `useRecommendedEvents` 의 cache invalidate + 재호출 | 새 추천 응답으로 교체. | 백엔드가 사용자 행동 기반 추천이면 의미 있을 수 있음. 단 응답 시간 0.5~2s 지연 + 실패 시 섹션 사라지는 깜빡임. |
+
+**기본: (a)**. (b) 가 필요하다 판단되면 hook 에 `invalidateRecommendations()`
+helper 만 추가하고 `useAddToCart` 성공 분기에서 호출. 본 plan 의 PR 분할은
+(a) 가정 — 변경되면 § 9.2 의 LOC 와 케이스 추가.
+
+### 6.8 수량 reset 정책
+
+`'장바구니에 담기'` 성공 후 `quantity` 컨트롤을 1로 reset 할지:
+
+| 옵션 | 평가 |
+|---|---|
+| (a) **reset 안 함 (기본 채택)** | 사용자가 또 담을 수 있는 가능성 (실수 방지보다는 의도 존중). 프로토타입과 일치. |
+| (b) reset to 1 | "담음" 의 종료를 명확히 표현. 단 다시 담으려면 + 버튼 여러 번 눌러야. |
+
+**기본: (a)**. PR 3 검증 케이스 (§ 9.3 표 케이스 3) 도 (a) 기준으로 작성됨.
 
 ## 7. 라우터 등록 방법
 (작성 예정)
