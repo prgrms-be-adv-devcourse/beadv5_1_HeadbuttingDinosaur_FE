@@ -222,6 +222,63 @@
 }
 .side-nested { padding-left: 28px; }
 
+/* Section divider — any side-header that follows another section gets a top
+ * border. The first header (메뉴) stays clean. */
+.side-group + .side-header { border-top: 1px solid var(--border); }
+
+/* Smaller, dimmer side-item variant (session row). */
+.side-item.side-item--mini {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* Two-row "card" variant for upcoming-events rows. */
+.side-item.side-item--card {
+  display: block;
+  padding: 7px 12px;
+}
+.side-card-title {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  line-height: 1.4;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.side-card-meta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+
+/* Online indicator dot inside a side-item (session row). */
+.side-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--term-green);
+  flex-shrink: 0;
+}
+
+/* Trailing meta tag inside a side-item (e.g. "온라인"). */
+.side-meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+/* '#' prefix glyph for category rows. */
+.side-prefix {
+  color: var(--text-4);
+  font-size: 11px;
+  width: 10px;
+  text-align: center;
+}
+
 /* ─── Tab bar ─────────────────────────────────────────── */
 .ide-tabs {
   background: var(--chrome);
