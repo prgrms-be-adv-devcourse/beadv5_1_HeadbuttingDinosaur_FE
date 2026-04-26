@@ -973,10 +973,290 @@ export interface KbdProps extends HTMLAttributes<HTMLElement> {
 
 
 ## 5. 파일 구조 / 명명 규칙
-(작성 예정)
+
+### 5.1 결정 (Spec § 9 와 합치)
+
+| 항목 | 결정 | 사유 |
+|---|---|---|
+| 폴더 vs 단일 파일 | **폴더 per component** (`src/components-v2/Button/`) | 타입/테스트/스토리 co-located, 단순 컴포넌트도 동일 규칙 (일관성). § 3.7 디렉토리 매핑과 일치 |
+| 진입점 | `index.tsx` 가 re-export 만, 구현은 `{Name}.tsx` | `import { Button } from '@/components-v2/Button'` 로 깊이 1 안에 멈춤. 내부 분해(타입/헬퍼)에 영향 없음 |
+| export 방식 | **named export 만**. default export 금지 | auto-import 및 grep 친화. 오타 시 컴파일 에러 |
+| 타입 export | public 타입은 `index.tsx` 에서 `export type` 으로 재노출. `Props` 와 `Variant` / `Size` 등 모두 포함 | 호출자가 `import type { ButtonProps, ButtonVariant }` 가능 |
+| 타입 파일 분리 | 타입 ≥ 2개 또는 인터페이스 길어지면 `{Name}.types.ts` 로 분리. 단순한 경우 `{Name}.tsx` 안에 동거 | 작은 컴포넌트(Kbd / TermDot) 는 단일 파일로 충분 |
+| 스타일 위치 | **`src/styles-v2/components/{kebab-name}.css`**. 컴포넌트는 `className` 으로 참조만 | Spec § 9 결정: 전역 CSS + className. CSS Module / styled-components 미사용 |
+| 스타일 import | `src/styles-v2/index.css` 가 컴포넌트 CSS 를 모두 import. 앱 진입점에서 한 번만 로드 | 컴포넌트가 자기 CSS 를 직접 import 하지 않음 (트리쉐이킹보다 단순성 우선, prototype 과 일치) |
+| 동적 스타일 | `accent` 컬러처럼 prop 기반 동적 값만 인라인 `style={{}}` 허용 | Spec § 0 "UI 작업 원칙" 일치 |
+| 클래스 명명 | block: `kebab-case`. variant: `block-variant` 접미사. state: `is-state` 접두사 | prototype 의 `.btn .btn-primary .btn-sm` 컨벤션 유지 + state 만 `is-` 로 정리 |
+| 컴포넌트 / 파일명 | PascalCase (`Button`, `StatusChip`, `AccentMediaBox`). CSS 파일은 kebab-case (`status-chip.css`, `accent-media-box.css`) | TS 표준 / CSS 표준 분리 |
+| 헬퍼 / 유틸 함수 | camelCase. `clsx` (또는 동등 헬퍼) 1개 의존. 자체 `cn` wrapper 도입 안 함 | 표준 라이브러리 그대로 |
+| 테스트 파일 | `{Name}.test.tsx` co-located. **PR 1~4 범위에선 옵셔널** (smoke 테스트 우선) | 기존 프로젝트 테스트 도구 사용 (Vitest 가정). 의무화는 phase 2 |
+| 스토리북 | 도입 안 함 (phase 1) | 추가 의존성 부담. 시각 검증은 페이지 통합으로 대체 |
+| 배럴 | `src/components-v2/index.ts` 가 모든 컴포넌트 + 타입 re-export | `import { Button, Card, Icon } from '@/components-v2'` 단일 라인 |
+
+### 5.2 표준 폴더 레이아웃
+
+```
+src/components-v2/
+├── Button/
+│   ├── index.tsx              ← re-export 만
+│   ├── Button.tsx             ← 구현 (forwardRef + JSX)
+│   ├── Button.types.ts        ← 타입 (변수 ≥2개일 때만 분리)
+│   └── Button.test.tsx        ← 옵셔널, smoke 테스트
+├── Kbd/
+│   ├── index.tsx
+│   └── Kbd.tsx                ← 단순 컴포넌트는 타입 동거
+├── ...
+└── index.ts                   ← 배럴 re-export
+
+src/styles-v2/
+├── tokens.css                 ← tokens.plan.md 결정 변수
+├── globals.css                ← reset + 폰트 / 공통 키프레임 (`@keyframes spin` 등)
+├── components/
+│   ├── button.css
+│   ├── input.css
+│   ├── card.css
+│   ├── chip.css
+│   ├── status-chip.css
+│   ├── kbd.css
+│   ├── eyebrow.css
+│   ├── section-head.css
+│   ├── term-dot.css
+│   ├── avatar.css
+│   ├── accent-media-box.css
+│   ├── quantity-stepper.css
+│   ├── meta-line.css
+│   └── empty-state.css
+└── index.css                  ← 위 파일 전체 import 배럴
+```
+
+> Icon / FileIcon 은 SVG 마크업이라 별도 CSS 거의 없음 (currentColor + size prop 으로 충분). 필요 시 `icon.css` 추가.
+
+### 5.3 예시: Button 컴포넌트의 파일 구조
+
+```
+src/components-v2/Button/
+├── index.tsx
+├── Button.tsx
+├── Button.types.ts
+└── Button.test.tsx        (PR 2 범위 — smoke 만)
+```
+
+**`Button/index.tsx`** — re-export 전용
+
+```tsx
+export { Button } from './Button';
+export type { ButtonProps, ButtonVariant, ButtonSize } from './Button.types';
+```
+
+**`Button/Button.types.ts`**
+
+```ts
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+export type ButtonVariant = 'primary' | 'ghost';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  full?: boolean;
+  loading?: boolean;
+  iconStart?: ReactNode;
+  iconEnd?: ReactNode;
+  children: ReactNode;
+}
+```
+
+**`Button/Button.tsx`**
+
+```tsx
+import { forwardRef } from 'react';
+import clsx from 'clsx';
+import type { ButtonProps } from './Button.types';
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = 'primary',
+    size = 'md',
+    full = false,
+    loading = false,
+    iconStart,
+    iconEnd,
+    type = 'button',
+    disabled,
+    className,
+    children,
+    ...rest
+  },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      disabled={disabled || loading}
+      className={clsx(
+        'btn',
+        `btn-${variant}`,
+        `btn-${size}`,
+        full && 'btn-full',
+        loading && 'is-loading',
+        className,
+      )}
+      {...rest}
+    >
+      {loading ? <span className="btn-spinner" aria-hidden /> : iconStart}
+      <span className="btn-label">{children}</span>
+      {iconEnd}
+    </button>
+  );
+});
+```
+
+**`src/styles-v2/components/button.css`** (스타일은 전부 여기)
+
+```css
+.btn { /* base: display/align/radius/font/transition */ }
+.btn-primary { /* bg brand / color #fff */ }
+.btn-primary:hover { /* bg brand-hover */ }
+.btn-ghost { /* bg transparent / border border-2 */ }
+.btn-sm { /* h 28 / padding 0 10 / font 12.5 */ }
+.btn-md { /* h 36 / padding 0 14 / font 13.5 */ }
+.btn-lg { /* h 44 / padding 0 18 / font 14 */ }
+.btn-full { width: 100%; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.is-loading .btn-spinner { animation: spin 0.8s linear infinite; }
+.btn-label { /* gap 처리 */ }
+```
+
+**`src/styles-v2/index.css`** (배럴 — 컴포넌트 추가 시 한 줄 추가)
+
+```css
+@import './tokens.css';
+@import './globals.css';
+@import './components/button.css';
+@import './components/input.css';
+/* ... 나머지 컴포넌트 ... */
+```
+
+**`src/components-v2/index.ts`** (컴포넌트 배럴)
+
+```ts
+export { Button } from './Button';
+export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
+export { Icon } from './Icon';
+export type { IconProps, IconName } from './Icon';
+// ... 나머지 ...
+```
+
+### 5.4 명명 규칙 요약
+
+| 대상 | 규칙 | 예 |
+|---|---|---|
+| 컴포넌트 | PascalCase | `StatusChip`, `AccentMediaBox` |
+| 컴포넌트 파일 | `{Name}.tsx` | `StatusChip.tsx` |
+| 타입 파일 | `{Name}.types.ts` (분리 시) | `Button.types.ts` |
+| 테스트 파일 | `{Name}.test.tsx` | `Button.test.tsx` |
+| CSS 파일 | kebab-case `{name}.css` | `status-chip.css`, `accent-media-box.css` |
+| CSS 블록 클래스 | kebab-case 단어 | `.status-chip`, `.accent-media-box` |
+| CSS variant 클래스 | `{block}-{variant}` | `.btn-primary`, `.status-chip-ok` |
+| CSS state 클래스 | `is-{state}` | `.is-active`, `.is-loading` |
+| 타입 (variant union) | `{Name}Variant` / `{Name}Size` / `{Name}Tone` | `ButtonVariant`, `AvatarSize` |
+| 슬롯 prop | `{position}{Slot}` | `iconStart`, `iconEnd`, `hintEnd` |
+
+---
 
 ## 6. 의존성 그래프
-(작성 예정)
+
+### 6.0 분류 정의
+
+- **직접 import 의존**: 컴포넌트 파일 내부에서 다른 컴포넌트를 `import` 해서 직접 렌더 → **머지 순서에 영향**
+- **슬롯 의존**: prop 으로 `ReactNode` 받음. 호출자가 인스턴스 주입. 컴포넌트 자체는 의존 없음 → **머지 순서 무관 (타입 시그니처만 호환되면 됨)**
+- **CSS 토큰 의존**: `var(--xxx)` 참조. tokens.css 만 있으면 됨
+- **CSS 클래스 의존**: 다른 컴포넌트의 클래스를 사용하지 않는 것을 원칙 (클래스 격리). 위반 사례는 명시
+
+### 6.1 컴포넌트 → 컴포넌트 (직접 import)
+
+| 의존하는 쪽 | 의존 대상 | 사유 |
+|---|---|---|
+| **QuantityStepper** | **Icon** | 컴포넌트 내부에서 `+` / `−` 버튼을 직접 렌더 (`<Icon name="plus" />` / `<Icon name="minus" />`) |
+| (선택) **Eyebrow** | **TermDot** | PR 1 시점에는 자체 인라인 dot. PR 4 머지 후 `dot=true` 일 때 `<TermDot />` 로 치환 — **선택적 후속 리팩터** |
+
+→ **직접 import 의존은 단 1개 (QuantityStepper → Icon)**. 나머지는 모두 슬롯 의존.
+
+### 6.2 컴포넌트 → 컴포넌트 (슬롯 의존, 참고용)
+
+머지 순서에는 영향 없지만 호출자가 어떤 컴포넌트를 슬롯에 넣을 가능성이 큰지 식별.
+
+| 컴포넌트 | 슬롯 | 통상 주입되는 것 |
+|---|---|---|
+| Button | `iconStart`, `iconEnd` | Icon (대다수), Kbd (Landing 빠른 검색의 ⌘K) |
+| Input | `iconStart`, `hintEnd` | Icon, Kbd |
+| SectionHead | `action` | anchor `<a>` (Landing Featured "전체 보기 →"), 향후 Button / Eyebrow / Kbd |
+| EmptyState | `action` | Button (대다수) |
+| MetaLine | `icon` | Icon, 또는 이모지 string |
+| Chip | (자체) | (없음 — 자체 텍스트만) |
+| StatusChip | (자체) | (없음 — 자체 텍스트만) |
+| Eyebrow | `children` | 텍스트 (특수 케이스 없음) |
+| Card | `children` | 자유 |
+| AccentMediaBox | `glyph` | 텍스트 글리프(`</>` / `❯_`) 또는 Icon |
+
+> SectionHead, EmptyState, Card, Input, Button 등 슬롯 컴포넌트는 PR 1~4 머지 순서에 무관. 호출자(페이지) 가 import 시점에만 모든 컴포넌트 존재하면 됨.
+
+### 6.3 컴포넌트 → styles-v2 의존
+
+| 컴포넌트 | 자체 CSS 파일 | 추가 토큰 의존 (tokens.css) | 다른 컴포넌트 클래스 사용 |
+|---|---|---|---|
+| Icon | (없음 — currentColor + size prop) | (없음) | - |
+| FileIcon | (없음) | (없음) | - |
+| Kbd | `kbd.css` | `--font-mono`, `--text-3`, surface | - |
+| Eyebrow | `eyebrow.css` | `--term-green*`, `--brand-light`, `--brand` (tone 변종), `--font-mono` | - |
+| StatusChip | `status-chip.css` | `--term-green*`, `--danger*`, `--brand-light`, `--brand`, surface-2, `--text-3` (variant 별 색) | - |
+| Chip | `chip.css` | `--brand-light`, `--brand`, `--border`, `--text-2` (active / hover) | - |
+| Button | `button.css` | `--brand`, `--brand-hover`, `--border-2`, `--surface-2`, `--text-2`, `--danger` (focus), `@keyframes spin` (`globals.css` 또는 자체) | - |
+| Input | `input.css` | `--editor-bg`, `--border-2`, `--brand`, `--danger`, `--text-2`, `--font` | (variant `code` 일 때 내부 `iconStart` 슬롯에 Icon 들어가지만 클래스 의존 아님) |
+| Card | `card.css` | `--surface`, `--border`, `--border-2`, `--brand-light` (dashed variant) | - |
+| SectionHead | `section-head.css` | `--font-mono`, `--text-4`, `--text`, `--text-3`, `--border` | action 슬롯에 anchor/Button 들어가지만 클래스 의존 아님 |
+| TermDot | `term-dot.css` | `--term-green`, `--brand`, `--danger` (tone 별) | - |
+| Avatar | `avatar.css` | `--brand`, `--font-mono` | - |
+| AccentMediaBox | `accent-media-box.css` | `--font-mono`, `--border` | accent hex 는 prop (CSS 의존 아님) |
+| QuantityStepper | `quantity-stepper.css` | `--border-2`, `--editor-bg`, `--text-2` | - |
+| MetaLine | `meta-line.css` | `--font-mono`, `--text-4`, `--text-2` | - |
+| EmptyState | `empty-state.css` | `--surface`, `--border`, `--text`, `--text-3`, `.stack-trace` 변형 패턴 흡수 | (action 슬롯의 Button 클래스 의존 없음) |
+
+#### styles-v2 유틸/공통 클래스
+- `.stack-trace` (prototype globals): EmptyState 의 surface 변형 기반. v2 에서는 `empty-state.css` 안으로 흡수해 `.stack-trace` 직접 사용 안 함 (격리).
+- `@keyframes spin`: Button loading 스피너용. `globals.css` 에 두고 Button CSS 가 참조.
+- `clsx` (npm): 거의 모든 컴포넌트가 className 병합용으로 import. styles-v2 가 아닌 npm 의존.
+- `accent(eventId)` / `fmtDate` / `fmtPrice`: utility 함수 (컴포넌트가 아닌 페이지/호출자 책임). § 1.5 메모대로 `src/lib/utils` 또는 `src/styles-v2/accent.ts` 로 이전 — 본 § 6 의 컴포넌트 의존 그래프에는 포함 안 함.
+
+### 6.4 공통 hub 식별
+
+다른 컴포넌트의 슬롯에 가장 자주 들어가는 = **사실상 가장 먼저 필요한 것**.
+
+| 컴포넌트 | 슬롯 진입 횟수 (§ 6.2 + § 4 매트릭스) | 직접 import 의존 받는 횟수 | 우선순위 등급 |
+|---|---|---|---|
+| **Icon** | Button(많음) / Input / SectionHead / MetaLine / AccentMediaBox / EmptyState | QuantityStepper 1건 | **S — 필수 hub. 모든 다른 PR 의 사실상 선결조건** |
+| **Kbd** | Button(Landing) / Input(EventList 검색바) | 0건 | A — Input 의 `code` variant 와 함께 자주 쓰임 |
+| **Button** | EmptyState(action) / SectionHead(action) | 0건 | A — composite 와 페이지 어디서나 쓰임 |
+| **TermDot** | Eyebrow(후속 치환) | 0건 (선택적) | B — PR 1 의 Eyebrow 가 이미 인라인 dot 가짐. 우선순위 낮음 |
+| **Card** | (없음 — 페이지 직접 사용) | 0건 | B — composite 의존 없음. 독립 머지 가능 |
+| **SectionHead** | (없음) | 0건 | B — Landing 만 사용 |
+| 그 외 | (없음 — 페이지 직접 사용) | 0건 | C — leaf |
+
+### 6.5 § 7 머지 순서의 근거
+
+위 그래프에서 다음을 도출:
+
+1. **Icon 이 절대적 hub**: PR 1 안에 들어가지만 PR 1 의 다른 컴포넌트들과도 독립 → **PR 1 내부에서도 Icon 을 가장 먼저 구현/머지** 권장
+2. **PR 1 의 Eyebrow / StatusChip / Chip / Kbd 는 Icon 미의존** → Icon 과 병렬 작업 가능
+3. **PR 2 (Button / Input)** 는 Icon 의 슬롯 의존만 가짐 → PR 1 머지 후 진행
+4. **PR 3 (Card / SectionHead)** 는 어느 컴포넌트에도 의존 없음 → PR 1 과 **병렬 머지 가능**. 사실상 PR 2 와도 병렬
+5. **PR 4 (Composite 6개)** 중 직접 import 의존은 **QuantityStepper → Icon** 1건만. 나머지(TermDot / Avatar / AccentMediaBox / MetaLine / EmptyState) 는 PR 1 만 있으면 충분 → PR 4 는 PR 1 머지 후 진행 가능 (PR 2/3 머지 대기 불필요, 단 EmptyState 가 호출자에서 Button 받으므로 페이지 통합 시점은 PR 2 이후)
+6. **Eyebrow → TermDot 후속 치환**은 별도 정리 PR (§ 7 에 옵셔널 단계로 표기)
+
+이 결과를 § 7 의 PR 별 파일 생성 순서에 반영.
+
 
 ## 7. PR 별 파일 생성 순서
 (작성 예정)
