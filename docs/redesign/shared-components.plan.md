@@ -80,7 +80,117 @@
 
 
 ## 2. PR 그룹화
-(작성 예정)
+
+### 2.0 그룹화 원칙
+- 한 PR 200~400 LOC (TSX + CSS + 타입 + 간단 스토리/픽스처 합산 추정)
+- 의존성 적은 것 → 많은 것 순. 같은 PR 내부에서 컴포넌트 간 import 가능, **다른 PR에 정의된 컴포넌트는 머지 후에 사용**
+- 같은 성격끼리 묶음 (primitive / form / container / composite)
+- Layout chrome (#14~21, EditorScroll/Gutter 포함) 은 본 plan 의 범위 밖 — `layout.plan.md` 에서 따로 PR 분할 (이 § 2 에서는 의존성만 표기)
+- 페이지 전용 후보 (#31~36 EventCard / StatCard / CategoryTile / FeaturedRow / TypedTerminal / DataTable) 는 공용 승격 안 함 → 각 페이지 plan 의 `components/` 디렉토리 PR에 포함
+
+### 2.1 제안 조정 사유
+
+원안 (PR 1 / 2 / 3) 검토 결과:
+- **PR 1** (Primitives 5개): LOC 합 ≈ 340 — 적정 ✓
+- **PR 2** (Button + Input): LOC 합 ≈ 200 — 하한 근처
+- **PR 3** (Card + SectionHead): LOC 합 ≈ 130 — **하한 미달**
+- § 1.4 의 공용 승격 후보 6개 (#22 EmptyState, #23 QuantityStepper, #24 MetaLine, #26 AccentMediaBox, #27 Avatar, #28 TermDot) 가 원안 3개 PR에 들어갈 자리가 없음
+
+→ PR 3 을 키우는 대신 **PR 4 (Composite shared) 를 신설**하고, PR 3 은 그대로 작게 유지하되 의존도가 낮아 PR 2와 병렬 진행 가능하도록 분리 유지.
+
+대안 (병합형, 리뷰 부담 줄이고 싶을 때): PR 2 + PR 3 을 하나로 합쳐 ≈ 330 LOC 단일 "Form & Container" PR로. 본 plan 은 **분리형(PR 2 / PR 3 별개)** 을 기본으로 채택.
+
+### 2.2 PR 별 상세
+
+#### PR 1 — Primitives (의존 없음)
+
+| 컴포넌트 | § 1 # | 추정 LOC | 비고 |
+|---|---|---|---|
+| Icon | 1 | 130 | `common.jsx` 의 paths 객체 그대로 + 타입화. 신규 추가 아이콘은 별도 PR |
+| Kbd | 5 | 30 | `<kbd>` + `.kbd` 스타일 래퍼 |
+| Eyebrow (pill) | 2 | 50 | `dot` 옵션 props 포함 |
+| StatusChip | 3 | 70 | variant `ok` / `sold` / `free` / `end` |
+| Chip | 4 | 60 | active toggle, onClick, icon 슬롯 |
+
+- **합계**: ≈ 340 LOC ✓
+- **의존**: tokens.css (이미 존재), 없음
+- **사유**: 모든 다른 PR 의 빌딩 블록. 가장 먼저 머지되어야 PR 2~4 가 import 가능.
+- **메모**: `common.jsx` 의 `accent()` 함수와 `fmtDate / fmtPrice / fmtISO` utility 도 이 PR에 묶어 `src/lib/utils` 또는 `src/styles-v2/accent.ts` 로 이전 (≈ +40 LOC). 합쳐도 PR 한도 안.
+
+#### PR 2 — Form / Action (PR 1 의존)
+
+| 컴포넌트 | § 1 # | 추정 LOC | 비고 |
+|---|---|---|---|
+| Button | 7 | 110 | variant `primary` / `ghost` + size `sm` / `lg` + `full` + `disabled` + 좌측 Icon 슬롯 |
+| Input | 8 | 90 | label + error + focus glow + 좌측 Icon 슬롯 (search bar 케이스) |
+
+- **합계**: ≈ 200 LOC ✓
+- **의존**: **PR 1 (Icon)** — Button/Input 좌측 아이콘 슬롯
+- **사유**: Login / EventList 검색 / Cart 결제 / EventDetail 구매 등 모든 폼·액션의 기반. PR 3 과는 독립적이라 병렬 작업 가능.
+
+#### PR 3 — Container / Display (PR 1 의존)
+
+| 컴포넌트 | § 1 # | 추정 LOC | 비고 |
+|---|---|---|---|
+| Card (flat-card) | 9 | 50 | `<Card>` 본체 + `<Card.Header>` / `<Card.Body>` 슬롯 (선택) |
+| SectionHead | 6 | 80 | `// hint` + h2 + caption + action 슬롯, border-bottom |
+
+- **합계**: ≈ 130 LOC — **하한 미달이지만 의도적으로 작게 유지**
+- **의존**: **PR 1 (Icon)** — SectionHead action 슬롯 안에 들어가는 링크/버튼이 아이콘 사용 가능
+- **사유**: 두 컴포넌트 모두 "콘텐츠 컨테이너" 성격이라 묶음. Card 는 LG/CT/ED/MP 모든 페이지에서 즉시 쓰임 → PR 4 (Composite) 보다 먼저 머지되어야 EmptyState 등에서 재사용 가능.
+- **하한 미달 허용 사유**: 컴포넌트가 단순하고 리뷰 비용이 낮음. 억지로 다른 컴포넌트와 묶으면 성격이 흐려짐.
+
+#### PR 4 — Composite shared patterns (PR 1, 2, 3 의존)
+
+§ 1.4 중 2페이지 이상에서 반복 등장하는 후보 6개.
+
+| 컴포넌트 | § 1 # | 추정 LOC | 비고 |
+|---|---|---|---|
+| TermDot | 28 | 20 | 6px 원형 점. Eyebrow / Sidebar / StatusBar 등에서 재사용. PR 1 의 Eyebrow 에서는 인라인 유지하다가 본 PR 머지 후 치환 가능 |
+| Avatar / BrandMark | 27 | 50 | size + initial + brand bg. LG 로고와 MP 닉네임 이니셜 |
+| AccentMediaBox | 26 | 60 | size prop + 그라디언트 alpha + glyph (`</>` / `❯_`) 슬롯. CT thumb / ED hero / MP stripe / LD FeaturedRow |
+| QuantityStepper | 23 | 70 | 28px / 34px size, min/max, controlled value. ED 와 CT 두 곳에서 사용 |
+| MetaLine | 24 | 40 | mono 라벨 + 값. EL EventCard 와 ED InfoRow 통합. 이모지 prefix 옵션 |
+| EmptyState | 22 | 80 | `.stack-trace` shell + 이모지 + title + message + action 슬롯. EL / CT / MP 환불 |
+
+- **합계**: ≈ 320 LOC ✓
+- **의존**:
+  - **PR 1 (Icon)**: QuantityStepper 의 `+` / `−` 아이콘
+  - **PR 2 (Button)**: EmptyState 의 action 슬롯, QuantityStepper 의 사각 버튼은 자체 스타일이라 Button 안 써도 됨 (검토 필요)
+  - **PR 3 (Card)**: EmptyState 가 Card 변형으로 만들지 별도 surface 로 갈지 § 3 에서 결정. 의존 가능성만 표기
+- **사유**: § 1.5 메모의 "공용 승격 가치 있음" 6개를 한 번에 처리. PR 1~3 머지 후 진행해야 import 가능.
+
+### 2.3 PR 의존 그래프 (요약)
+
+```
+PR 1 (Primitives) ──┬──> PR 2 (Form/Action) ──┐
+                    │                          ├──> PR 4 (Composite)
+                    └──> PR 3 (Container)  ────┘
+
+(별도 트랙) layout.plan.md PR 들 ──depends──> PR 1 (Icon, Kbd)
+(별도 트랙) 페이지 plan PR 들    ──depends──> PR 1~4
+```
+
+### 2.4 LOC 합계
+
+| PR | LOC | 상태 |
+|---|---|---|
+| PR 1 | ≈ 340 (+40 utils) | 적정 |
+| PR 2 | ≈ 200 | 하한 근처 |
+| PR 3 | ≈ 130 | 하한 미달 (의도적) |
+| PR 4 | ≈ 320 | 적정 |
+| **합계** | **≈ 990 + 40 utils** | 4개 PR로 모든 공용 컴포넌트 커버 |
+
+### 2.5 범위 밖 / 후속
+
+- **§ 1.3 Layout chrome** (#14~21, EditorScroll/Gutter): `layout.plan.md` 의 PR 분할 대상
+- **§ 1.4 페이지 전용 후보** (#31~36, #37): 각 페이지 plan 에서 처리
+  - EventCard (#35) → EventList plan
+  - StatCard / CategoryTile / FeaturedRow / TypedTerminal (#32~34, #36) → Landing plan
+  - DataTable (#31) → MyPage plan
+  - InfoCallout (#37) → EventDetail plan (또는 사용처 1회 늘면 PR 4 후속으로 승격)
+- **§ 1.4 #25 SummaryRow / #29 Breadcrumb / #30 SegmentedTabs**: 단일 페이지 사용이라 우선 페이지 plan 에 두되, EL/MP 외 추가 사용처 발견 시 § 1 갱신 후 후속 PR로 승격
+
 
 ## 3. 컴포넌트별 props 시그니처
 (작성 예정)
