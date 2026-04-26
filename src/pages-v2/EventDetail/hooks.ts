@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiClient, unwrapApiData, type ApiResponse } from '@/api/client';
 import type { EventDetailResponse } from '@/api/types';
 
-import { toEventDetailVM } from './adapters';
+import {
+  toEventDetailVM,
+  toRecommendedCards,
+  type RecommendationResponse,
+  type RecommendedCardVM,
+} from './adapters';
 import type { EventDetailQuery, EventDetailVM } from './types';
 
 const STALE_MS = 60_000;
@@ -116,4 +121,76 @@ export function useEventDetail(eventId: string): UseEventDetailReturn {
   }, [eventId]);
 
   return { ...state, refetch };
+}
+
+/* ── useRecommendedEvents (§4-(6) / §5-(6) / §8 항목 4) ─────────────────
+ * Single-slot module cache — same user is assumed to get the same set of
+ * recommendations across detail pages, so currentEventId only feeds the
+ * filter/slice step (toRecommendedCards). Failure / empty / 비로그인 401 →
+ * 'hidden' so the section silently disappears without affecting body
+ * render. No refetch surface (auto-refresh on cart-add belongs in §6). */
+
+export type RecommendedQuery =
+  | { status: 'loading' }
+  | { status: 'ready'; cards: RecommendedCardVM[] }
+  | { status: 'hidden' };
+
+const RECOMMEND_STALE_MS = 60_000;
+let recommendCache: { api: RecommendationResponse; fetchedAt: number } | null =
+  null;
+
+const deriveRecommended = (currentEventId: string): RecommendedQuery => {
+  if (!recommendCache) return { status: 'loading' };
+  const cards = toRecommendedCards(recommendCache.api, currentEventId);
+  return cards.length > 0 ? { status: 'ready', cards } : { status: 'hidden' };
+};
+
+const fetchRecommendations = async (
+  signal: AbortSignal,
+): Promise<RecommendationResponse> => {
+  const res = await apiClient.get<ApiResponse<RecommendationResponse>>(
+    '/events/user/recommendations',
+    { signal },
+  );
+  return unwrapApiData(res.data);
+};
+
+export function useRecommendedEvents(currentEventId: string): RecommendedQuery {
+  const [state, setState] = useState<RecommendedQuery>(() => {
+    if (
+      recommendCache &&
+      Date.now() - recommendCache.fetchedAt < RECOMMEND_STALE_MS
+    ) {
+      return deriveRecommended(currentEventId);
+    }
+    return { status: 'loading' };
+  });
+
+  useEffect(() => {
+    const fresh =
+      recommendCache &&
+      Date.now() - recommendCache.fetchedAt < RECOMMEND_STALE_MS;
+    if (fresh) {
+      setState(deriveRecommended(currentEventId));
+      return;
+    }
+    setState({ status: 'loading' });
+
+    const ctrl = new AbortController();
+    fetchRecommendations(ctrl.signal)
+      .then((api) => {
+        recommendCache = { api, fetchedAt: Date.now() };
+        setState(deriveRecommended(currentEventId));
+      })
+      .catch(() => {
+        if (ctrl.signal.aborted) return;
+        /* 401 / 5xx / network — 모두 흡수해 섹션만 안 그림. 본문 success
+         * 분기는 영향 없음 (§5-(6) 격리 원칙). */
+        setState({ status: 'hidden' });
+      });
+
+    return () => ctrl.abort();
+  }, [currentEventId]);
+
+  return state;
 }
