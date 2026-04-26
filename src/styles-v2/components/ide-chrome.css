@@ -350,6 +350,18 @@
 .status-item svg { width: 12px; height: 12px; }
 .status-spacer { flex: 1; }
 .status-item.term-ok { color: var(--term-green); }
+/* Lets the login indicator scope a green dot child without re-coloring siblings. */
+.ide-status .term-ok { color: var(--term-green); }
+/* ⌘K kbd inside the indigo status bar — its own contrast envelope, not the
+ * lighter palette/title-cmd kbd treatment. */
+.ide-status kbd {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0 4px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: inherit;
+}
 
 /* ─── Command palette (⌘K) ────────────────────────────── */
 .palette-backdrop {
