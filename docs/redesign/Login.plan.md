@@ -326,4 +326,121 @@ INVENTORY § 4 / `src/contexts/AuthContext.tsx:65` 기준.
 | D-10 | 클라 검증 동작의 onBlur 도입 여부 | §5.3 결정대로 onSubmit 만. 향후 UX 개선 시 검토 | 그대로 | hooks.ts |
 
 ## 8. PR 분할 + 파일 생성 순서
-(작성 예정)
+
+### 8.1 LOC 추정 (총량 + 분포)
+
+§1~§7 결정을 반영해 실제 만들 파일과 줄수 추정.
+
+| 파일 | 신/수 | LOC (대략) | 내용 |
+|---|---|---|---|
+| `src/pages-v2/Login/hooks.ts` | 신규 | ~110 | `LoginFormState`/`LoginFieldErrors` 인라인 타입 + `validate()` + `mapLoginError()` + `safeReturnTo()` 화이트리스트 + `useLoginForm()` 훅 |
+| `src/pages-v2/Login/Login.tsx` | 신규 | ~130 | `LoginView` (default export) + 5개 named 인라인 컴포넌트(`BrandHeader`, `PageHeading`, `LoginForm`, `SocialLoginBlock`, `SignupCallout`) |
+| `src/pages-v2/Login/index.tsx` | 신규 | ~35 | `LoginPage` — 인증 게이트(§5.4) + `returnTo` 추출 + `useLoginForm` 호출 + `<LoginView>` props 주입 |
+| `src/App.tsx` | 수정 | +3 | `import { VersionedRoute }` + `const LoginV2 = lazy(...)` + `/login` element 한 줄 교체 |
+| **합계** | — | **~278** | (테스트/스토리북 미포함 — INVENTORY § 5: 테스트 러너 의존성 0개) |
+
+§1 결정에 따라 `components/`, `adapters.ts`, `types.ts` 는 **만들지 않음**. 사용자 제안의 PR 1/PR 2 분할안에 포함된 `types.ts → 컴포넌트`, `adapters.ts → hooks.ts` 단계는 본 페이지에 해당 파일이 없으므로 생략하고, 인라인 타입은 `hooks.ts` 내부에, 에러 매핑은 `hooks.ts` 의 `mapLoginError` 에 둠.
+
+### 8.2 PR 분할 비교
+
+| 방식 | 장점 | 단점 | 적합도 |
+|---|---|---|---|
+| **A. 통합 1 PR** (본 plan 권장) | 리뷰·머지 1회. rebase/충돌 위험 1회. ~280 LOC 는 단일 PR 로도 충분히 검토 가능 (현 프로젝트 평균 PR 사이즈 대비 작음) | 시각 단계와 API 단계가 한 PR 에 섞여 시각 회귀와 로직 회귀가 같은 diff 에 공존 | **★ 권장** |
+| B. PR 1 (시각) + PR 2 (API) | 디자이너 시각 검수를 API 위험 없이 받을 수 있음. PR 1 머지 후 v2 토글 켜고 mock 만 노출 → QA 안전 | mock 데이터를 일시적으로 코드에 박아야 함(SPEC § 0「프로토타입 mock 데이터는 v2 코드에 들어가면 안 됨」 위반 위험). PR 1 의 컴포넌트 props 를 PR 2 에서 다시 손대 diff 폭발. PR 2 가 단순 wiring 인데 별도 리뷰 사이클은 비용 과잉 | △ 비권장 (Login 규모에 과한 분할) |
+
+**근거**:
+- §3 의 mock 위반 리스크: PR 1 시각만 PR 의 정의상 `loginApi` 미호출이 되어, `LoginForm` 의 `loading`/`errors` 같은 상태를 채우려면 임시 더미를 둬야 한다. 이는 SPEC § 0 의 mock 금지 규칙과 정면 충돌.
+- §1 결정으로 `adapters.ts`/`types.ts` 가 사라져 사용자 제안의 "기반 PR 먼저 → 통합 PR" 분할의 절단면이 자연스럽게 사라짐.
+- ~280 LOC 는 router-toggle.plan(~43 LOC) 에 비하면 크지만, 한 PR 로 검토 가능한 규모.
+
+→ **통합 1 PR 채택**. 단, 커밋은 §8.3 의 7단계로 잘게 쪼개 리뷰어가 단계별로 따라갈 수 있게 한다.
+
+### 8.3 단일 PR 내부 — 파일/커밋 생성 순서
+
+각 step = 1 commit. 의존 방향(타입 → 로직 → 뷰 → 진입점 → 라우터)을 따라 빌드가 깨지지 않게 진행.
+
+#### Step 1 — `hooks.ts` 골격 + 타입
+
+1. `src/pages-v2/Login/hooks.ts` 생성.
+2. 인라인 타입 export: `LoginFormState`, `LoginFieldErrors`.
+3. 순수 함수 export: `validate(form)` (§5.3 규칙), `safeReturnTo(raw)` (§5.4 화이트리스트), `mapLoginError(err)` (§3 에러 매핑 표).
+4. `useLoginForm()` 훅 시그니처 + `useState` 3종(form/errors/loading) + `onChangeEmail`/`onChangePassword`/`onSubmit` 스텁(아직 axios 미호출).
+
+> 이 시점에서는 `loginApi` 미연결이라 빌드만 통과. 빌드 깨짐 없음.
+
+권장 commit: `feat(pages-v2/login): add useLoginForm hook scaffold with validators`
+
+#### Step 2 — `hooks.ts` API 통합 완성
+
+1. `import { login as loginApi } from '@/api/auth.api'`, `import { unwrapApiData } from '@/api/client'`, `useAuth`, `useNavigate`, `useSearchParams` 추가.
+2. `onSubmit` 본체 작성: `validate` → `setLoading(true)` → `loginApi(form)` → `unwrapApiData` → `auth.login(accessToken, refreshToken)` → `navigate(safeReturnTo, { replace: true })`. catch 에서 `mapLoginError` → `setErrors`.
+3. `useLoginForm` 반환값에 `signupHref`, `googleOAuthUrl` 포함 (§7 D-7: `import.meta.env.VITE_GOOGLE_OAUTH_URL` 그대로).
+
+권장 commit: `feat(pages-v2/login): wire useLoginForm to auth.api login + AuthContext`
+
+#### Step 3 — `Login.tsx` 프레젠테이션
+
+1. `src/pages-v2/Login/Login.tsx` 생성. `LoginView` 함수 컴포넌트 + props 시그니처(§2 표).
+2. 인라인 named 컴포넌트 5종 작성, 의존 순서대로:
+   - `BrandHeader` (정적)
+   - `PageHeading` (정적)
+   - `LoginForm` (Phase 0 공용 `Input`/`Button`/`Icon` 사용, 폼 상태 props)
+   - `SocialLoginBlock` (§7 D-9 추가, `googleOAuthUrl` props, `Button` secondary + GoogleIcon)
+   - `SignupCallout` (`href` props, `<Link>`)
+3. `LoginView` 본체에서 `<Card padding={28}>` 안에 위 5개를 SPEC § 1 마크업 순서대로 조합. 인라인 `style={{}}` 금지(SPEC § 0).
+
+> 이 시점에서 `LoginView` 는 props 만 받아 그리는 순수 컴포넌트라 단독 빌드 OK. 라우트 미연결로 화면 노출은 아직 없음.
+
+권장 commit: `feat(pages-v2/login): add LoginView presentation with 5 inline blocks`
+
+#### Step 4 — `index.tsx` 진입점
+
+1. `src/pages-v2/Login/index.tsx` 생성, default export `LoginPage`.
+2. `useAuth()` 로 §5.4 인증 게이트:
+   - `isLoading` → `return null` (또는 §7 D-1 의 `<Loading fullscreen />`, 결정 따름).
+   - `isLoggedIn` → `<Navigate to={safeReturnTo(...)} replace />`.
+3. 미인증 정상 케이스: `useLoginForm()` 호출 결과를 `<LoginView ...props />` 에 전개.
+
+권장 commit: `feat(pages-v2/login): add LoginPage entry with auth gate and returnTo`
+
+#### Step 5 — 라우터 등록 (`src/App.tsx`)
+
+§6 의 정확한 diff 적용:
+
+1. import 영역: `import { VersionedRoute } from './router-v2'` 추가.
+2. lazy 그룹에 `const LoginV2 = lazy(() => import('./pages-v2/Login'))` 추가.
+3. `App.tsx:75` 한 줄 교체: `<Route path="/login" element={<VersionedRoute v1={<Login />} v2={<LoginV2 />} />} />`.
+
+> Phase 0 의 `src/router-v2/` 가 이미 존재한다고 가정. 미존재 시 본 PR 의 사전 의존성으로 기록 후 router-toggle PR 머지 대기.
+
+권장 commit: `feat(app): wire /login to VersionedRoute v2 (LoginV2)`
+
+#### Step 6 — 수동 검증 (커밋 없음)
+
+`npm run dev` 후 §6 의 5+2 케이스 모두 통과 확인. 불통 발견 시 해당 step 으로 돌아가 fix-up commit 추가.
+
+#### Step 7 — PR 본문 작성 + push
+
+PR description 에 §6 검증 표 + §5 상태 표 + §7 미결정 항목(D-1~D-10) 링크. 리뷰어가 결정 보류 항목을 인지한 채 검토하도록.
+
+권장 commit: (없음 — push 만)
+
+### 8.4 커밋 요약 (총 5 commits)
+
+| # | commit | 파일 | 누적 LOC |
+|---|---|---|---|
+| 1 | `feat(pages-v2/login): add useLoginForm hook scaffold with validators` | `hooks.ts` (부분) | ~60 |
+| 2 | `feat(pages-v2/login): wire useLoginForm to auth.api login + AuthContext` | `hooks.ts` (완성) | ~110 |
+| 3 | `feat(pages-v2/login): add LoginView presentation with 5 inline blocks` | `Login.tsx` | ~240 |
+| 4 | `feat(pages-v2/login): add LoginPage entry with auth gate and returnTo` | `index.tsx` | ~275 |
+| 5 | `feat(app): wire /login to VersionedRoute v2 (LoginV2)` | `App.tsx` | ~278 |
+
+### 8.5 사전 / 사후 의존성
+
+- **사전 (PR 머지 전 확정 필요)**:
+  - `src/router-v2/` 도입 PR 머지 (router-toggle.plan).
+  - Phase 1 공용 컴포넌트 `Card`, `Input`, `Button`, `Icon(spinner)` 사용 가능 (§2). `Icon spinner` 미존재 시 §7 D-6 따라 본 PR 안에서 추가 또는 별도 PR 선행.
+  - `VITE_GOOGLE_OAUTH_URL` 환경변수 (`.env.development` 등에 이미 존재 — 기존 Login 사용 중이라 추가 작업 불필요).
+- **사후 (본 PR 머지 후 별도 PR)**:
+  - §7 D-4 — `RequireAuth` 가 `/login` 이동 시 `returnTo` 부여. v2 LoginPage 는 부재 시 `/` fallback 이라 본 PR 동작 안전.
+  - cutover PR — `src/pages/Login.tsx` 삭제, `App.tsx` 의 `<VersionedRoute v1={<Login />} v2={<LoginV2 />} />` 를 `<LoginV2 />` 단독으로 교체.
