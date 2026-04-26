@@ -146,7 +146,103 @@ src/api/
 | `admin.api.ts` 일부 | `getFeePolicies`, `createFeePolicy`, `updateFeePolicy`, `getAdminUserDetail` | 페이지 직접 호출 없음 |
 
 ## 3. 도메인 타입
-(작성 예정)
+
+### 위치
+
+- `src/types/` 폴더는 **존재하지 않음**.
+- 모든 도메인 DTO는 `src/api/types.ts` (단일 파일, 약 800 LOC) 에 평탄하게 선언.
+- 공통 응답 래퍼/페이지네이션은 `src/api/client.ts` 에 별도 export.
+
+```
+src/api/
+├── client.ts   # ApiResponse<T>, Page<T>
+└── types.ts    # 도메인 DTO 전부
+```
+
+### 도메인 그룹
+
+| 그룹 | 대표 타입 |
+|---|---|
+| 공통 래퍼 (`client.ts`) | `ApiResponse<T>`, `Page<T>` |
+| 인증 / 토큰 | `SignUpRequest/Response`, `LoginRequest/Response`, `SocialSignUpOrLoginRequest/Response`, `LogoutResponse`, `TokenRefreshRequest/Response`, `WithdrawResponse` |
+| 프로필 | `SignUpProfileRequest/Response`, `GetProfileResponse`, `UpdateProfileRequest/Response`, `ChangePasswordRequest/Response` |
+| 판매자 신청 | `SellerApplicationRequest`, `SellerApplicationStatusResponse`, `SellerApplicationListResponse`, `SellerApplicationListItem` |
+| 이벤트 (구매자) | `EventListRequest`, `EventItem`, `EventListResponse`, `EventDetailResponse`, `EventSearchRequest/Response`, `EventFilterRequest/Response` |
+| 이벤트 (판매자) | `SellerEventCreateRequest/Response`, `SellerEventListRequest`, `SellerEventItem`, `SellerEventListResponse`, `SellerEventDetailResponse`, `SellerEventUpdateRequest/Response`, `SellerEventStopResponse`, `ParticipantItem`, `SellerEventParticipantListRequest/Response`, `SellerEventRefundListRequest/Response` |
+| 장바구니 | `CartItemDetail`, `CartItemRequest`, `AddCartItemResponse`, `CartResponse`, `CartItemQuantityRequest/Response`, `CartItemDeleteResponse`, `CartClearResponse` |
+| 추천 | `RecommendationRequest`, `RecommendationResponse` |
+| 주문 | `OrderRequest/Response`, `OrderListRequest`, `OrderItem`, `OrderListResponse`, `OrderDetailItem`, `OrderDetailResponse`, `OrderCancelResponse` |
+| 티켓 | `TicketListRequest`, `TicketItem`, `TicketListResponse`, `TicketDetailResponse` |
+| 결제 (PG) | `PaymentRequest/Response`, `PaymentConfirmRequest/Response`, `PaymentFailRequest` |
+| 지갑 | `WalletChargeStartRequest/Response`, `WalletChargeConfirmRequest/Response`, `WalletBalanceResponse`, `WalletTransactionListRequest`, `WalletTransactionItem`, `WalletTransactionListResponse`, `WalletWithdrawRequest/Response` |
+| 환불 | `RefundInfoResponse`, `TicketRefundRequest/Response`, `OrderRefundRequest/Response`, `RefundItem`, `RefundListResponse`, `SellerRefundItem`, `SellerRefundListResponse`, `RefundDetailResponse` |
+| 정산 | `SettlementItem`, `SettlementResponse`, `SettlementEventItem`, `SettlementMonthResponse` |
+| 관리자 | `AdminDashboardResponse`, `AdminEventSearchRequest`, `AdminEventItem`, `AdminEventListResponse`, `EventCancelResponse`, `UserSearchCondition`, `UserListItem`, `UserListResponse`, `AdminUserDetailResponse`, `UserStatusRequest/Response`, `UserRoleRequest/Response`, `AdminTechStackItem` |
+| 기술 스택 | `TechStackItem`, `TechStackListResponse` |
+
+### 주의 사항
+
+- `ParticipantItem` 인터페이스가 `types.ts` 내에서 **중복 선언**됨 (272행, 288행) — 한쪽이 다른 정의를 덮어씀. 정리 필요.
+- `EventSearchResponse`, `EventFilterResponse` 는 `EventListResponse` 의 type alias.
+- `SellerApplicationListResponse` 가 인증 섹션과 관리자 섹션 양쪽에 등장 (109행, 781행) — 중복 선언 가능성.
+- v2 규칙 상 페이지는 이 타입을 **직접 쓰지 않고** `adapters.ts` 를 거쳐 VM 으로 변환해야 함 (`docs/CLAUDE.md` 절대 규칙).
+
+## 4. 인증
+
+### 토큰 저장 위치
+
+| 키 | 저장소 | 쓰는 곳 |
+|---|---|---|
+| `accessToken` | `localStorage` | 요청 인터셉터에서 `Authorization: Bearer …` 헤더로 주입 |
+| `refreshToken` | `localStorage` | 401 발생 시 `/auth/reissue` 재발급 / `logout` 헤더 |
+| `userId` | `localStorage` | 요청 인터셉터에서 `X-User-Id` 헤더로 주입 |
+
+세 키는 다음 시점에 동시에 정리됨:
+- `AuthContext.logout()` (`src/contexts/AuthContext.tsx:71`)
+- `AuthContext.fetchUser()` 의 프로필 조회 실패 (`src/contexts/AuthContext.tsx:56`)
+- 토큰 재발급 실패 → `/login` 강제 이동 (`src/api/client.ts:97`)
+
+### Axios 인터셉터 (`src/api/client.ts`)
+
+| 종류 | 위치 | 동작 |
+|---|---|---|
+| Request | `client.ts:36` | `accessToken` 있으면 `Authorization: Bearer …`, `userId` 있으면 `X-User-Id` 주입 |
+| Response (성공) | `client.ts:53` | passthrough |
+| Response (403 + `code: PROFILE_NOT_COMPLETED`) | `client.ts:60` | 현재 경로가 `/social/profile-setup`, `/oauth/callback` 가 아니면 `window.location.href = '/social/profile-setup'` |
+| Response (401, 첫 시도) | `client.ts:68` 이하 | `isRefreshing` 락 + `failedQueue` 로 동시 요청 직렬화 → `${BASE_URL}/auth/reissue` 호출 → 새 access 토큰 저장 → `originalRequest._retry=true` 로 재시도 |
+| Response (재시도 실패) | `client.ts:95` | 토큰 3종 제거 + `window.location.href = '/login'` |
+
+추가 유틸:
+- `unwrapApiData<T>()` — `{code,message,data}` 래퍼와 raw payload 양쪽 안전 언랩.
+- `idempotencyConfig()` — `Idempotency-Key` 헤더 (UUID v4, crypto fallback 3단) — 결제/주문 중복 방지용.
+- baseURL 은 `"/api"` (런타임), `BASE_URL` (= `VITE_API_BASE_URL` ?? `http://localhost:8080`) 은 토큰 재발급 호출에만 사용.
+
+### `AuthContext` (`src/contexts/AuthContext.tsx`)
+
+- 상태: `{ user: GetProfileResponse | null, isLoggedIn, isLoading, role: 'USER' | 'SELLER' | 'ADMIN' | null }`
+- 마운트 시 `fetchUser()` → `localStorage.accessToken` 있으면 `getProfile()` 호출, 응답 `data.userId` 를 `localStorage.userId` 에 백필 + 상태 갱신.
+- `getProfile` 이 403 + `PROFILE_NOT_COMPLETED` 를 던지면 토큰은 **유지**하고 비로그인 상태로만 둠 (axios 인터셉터가 다음 호출에서 `/social/profile-setup` 로 보냄).
+- `login(accessToken, refreshToken)` — 두 토큰을 localStorage 에 저장 후 `fetchUser()` 재호출.
+- `logout()` — 토큰 3종 제거 + 상태 초기화.
+- `useAuth()` 훅: Provider 밖에서 호출 시 throw.
+
+`AuthProvider` 는 `src/main.tsx:15` 에서 앱 루트에 마운트.
+
+### 라우트 가드 (`src/App.tsx`)
+
+세 가드 모두 `useAuth()` 를 사용하며, `isLoading` 동안 `<Loading fullscreen />` 노출:
+
+| 가드 | 통과 조건 | 실패 시 이동 | 위치 |
+|---|---|---|---|
+| `RequireAuth` | `isLoggedIn === true` | `/login` | `App.tsx:48` |
+| `RequireSeller` | `role` 이 `SELLER` 또는 `ADMIN` | `/` | `App.tsx:55` |
+| `RequireAdmin` | `role` 이 `ADMIN` | `/` | `App.tsx:62` |
+
+가드 적용 라우트:
+- `RequireAuth`: `/cart`, `/payment`, `/payment/complete`, `/payment/success`, `/payment/fail`, `/mypage`, `/seller-apply`, `/wallet/charge/success`, `/wallet/charge/fail` (모두 `<Layout>` 하위)
+- `RequireSeller` + `<SellerLayout>`: `/seller`, `/seller/events/create`, `/seller/events/:id`, `/seller/events/:id/edit`, `/seller/settlements`
+- `RequireAdmin` + `<AdminLayout>`: `/admin`, `/admin/users`, `/admin/events`, `/admin/applications`, `/admin/settlements`, `/admin/techstacks`
+- 가드 없음(공개): `/`, `/events/:id`, `/login`, `/signup`, `/signup/complete`, `/oauth/callback`, `/social/profile-setup`, `*`
 
 ## 4. 인증
 (작성 예정)
