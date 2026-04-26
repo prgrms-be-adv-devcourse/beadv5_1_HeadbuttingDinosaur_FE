@@ -863,8 +863,170 @@ const CartV2 = lazy(() => import('./pages-v2/Cart'))
 - [ ] tsc --noEmit / vite build 통과
 ```
 
-## 10.2 PR 2
-(작성 예정)
+## 10.2 PR 2 — 상태 관리 + API 통합 (+ v1 PaymentModal 브리지)
+
+### 분할 결정 근거
+
+| 항목 | 선택 | 사유 |
+|---|---|---|
+| 상태 관리 (§ 3) | **B 서버** | "A 또는 B는 PR 2 한 번에 가능" — 본 PR에 흡수 |
+| 결제 PG 연동 (§ 7) | **SDK 방식 (Toss)** | 사용자 가이드: "SDK 방식이거나 자체 결제 페이지: PR 3 분리" → PR 3로 분리 |
+| PaymentModal v2 리스킨 (§ 9.1-7) | **PR 3** | UI/UX 톤앤매너 변경 분량이 별도 PR 단위 |
+| 라우터 등록 (§ 8) | **PR 1에서 이미 완료** | `<VersionedRoute>` 교체는 § 10.1에 포함됨 — PR 2에선 라우터 작업 없음 |
+| 추천 카드 (`recommendEvents`) | **PR 4** | 본 PR 범위 밖. 카트 핵심 동작과 독립 |
+| 결제 콜백 페이지 v2 (§ 9.1-8) | **PR 5** | 별도 PR (§ 10.4 제안) |
+
+**추천 분할**: PR 1(시각) → **PR 2(상태+API+v1 모달 브리지)** → PR 3(PaymentModal v2) → PR 4(추천) → PR 5(결제 콜백 v2). 본 § 10.2는 PR 2만 다룸.
+
+### 목표
+
+`/cart?v=2` 진입 시 **실제 백엔드 cart**를 조회·수정·삭제하고, "결제하기" 클릭 시 **v1 `PaymentModal`을 임시 브리지로 띄워 결제까지 종단 완료**. PR 3에서 모달만 v2로 교체될 예정이므로 PR 2 시점에서 결제 플로우가 회귀 없이 동작해야 함.
+
+### 포함 / 제외
+
+| 영역 | 포함 ✅ | 제외 ❌ |
+|---|---|---|
+| 타입 (`types.ts`) | `OrderResultVM` 추가, `CartQuery` 사용 활성화 | — |
+| 어댑터 (`adapters.ts`) | `toCartItemVM`, `toCartVM`, `mergeQuantityUpdate`, `toOrderResultVM` (§ 4 어댑트 매핑) | 추천 어댑터 (PR 4) |
+| 훅 (`hooks.ts`) | `useCart`(GET), `useCartMutations`(PATCH/DELETE 낙관적+롤백), `useCheckout`(createOrder + idempotency + 모달 토글) | `useRecommendedEvents` (PR 4) |
+| 페이지 (`index.tsx`) | mock 주입 제거 → 훅 기반 컨테이너. v1 `PaymentModal` import + 마운트 | v2 PaymentModal (PR 3) |
+| 페이지 (`Cart.tsx`) | mock prop 시그니처 그대로 유지(컨테이너만 바뀜). 결제 버튼 `disabled` 해제 + 콜백 연결 | — |
+| Mock 청소 | `__mocks__/cartFixtures.ts` 삭제 + `?cartFixture=...` URL 토글 제거 | — |
+| Idempotency (§ 9.2-15) | `createOrder` 호출에 `idempotencyConfig()` 부착 | `readyPayment`(PR 3) |
+| 백엔드 검증 (§ 9.3) | V1·V3·V4를 PR 2 시작 전 수행, V2·V5는 PR 2 머지 시점에 재확인 | — |
+
+### 의존 PR
+
+- **PR 1 머지 필수**. `<VersionedRoute>` 진입점·정적 컴포넌트·`CartItemVM` 타입에 의존.
+- 후속 PR 3는 PR 2가 `index.tsx`에서 import한 `src/components/PaymentModal`(v1) 한 줄을 v2 모달로 교체하는 형태로 진행 → PR 2 구조가 그 교체를 쉽게 만들도록 모달 마운트를 `index.tsx`에 모음.
+
+### 추정 LOC
+
+| 파일 | 변경 | LOC |
+|---|---|---|
+| `Cart/types.ts` | `OrderResultVM` 추가 | +8 |
+| `Cart/adapters.ts` | 신규 | +85 |
+| `Cart/hooks.ts` | 신규 (`useCart` ~40, `useCartMutations` ~70, `useCheckout` ~40) | +150 |
+| `Cart/index.tsx` | 재작성 (mock → hooks + 모달 브리지) | +60 / -25 |
+| `Cart/Cart.tsx` | 결제 버튼 활성화 + `pendingItemIds` prop 연결 | +15 / -5 |
+| `Cart/__mocks__/cartFixtures.ts` | 삭제 | -40 |
+| 합계 (순증) | | **~250 LOC** (목표 200~400 내) |
+
+### 파일 작업 순서
+
+의존성: types → adapters → hooks(작은 것부터) → 컨테이너 → 청소.
+
+1. **`Cart/types.ts`** — `OrderResultVM` 추가:
+   ```ts
+   export interface OrderResultVM { orderId: string; totalAmount: number; }
+   ```
+2. **`Cart/adapters.ts`** — § 4 어댑트 매핑 표 그대로:
+   - `toCartItemVM(api: CartItemDetail): CartItemVM` — `lineTotal = price * quantity` 파생
+   - `toCartVM(res: CartResponse): CartVM` — `items: toCartItemVM[]`, `subtotal = totalAmount`
+   - `mergeQuantityUpdate(prev: CartVM, res: CartItemQuantityResponse): CartVM` — 부분 머지
+   - `toOrderResultVM(res: OrderResponse): OrderResultVM`
+3. **`Cart/hooks.ts` :: `useCart`** — 마운트 시 1회 `getCart()` → `unwrapApiData` → `toCartVM`. `CartQuery` 상태 머신(loading/success/error). `refetch()` 노출.
+4. **`Cart/hooks.ts` :: `useCartMutations`** — `pendingItemIds: Set<string>` state + `addItem` / `setQuantityDelta(id, delta)` / `removeItem(id)` / 각 함수 내부에서:
+   - 낙관적 업데이트 → mutation 호출 → 응답 머지 (`mergeQuantityUpdate`) → 실패 시 snapshot 롤백 + 토스트
+   - 동시 클릭 가드(`pendingItemIds.has(id)` → return)
+   - 409 시 `refetch()` 1회 호출 (§ 9.2-12)
+5. **`Cart/hooks.ts` :: `useCheckout`** — `checkoutState: 'idle'|'submitting'|'error'` + `paymentTarget: { orderId, totalAmount } | null`. `submit(items)`:
+   - guard: empty / pending → return
+   - `await createOrder({ cartItemIds }, idempotencyConfig())` — § 9.2-15
+   - 성공 → `setPaymentTarget(toOrderResultVM(res))` (모달 노출 트리거)
+   - 409 → `refetch()` + 인라인 배너 메시지 set
+   - 5xx/network → 토스트
+6. **`Cart/Cart.tsx`** — 결제 버튼 `disabled={false}`로 풀고 `onCheckout` prop을 `useCheckout.submit`으로 연결. row 단위 `pendingItemIds` prop 전파.
+7. **`Cart/index.tsx`** — 재작성:
+   ```tsx
+   const cart = useCart();
+   const mut  = useCartMutations(cart.refetch);
+   const co   = useCheckout(cart.data?.items ?? [], cart.refetch);
+   const navigate = useNavigate();
+
+   return (
+     <>
+       <Cart query={cart.query} pendingItemIds={mut.pendingItemIds} ... />
+       {co.paymentTarget && (
+         <PaymentModal                                     /* v1 — 임시 브리지 */
+           open
+           orderId={co.paymentTarget.orderId}
+           totalAmount={co.paymentTarget.totalAmount}
+           onClose={co.closeModal}
+           onSuccess={() => navigate('/payment/complete', { state: co.paymentTarget })}
+         />
+       )}
+     </>
+   );
+   ```
+   - `import PaymentModal from '@/components/PaymentModal'` — **v1 그대로 import**. PR 3에서 이 한 줄만 v2로 교체.
+   - `?cartFixture=...` URL 토글 코드 제거.
+8. **`Cart/__mocks__/cartFixtures.ts`** — 삭제.
+
+### 권장 커밋 분할
+
+| # | 커밋 메시지 | 포함 |
+|---|---|---|
+| 1 | `feat(cart-v2): add adapters and OrderResultVM` | step 1·2 |
+| 2 | `feat(cart-v2): add useCart fetch hook` | step 3 |
+| 3 | `feat(cart-v2): add useCartMutations with optimistic updates` | step 4 |
+| 4 | `feat(cart-v2): add useCheckout with idempotency` | step 5 |
+| 5 | `feat(cart-v2): wire Cart presentation to hooks` | step 6 |
+| 6 | `feat(cart-v2): mount v1 PaymentModal as interim checkout bridge` | step 7 |
+| 7 | `chore(cart-v2): drop mock fixtures` | step 8 |
+
+> 6, 7을 합쳐 6개로 줄여도 무방. 단 **커밋 4(useCheckout)** 와 **커밋 6(모달 브리지)** 분리는 권장 — `idempotencyConfig` 추가가 결제 호출에 손대는 첫 변경이라 회귀 시 단독 revert 가치.
+
+### 검증 방법
+
+자동 테스트 인프라 없음(SPEC § 5). **수동 QA**:
+
+#### 백엔드 검증 선행 (§ 9.3)
+
+- [ ] V1: 같은 eventId 두 번 `addCartItem(quantity=1)` → 단일 `cartItemId` + `quantity: 2` 응답 확인 (합산 동작 가정 검증)
+- [ ] V3: 매진 이벤트로 `createOrder` → 409 응답 body 포맷 기록 → 인라인 배너 메시지 매핑 갱신
+- [ ] V4: `quantity=1` row에 `-1` PATCH → 응답 코드 / 클라 가드(min=1) 적정성 확인
+
+#### 핵심 흐름
+
+- [ ] `/cart?v=2` 마운트 → 네트워크 탭에서 `GET /cart` 1회 확인 → 결과로 리스트 / `EmptyCart` 분기 정상
+- [ ] `+` 클릭: `PATCH /cart/items/:id { quantity: 1 }` 발사 → 낙관적 즉시 갱신 → 응답 머지 → 라인 합계·총합 정확
+- [ ] `−` 클릭: `quantity: -1` PATCH. `quantity=1`에서 `−` 비활성(`atMin`)
+- [ ] 빠른 연타: `pendingItemIds` 가드로 인플라이트 동안 양 버튼 disabled
+- [ ] "삭제": `DELETE /cart/items/:id` → 즉시 제거 → 마지막 항목 삭제 시 `EmptyCart` 자동 전환
+- [ ] mutation 실패 (네트워크 끊고 시도): 낙관 업데이트 롤백 + 토스트
+- [ ] 409 모킹 (백엔드와 협의해 일시적 트리거 또는 devtool 응답 변조): row 인라인 chip "재고 부족" + `getCart()` 재페치 발사
+- [ ] "결제하기": `POST /orders { cartItemIds }` 호출 시 **`Idempotency-Key` 헤더 부착 확인** (devtool Network) → 200 응답 → v1 `PaymentModal` 오픈
+- [ ] 모달에서 WALLET 결제 → `POST /payments/ready` 즉시 성공 → `navigate('/payment/complete', state)` → 기존 페이지 정상
+- [ ] 모달에서 PG 결제 → `tossPayments.requestPayment` redirect → Toss 테스트 결제 → `/payment/success` (v1) → confirm → `/payment/complete`
+- [ ] 모달 X / Toss 취소 → `USER_CANCEL` 토스트 + Cart 머무름 + cart items 보존 (V5 검증)
+
+#### 회귀
+
+- [ ] `/cart?v=1` v1 회귀 없음
+- [ ] EventDetail v2 → "장바구니 담기" / "바로 구매" → `/cart?v=2`로 진입 시 새로 담은 항목 노출
+- [ ] `tsc --noEmit` 통과
+- [ ] 비로그인 / 401 발생 시 인터셉터가 재발급 / `/login` redirect (Cart 코드는 추가 처리 안 함, § 4)
+
+### PR 본문 템플릿
+
+```
+## Summary
+- v2 Cart 페이지를 백엔드 cart API와 연동 (GET/PATCH/DELETE)
+- 낙관적 업데이트 + 롤백 + pendingItemIds 가드 도입
+- createOrder에 Idempotency-Key 부착, v1 PaymentModal을 임시 브리지로 마운트하여 결제 종단 동작
+- mock fixture 제거
+
+## Test plan
+- [ ] /cart?v=2 GET /cart → 리스트 / 빈 상태 분기
+- [ ] +/- → PATCH delta + 낙관적 갱신 + 롤백
+- [ ] 삭제 → DELETE + 낙관적 + 롤백
+- [ ] pendingItemIds 가드로 연타 차단
+- [ ] 409 발생 시 인라인 chip + 재페치
+- [ ] 결제하기 → createOrder (Idempotency-Key 헤더 확인) → PaymentModal → WALLET / PG 종단 정상
+- [ ] /cart?v=1 회귀 없음
+- [ ] tsc --noEmit
+```
 
 ## 10.3 PR 간 의존성
 (작성 예정)
