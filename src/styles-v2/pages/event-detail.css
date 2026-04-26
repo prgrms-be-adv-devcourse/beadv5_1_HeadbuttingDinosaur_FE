@@ -141,3 +141,58 @@
 .ed-tech-chip {
   cursor: default;
 }
+
+/* PurchasePanel (§2 PurchasePanel) — sticky right column */
+.ed-purchase-sticky {
+  position: sticky;
+  top: 12px;
+}
+.ed-purchase {
+  overflow: hidden;
+}
+.ed-purchase__inner {
+  padding: 20px;
+}
+.ed-price__label {
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+.ed-price__amount {
+  font-family: var(--font);
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.ed-price__amount.is-free {
+  color: var(--term-green-dim);
+}
+.ed-quantity {
+  margin-top: 20px;
+}
+.ed-quantity__label {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.ed-purchase__actions {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ed-notice {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: var(--editor-line);
+  border-left: 3px solid var(--brand);
+  border-radius: 0 6px 6px 0;
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text-3);
+  line-height: 1.7;
+}
