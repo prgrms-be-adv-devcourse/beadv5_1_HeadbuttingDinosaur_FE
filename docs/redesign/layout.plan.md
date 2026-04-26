@@ -138,7 +138,77 @@
 
 
 ## 2. 컴포넌트 분해
-(작성 예정)
+
+### 2-1. 파일 트리 (`src/components-v2/Layout/`)
+
+```
+src/components-v2/Layout/
+├── index.tsx                         # 메인 컨테이너 (그리드 셸 + palette 상태)
+├── TitleBar.tsx                      # 상단 타이틀바
+├── ActivityBar.tsx                   # 좌측 아이콘 레일
+├── Sidebar/
+│   ├── index.tsx                     # 사이드바 컨테이너 (섹션 접기/펴기)
+│   ├── SidebarMenu.tsx               # 메뉴 트리 (홈/이벤트+카테고리/장바구니/마이페이지/로그인)
+│   ├── SidebarUpcoming.tsx           # 다가오는 이벤트 섹션
+│   └── SidebarSession.tsx            # 세션 정보 (로그인 시)
+├── TabBar.tsx                        # 라우트 ↔ 탭 동기화
+├── Minimap.tsx                       # 우측 미니맵 (장식)
+├── StatusBar.tsx                     # 하단 상태바
+├── CommandPalette/
+│   ├── index.tsx                     # 오버레이 + 검색/선택 상태
+│   ├── PaletteList.tsx               # 필터된 항목 리스트
+│   └── usePaletteCommands.ts         # 명령 + 이벤트 검색 항목 빌드
+├── hooks/
+│   └── useGlobalShortcuts.ts         # ⌘K / Esc / g+x / j/k / Enter
+├── LayoutChromeContext.tsx           # palette open / theme / logout 공유
+└── types.ts                          # RouteKey, ActivityItem, TabDef, PaletteItem
+```
+
+분해 기준: 프로토타입 단일 파일(343줄)을 영역별로 나누고, **Sidebar(95줄 → TS 변환 시 150~180줄 예상)** 과 **CommandPalette(64줄 + 명령 빌드 로직)** 만 추가 분해. 나머지 영역은 단일 파일로 유지(모두 변환 후 100줄 이하 추정).
+
+### 2-2. 컴포넌트 표
+
+| 파일 | 컴포넌트 | 위치 | 역할 (1줄) | 의존 |
+|---|---|---|---|---|
+| `index.tsx` | `Layout` | 전체 | `.ide` 그리드 셸 + 자식 슬롯(`<Outlet/>`) + palette 상태 보유 | `TitleBar`, `ActivityBar`, `Sidebar`, `TabBar`, `Minimap`, `StatusBar`, `CommandPalette`, `LayoutChromeProvider`, `useGlobalShortcuts` |
+| `TitleBar.tsx` | `TitleBar` | 상단 (36px) | 트래픽 라이트 + 서비스명 + ⌘K 검색 박스 + 테마 토글 버튼 | `Icon` |
+| `ActivityBar.tsx` | `ActivityBar` | 좌측 (48px) | 라우트별 아이콘 버튼 + 카트 카운트 배지 + 인증 가드 | `Icon`, `useChrome` |
+| `Sidebar/index.tsx` | `Sidebar` | 좌측 (220px) | 3개 섹션 컨테이너 + 헤더 접기/펴기 상태 관리 | `SidebarMenu`, `SidebarUpcoming`, `SidebarSession` |
+| `Sidebar/SidebarMenu.tsx` | `SidebarMenu` | 사이드바 1번째 섹션 | 메뉴 트리(홈/이벤트+카테고리 6개/장바구니/마이페이지/로그인) + 카테고리 카운트 | `Icon` |
+| `Sidebar/SidebarUpcoming.tsx` | `SidebarUpcoming` | 사이드바 2번째 섹션 | 판매중 이벤트 상위 4개 리스트 → detail 라우트 이동 | (api adapter VM) |
+| `Sidebar/SidebarSession.tsx` | `SidebarSession` | 사이드바 3번째 섹션 | 로그인 시 닉네임 + 온라인 인디케이터 | — |
+| `TabBar.tsx` | `TabBar` | 상단 2행 (34px) | 라우트별 탭 표시 + active 인디케이터 + close 버튼 | `Icon` |
+| `Minimap.tsx` | `Minimap` | 우측 (60px) | 라우트별 syntax 라인 패턴 + viewport 윈도우 (장식) | — |
+| `StatusBar.tsx` | `StatusBar` | 하단 (24px) | 브랜치 / 상태 / 라우트 라벨 / 언어 / 세션 / ⌘K 트리거 | `Icon`, `useChrome` |
+| `CommandPalette/index.tsx` | `CommandPalette` | fixed 오버레이 | 백드롭 + 입력 + 키보드 네비 + 힌트 푸터 | `PaletteList`, `usePaletteCommands` |
+| `CommandPalette/PaletteList.tsx` | `PaletteList` | 팔레트 내부 | 필터 결과 항목 렌더 + hover/sel 하이라이트 | `Icon` |
+| `CommandPalette/usePaletteCommands.ts` | `usePaletteCommands` | hook | 정적 명령(라우트/테마/로그인) + 이벤트 검색 항목 빌드 | (api adapter VM) |
+| `hooks/useGlobalShortcuts.ts` | `useGlobalShortcuts` | hook | ⌘K / Esc / `/` / g+h·e·c·m / j·k / Enter 키 핸들러 | `useChrome` |
+| `LayoutChromeContext.tsx` | `LayoutChromeProvider` / `useChrome` | context | `openPalette` / `toggleTheme` / `logout` / `focusSearch` 공유 (`window.*` 대체) | — |
+| `types.ts` | (타입만) | — | `RouteKey`, `ActivityItem`, `TabDef`, `PaletteItem`, `ChromeContextValue` | — |
+
+### 2-3. 분해 근거 (200줄 가드)
+
+| 컴포넌트 | 프로토타입 라인 | TS 변환 후 예상 | 분해? |
+|---|---|---|---|
+| TitleBar | 19 | ~50 | 아니오 |
+| ActivityBar | 31 | ~80 (items 정의 + 가드) | 아니오 |
+| **Sidebar** | **95** | **170~200 (위험)** | **예 → 3 sub** |
+| TabBar | 18 | ~50 | 아니오 |
+| Minimap | 20 | ~60 (패턴 상수 포함) | 아니오 |
+| StatusBar | 20 | ~70 | 아니오 |
+| **CommandPalette** | **64** | **180~220 (위험)** | **예 → list + hook 분리** |
+| Layout (index) | 61 | ~120 (context provider + shortcuts hook 호출) | 아니오 |
+
+`Sidebar/`는 섹션이 3개로 명확히 분리되고 각각 독립적인 데이터/상태를 가지므로 폴더 분해. `CommandPalette/`는 항목 빌드 로직(이벤트 API 호출 포함)을 hook으로 빼고, 리스트 렌더만 별도 파일로.
+
+### 2-4. 제외 — 별도 파일로 만들지 않는 것
+
+- `TrafficLights` — 6줄짜리 마크업, `TitleBar` 내부에 인라인
+- `SidebarSectionHeader` — 헤더는 패턴이 단순(제목 + chevron)해서 각 섹션에서 직접 작성
+- `Tab` 단일 항목 — 18줄 안쪽이라 `TabBar` 내부 map으로 충분
+- `PaletteInput` / `PaletteHint` — 각각 5~10줄, `CommandPalette/index.tsx` 내부에 인라인
+
 
 ## 3. 각 서브 컴포넌트 props 시그니처
 (작성 예정)
