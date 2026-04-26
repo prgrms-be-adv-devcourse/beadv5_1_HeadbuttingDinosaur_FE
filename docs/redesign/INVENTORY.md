@@ -271,7 +271,84 @@ src/api/
 - 데이터 페칭 캐시 레이어가 없어 페이지 단에서 `useEffect` + `useState` + 자체 훅(`hooks/useApi`, `usePagedApi`) 으로 처리 중.
 
 ## 6. 프로토타입에만 있는 것
-(작성 예정)
+
+§1 의 프로토타입 매칭 표 기준, **현재 라우트가 없는** 프로토타입 산출물.
+
+### 신규 페이지 후보
+
+| 프로토타입 파일 | 성격 | v2 작업 |
+|---|---|---|
+| `prototype/Landing.jsx` | 비로그인 첫 화면 | 신규 페이지 추가 검토. 현재 `/` 는 `EventList` 가 점유 중 → 라우트 정책 결정 필요 (`/` ↔ `/events` 분리 또는 Landing 을 `/intro` 등으로) |
+
+### 페이지 아님 (참고/공유 자산)
+
+| 프로토타입 파일 | 성격 | v2 처리 |
+|---|---|---|
+| `prototype/App.jsx` | 프로토타입의 앱 엔트리 | 참고만. v2 라우트는 `src/App.tsx` 에 별도 정의 |
+| `prototype/Layout.jsx` | 프로토타입 레이아웃 | `src/components-v2/` 에 새 Layout 으로 재구현 (v2 절대 규칙: 기존 `src/components/Layout.tsx` 수정 금지) |
+| `prototype/common.jsx` | 공통 UI 컴포넌트 모음 | 페이지 작업 시 단위 컴포넌트로 분해해 `src/components-v2/` 에 옮김 |
+| `prototype/tokens.css` | 디자인 토큰 (색/타이포/스페이싱) | `src/styles-v2/` 에 토큰 파일로 이식. v2 토큰 표준의 출발점 |
+| `prototype/ide-theme.css` | IDE 테마 변형 스타일 | `tokens.css` 와 함께 `src/styles-v2/` 로 이식 (테마 적용 범위 합의 필요) |
+| `prototype/DevTicket IDE.html` | 정적 HTML 데모 | 참고만. 코드 이식 대상 아님 |
+| `prototype/assets/` | 이미지/아이콘 등 | 사용되는 자산만 `src/assets-v2/` 또는 `public/` 으로 이식 |
+
+## 7. 기존에만 있는 것
+
+§1 의 매칭 표 기준, 프로토타입에 **시각 디자인이 없는** 기존 페이지. 리뉴얼 PR 단위로 처리 정책을 정해야 함.
+
+### 인증 / 회원 가입 플로우
+
+| 라우트 | 파일 | 권장 처리 |
+|---|---|---|
+| `/signup` | `pages/Signup.tsx` | 프로토타입 `Login.jsx` 의 디자인 톤을 확장해 v2 신규 디자인 작성 필요 |
+| `/signup/complete` | `pages/SignupComplete.tsx` | 결과 페이지 — 프로토타입 패턴 재사용해 단순 안내 페이지로 |
+| `/oauth/callback` | `pages/OAuthCallback.tsx` | UI 거의 없음 (콜백 처리/리다이렉트). 로직 이전만 |
+| `/social/profile-setup` | `pages/SocialProfileSetup.tsx` | `Signup` 과 폼 공유 — Signup v2 작업과 함께 묶어서 진행 |
+
+### 결제 / 지갑 후속 라우트
+
+| 라우트 | 파일 | 권장 처리 |
+|---|---|---|
+| `/payment` | `pages/Payment.tsx` | 프로토타입 `Cart.jsx` 디자인 라인 연장. 신규 디자인 필요 |
+| `/payment/complete` | `pages/PaymentComplete.tsx` | 결과 페이지 (PG 콜백). 단순 안내로 v2 작성 |
+| `/payment/success` | `pages/PaymentSuccess.tsx` | 동일 — 결과 페이지 |
+| `/payment/fail` | `pages/PaymentFail.tsx` | 동일 — 결과 페이지 |
+| `/wallet/charge/success` | `pages/WalletChargeSuccess.tsx` | 동일 — 결과 페이지 |
+| `/wallet/charge/fail` | `pages/WalletChargeFail.tsx` | 동일 — 결과 페이지 |
+
+### 판매자 신청 / 공통
+
+| 라우트 | 파일 | 권장 처리 |
+|---|---|---|
+| `/seller-apply` | `pages/SellerApply.tsx` | 신규 디자인 필요 (프로토타입 `MyPage.jsx` 톤 참고) |
+| `*` | `pages/NotFound.tsx` | 단순 페이지 — v2 신규 작성 |
+
+### 판매자 콘솔 (`/seller/*`) — 프로토타입 디자인 없음
+
+| 라우트 | 파일 | 권장 처리 |
+|---|---|---|
+| `/seller` | `pages/seller/SellerDashboard.tsx` | **리뉴얼 1차 SKIP 후보**. 콘솔은 별도 디자인 트랙으로 분리 |
+| `/seller/events/create` | `pages/seller/SellerEventCreate.tsx` | SKIP 또는 별도 처리 |
+| `/seller/events/:id/edit` | `pages/seller/SellerEventEdit.tsx` | SKIP 또는 별도 처리 |
+| `/seller/events/:id` | `pages/seller/SellerEventDetail.tsx` | SKIP 또는 별도 처리 |
+| `/seller/settlements` | `pages/seller/SellerSettlement.tsx` | SKIP 또는 별도 처리 |
+
+### 관리자 콘솔 (`/admin/*`) — 프로토타입 디자인 없음
+
+| 라우트 | 파일 | 권장 처리 |
+|---|---|---|
+| `/admin` | `pages/admin/AdminDashboard.tsx` | **리뉴얼 1차 SKIP 후보** (관리자 전용, 외부 노출 X) |
+| `/admin/users` | `pages/admin/AdminUsers.tsx` | SKIP |
+| `/admin/events` | `pages/admin/AdminEvents.tsx` | SKIP |
+| `/admin/applications` | `pages/admin/AdminApplications.tsx` | SKIP |
+| `/admin/settlements` | `pages/admin/AdminSettlements.tsx` | SKIP |
+| `/admin/techstacks` | `pages/admin/AdminTechStacks.tsx` | SKIP |
+
+### 정리
+
+- **신규 디자인 필수** (구매자 동선): `Signup`, `SignupComplete`, `SocialProfileSetup`, `Payment`, `Payment*` 결과, `Wallet*` 결과, `SellerApply`, `NotFound` — 총 11개
+- **로직만 이식** (UI 없음): `OAuthCallback`
+- **리뉴얼 SKIP 후보** (별도 트랙): `seller/*` 5개 + `admin/*` 6개 = 총 11개
 
 ## 7. 기존에만 있는 것
 (작성 예정)
