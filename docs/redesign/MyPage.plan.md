@@ -831,7 +831,214 @@ SPEC § 3 은 둘 중 하나. 1차 PR 결정은 § 6.2/§ 6.3 에서. 본 절은
 - 프로토타입의 인라인 `style={{}}` / `r.amt.toLocaleString()` 직접 호출 / 인라인 status `cls` 분기는 가져오지 않음 (SPEC § 0). 금액/상태 매핑은 어댑터에서 (§ 6.2).
 
 ### 6.2 API 매핑
+
+#### 6.2.1 호출 함수
+
+```ts
+// src/api/orders.api.ts (기존, 수정 금지)
+export const getOrders = (params?: OrderListRequest) =>
+  apiClient.get<ApiResponse<OrderListResponse>>('/orders', { params });
+
+export const cancelOrder = (orderId: string) =>
+  apiClient.patch<ApiResponse<OrderCancelResponse>>(`/orders/${orderId}/cancel`);
+```
+
+- 엔드포인트: `GET /orders` (BE 경로). SPEC § 3 의 `/api/me/orders` 표기는 baseURL `/api` 합성 후 동일.
+- **`ApiResponse<T>` 래퍼 있음**: Tickets 와 달리 wrapping 됨 → 어댑터에서 `unwrapApiData(res)` 또는 `res.data.data` 접근. 본 plan 은 `unwrapApiData` 사용 (`src/api/client.ts`).
+- 페이지 요청 0-base (v1 MyPage.tsx:121 `{ page: 0, size: 20 }` 동일 컨벤션). 1차 PR 도 동일.
+- `cancelOrder` 는 § 11(취소 동선) 결정 후 합류 — 1차 PR 범위는 조회만.
+
+#### 6.2.2 응답 타입 (실측)
+
+```ts
+// src/api/types.ts:393
+interface OrderItem {
+  orderId: string;
+  status: string;       // 'CREATED' | 'PAYMENT_PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED'
+  totalAmount: number;
+  createdAt: string;    // ISO
+}
+interface OrderListResponse {
+  content: OrderItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+```
+
+#### 6.2.3 응답 필드 매핑 (mock → API → VM)
+
+| 프로토타입 mock 필드 | API 필드 | 실제 위치 | VM 필드 (`OrderRowVM`) | 변환 |
+|---|---|---|---|---|
+| `id` (`'ORD_a8f3'`) | `orderId` | `types.ts:394` | `orderId: string`, `displayId: string` | `displayId = shortenOrderId(api.orderId)` (§ 6.2.5) |
+| `ev` (`'Spring Camp 2026'`) | **없음** | — | `eventTitle: string \| null` | § 6.2.4 결정 |
+| `amt` (`49000`) | `totalAmount` | `types.ts:396` | `amountLabel: string` | `fmtPrice(api.totalAmount)` → `'49,000원'` (`src/lib/format.ts:22`). `0` 인 케이스(전액 예치금/포인트)는 `'free'` 대신 `'0원'` 으로 — § 11 |
+| `st` (`'결제 완료' / '결제 대기' / '환불 완료'`) | `status` (string) | `types.ts:395` | `statusVariant: 'ok' \| 'end' \| 'sold'`, `statusLabel: string` | enum 매핑 표 (§ 6.2.6) |
+| `date` (`'2026.04.14'`) | `createdAt` (ISO) | `types.ts:397` | `dateLabel: string` | `fmtDate(api.createdAt)` (§ 4.3.1) → `'2026.04.14 10:23'`. 프로토타입은 날짜만 보여주지만 v2 는 시각까지 노출 (정렬 기준 명확화) |
+| (없음) | `orderId` | `types.ts:394` | `orderId: string` | 행 `key` + 향후 `/mypage/orders/:orderId` 상세 진입 |
+
+#### 6.2.4 `eventTitle` 필드 — API 부재 처리
+
+가장 큰 갭. `OrderItem` 은 이벤트 이름을 **내려주지 않는다**. v1 `pages/MyPage.tsx:240-247` 도 주문 리스트에서 이벤트 이름을 표시하지 않고 status / orderId / amount / date 4개만 노출(카드 형태). SPEC § 3 의 5컬럼 표는 mock 기준이라 실제 API 와 어긋남.
+
+| 옵션 | 전략 | 평가 |
+|---|---|---|
+| 1. **이벤트 컬럼 삭제** | 4컬럼 표(`displayId / amount / status / date`)로 운영. v1 과 동일한 정보 면 | **추천 1차 PR**. SPEC § 0 절대 규칙 "mock 데이터 v2 금지" 와 일치. 가장 안전 |
+| 2. 행마다 `getOrderDetail` 호출 | 페이지당 N+1 호출. 20개면 21회 | 비용 큼. INVENTORY § 5 캐시 라이브러리 부재로 캐시 hit 도 없음. 거부 |
+| 3. 이벤트 컬럼을 `'주문 #ORD_xxxx'` 같은 자리표시자로 채움 | 시각적으로는 5컬럼 유지 | 정보 0. 컬럼이 시각 노이즈만 차지. 거부 |
+| 4. **BE 변경 요청** | `OrderItem` 에 `summaryTitle` (대표 이벤트명 또는 "X 외 N건") 필드 추가 | 근본 해결. § 11 안건으로 등록. 수신 후 옵션 1 → 5컬럼 복원 |
+
+**1차 PR 결정 — 옵션 1**: 4컬럼 표(`주문번호 / 금액 / 상태 / 주문일시`).
+- `ORDER_COLUMNS` (§ 6.1.4) 에서 `eventTitle` 행 제외.
+- `OrderRowVM.eventTitle` 필드는 `null` 고정으로 미리 만들지 않고 **VM 에서 아예 제거**. 옵션 4 가 도착하면 그때 추가.
+- 표 가로폭이 줄어 visual balance 가 어긋날 수 있음 — `displayId` 컬럼 옆에 약간의 여백을 두거나 `금액` 을 우측 정렬로 재배치 (§ 11 시각 결정).
+
+`useOrderEventTitle(orderId)` 같은 lazy hook 으로 행 hover/expand 시 detail 을 부르는 변형도 가능 — § 11 안건.
+
+#### 6.2.5 `displayId` (`shortenOrderId`)
+
+- BE 의 `orderId` 실제 형태: v1 `pages/MyPage.tsx:244` 가 `order.orderId.slice(0, 16)` 처리 → UUID 등 긴 문자열 가능성 높음.
+- 프로토타입 mock 형태: `'ORD_a8f3'` 8자.
+- 변환 규칙:
+  ```ts
+  // tabs/Orders/adapters.ts
+  function shortenOrderId(raw: string): string {
+    if (raw.length <= 12) return raw;            // 이미 짧으면 그대로
+    return `${raw.slice(0, 8)}…${raw.slice(-4)}`; // ex) 'a3f8c102…7b91'
+  }
+  ```
+- `mono` 폰트로 표시 (`OrderRow` 의 `<td>` className 으로). 프로토타입의 `var(--syn-fn)` 색은 토큰으로 (`--syn-fn` = function/identifier 색).
+- 풀 ID 는 `<td title={raw}>` 로 hover tooltip 노출 — 복사 등 추후 작업은 § 11.
+
+#### 6.2.6 status enum 매핑
+
+v1 `pages/MyPage.tsx:37-43` + 프로토타입 시각 톤 종합:
+
+| API `status` | `statusVariant` | `statusLabel` | 비고 |
+|---|---|---|---|
+| `CREATED` | `'end'` | `'주문 생성'` | 결제 진행 전. 프로토타입엔 없는 상태 |
+| `PAYMENT_PENDING` | `'end'` | `'결제 대기'` | 프로토타입 케이스 2 |
+| `PAID` | `'ok'` | `'결제 완료'` | 프로토타입 케이스 1 |
+| `CANCELLED` | `'sold'` | `'취소됨'` | 프로토타입에 없음 — v1 매핑 따라 추가 |
+| `REFUNDED` | `'sold'` | `'환불 완료'` | 프로토타입 케이스 3 |
+| (그 외) | `'end'` | `String(status)` | 미지의 값은 라벨 그대로 노출. prod 발생 시 BE 와 enum 합의 |
+
+위치: `tabs/Orders/adapters.ts` 의 상수 + `toOrderRowVM(api: OrderItem): OrderRowVM` 함수.
+
+#### 6.2.7 `OrderRowVM` 시그니처
+
+```ts
+// src/pages-v2/MyPage/tabs/Orders/types.ts
+export type OrderStatus =
+  | 'CREATED'
+  | 'PAYMENT_PENDING'
+  | 'PAID'
+  | 'CANCELLED'
+  | 'REFUNDED'
+  | 'UNKNOWN';
+
+export interface OrderRowVM {
+  orderId: string;        // 풀 ID (행 key + 상세 진입)
+  displayId: string;      // shortenOrderId 결과
+  amountLabel: string;    // fmtPrice 결과
+  status: OrderStatus;
+  statusVariant: 'ok' | 'end' | 'sold';
+  statusLabel: string;
+  dateLabel: string;      // fmtDate 결과
+  // eventTitle: 옵션 4 도착 후 추가 (§ 6.2.4)
+}
+```
+
+#### 6.2.8 페이징 — 옵션 A (페이지네이션) 확정
+
+§ 6.1.5 의 두 안 중 **A 선택**.
+
+| 항목 | 값 |
+|---|---|
+| 페이지 사이즈 | `size = 20` (v1 호환) |
+| URL 동기화 | `/mypage/orders?page=N`. `OrdersTab` 이 `useSearchParams` 의 owner — `?page` 미존재 시 0 으로 처리 |
+| 0-base / 1-base | **URL 은 1-base**(사용자 가독), **API 호출은 0-base**(BE 컨벤션). `OrdersTab` 안에서 1↔0 변환 |
+| `?page` 미존재 = `?page=1` | URL 에 `?page=1` 직접 노출하지 않음 — § 2 의 EventList plan 이 같은 방식 |
+| 페이지 외 변경 시 reset | (없음 — 다른 필터가 없음. 향후 status 필터 추가 시 § 11) |
+| 페이저 모양 | `‹ 1 2 [3] 4 5 … N ›`. 1차 PR 은 prev/next + 현재/총 페이지 텍스트 만 (`Previous`, `Next` 버튼 + `3 / 12` 표기) |
+| 응답 일관성 | API `OrderListResponse.totalPages` 그대로 사용. `totalElements` 는 § 4.4.3 미래 헤더 카운트에 활용 |
+
+#### 6.2.9 에러 처리
+
+§ 5.2.9 와 동일 정책. 401 / 403 / 토큰 갱신은 axios 인터셉터가 흡수, 페이지 코드는 4xx-other / 5xx / 네트워크 3종만.
+
+| HTTP / 조건 | 처리 |
+|---|---|
+| 401 | 인터셉터 자동 처리 (`src/api/client.ts:68`) |
+| 403 + `code: PROFILE_NOT_COMPLETED` | 인터셉터 자동 처리 (`src/api/client.ts:60`) |
+| 4xx (그 외) | `useOrders` error 상태 → `TabErrorBox` |
+| 5xx | 동일 |
+| 네트워크 오류 | 동일 |
+| 빈 응답 (`content: []`, `totalElements: 0`) | error 가 아닌 정상. `TabFetchState.empty.when` → `EmptyOrders` |
+| 잘못된 `?page` (서버가 빈 `content` 반환 + `page > totalPages`) | 1차 PR — 빈 상태와 동일하게 처리. § 11 — `page=1` 자동 redirect 검토 |
+
 ### 6.3 상태 처리
+
+`TabFetchState` (§ 4.2.2) 가 분기를 처리. URL `?page=N` 변경 → `useOrders(page)` 가 새 fetch.
+
+| 상태 | 트리거 | 렌더 | 비고 |
+|---|---|---|---|
+| `loading` | 첫 fetch 또는 페이지 변경 직후 | `<OrdersSkeleton rows={8} />` | flat-card + 빈 `<tr>` 8행 + `TableHeader` 는 그대로 보임 (헤더는 정적이라 첫 렌더부터 노출) |
+| `error` | 4xx-other / 5xx / 네트워크 | `<TabErrorBox onRetry={refetch} />` | flat-card 영역만 차지. 페이저 미렌더 |
+| `empty` | `totalElements === 0` | `<EmptyOrders onBrowse={() => navigate('/')} />` | 페이저 미렌더. § 6.2.9 의 `page > totalPages` 도 같은 분기 |
+| `ready` | 정상 응답 + 행 ≥ 1 | `<OrdersTable rows={...} />` + `<OrdersPager .../>` (totalPages > 1 일 때만) | 페이저는 행 데이터와 같은 응답에서 `page / totalPages` 직접 사용 |
+
+#### 6.3.1 `useOrders()` 리턴 시그니처
+
+```ts
+// src/pages-v2/MyPage/tabs/Orders/hooks.ts
+type OrdersData = {
+  rows: OrderRowVM[];
+  page: number;        // 1-base (UI 노출용)
+  totalPages: number;
+  totalElements: number;
+};
+
+export function useOrders(page: number /* 1-base */):
+  FetchState<OrdersData> & { refetch: () => void };
+```
+
+- 내부에서 1-base → 0-base 변환 후 `getOrders({ page: page - 1, size: 20 })` 호출.
+- `useEffect` 의존성 `[page]`. 페이지 변경 = 새 fetch (이전 데이터를 잠깐 노출하지 않고 즉시 `loading` 으로 — § 11 결정: keep-previous-data 패턴 도입 여부).
+- 캐시 라이브러리 미도입(INVENTORY § 5)이므로 같은 페이지로 재방문 시 재호출. § 11 안건.
+
+#### 6.3.2 `OrdersSkeleton` 형태
+
+- `flat-card` + `<table>` + `<TableHeader/>` (실제 헤더 그대로) + `<tbody>` 안에 빈 `<tr>` 8개.
+- 각 행의 `<td>` 4칸 안에 placeholder 막대 (mono displayId 자리 짧음, 금액 자리 중간, 상태 자리 chip 모양 둥근 막대, 날짜 자리 중간).
+- 깜빡임 토큰 사용 정책은 § 5.3.2 와 동일 (§ 11 미정).
+
+#### 6.3.3 빈 상태 카피
+
+- 제목: `"주문 내역이 없습니다"`
+- 메시지: `"이벤트 티켓을 구매해 첫 주문을 남겨보세요."`
+- CTA: `<Button variant="primary">이벤트 둘러보기</Button>` → `/` (EventList).
+- v1 의 카피("이벤트 티켓을 구매해보세요")와 톤 일치.
+
+#### 6.3.4 에러 상태 카피
+
+- 제목: `"주문 내역을 불러오지 못했습니다"`
+- 메시지: `"네트워크 또는 서버 오류일 수 있어요. 잠시 후 다시 시도해주세요."`
+- CTA: `<Button variant="primary">다시 시도</Button>` → `useOrders().refetch()` (현재 페이지 유지).
+- 페이지 변경 후 에러: 에러 박스에서 `<Button variant="ghost">첫 페이지로</Button>` 보조 CTA 추가 — § 11.
+
+#### 6.3.5 페이저 행동
+
+- `OrdersPager` 의 `onPageChange(next)` → `OrdersTab` 이 `setSearchParams({ page: String(next) }, { replace: false })`.
+- `replace: false` (push) — 사용자의 명시적 액션이라 history entry 1칸 사용. 뒤로가기로 직전 페이지 복원.
+- 페이지 변경 직후 `window.scrollTo({ top: 0 })` — 표가 길어 다음 페이지 첫 행이 fold 밖에서 시작하는 어색함 방지. 단 1차 PR 에 적용할지 § 11.
+- `totalPages === 1` 또는 `0` 이면 페이저 미렌더 (§ 6.3 표 `ready` 행).
+
+#### 6.3.6 동시 상태 / 경합
+
+- 1차 PR 범위는 조회 only. `cancelOrder` / `refundOrder` 같은 mutation 도입은 § 11.
+- 빠른 페이지 연타로 인한 stale 응답 처리: 1차 PR 에서는 `useEffect` cleanup 으로 in-flight 요청 abort 표시만 하되 axios cancel 토큰 도입 여부는 § 11 (BE 가 빠르면 일반적으로 무해).
 
 ## 7. 탭 3: 예치금
 (작성 예정)
