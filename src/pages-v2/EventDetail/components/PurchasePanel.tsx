@@ -5,6 +5,7 @@ import { Card } from '@/components-v2/Card';
 import { Icon } from '@/components-v2/Icon';
 import { QuantityStepper } from '@/components-v2/QuantityStepper';
 
+import { usePurchaseActions } from '../hooks';
 import type { EventDetailVM } from '../types';
 import { PriceSummary } from './PriceSummary';
 
@@ -14,16 +15,10 @@ export interface PurchasePanelProps {
 
 export function PurchasePanel({ vm }: PurchasePanelProps) {
   const [qty, setQty] = useState(1);
+  const { busy, addToCart, buyNow } = usePurchaseActions(vm.eventId);
 
   const showQuantity = !vm.isFree && vm.canBuy;
-
-  // PR 1 한정 — 실제 구매 액션은 PR 3 의 usePurchaseActions 로 교체.
-  const handleBuyNow = () => {
-    console.log('[PurchasePanel] buyNow stub', { eventId: vm.eventId, qty });
-  };
-  const handleAddToCart = () => {
-    console.log('[PurchasePanel] addToCart stub', { eventId: vm.eventId, qty });
-  };
+  const isBusy = busy !== null;
 
   return (
     <div className="ed-purchase-sticky">
@@ -43,6 +38,7 @@ export function PurchasePanel({ vm }: PurchasePanelProps) {
                 min={1}
                 max={vm.remainingQuantity}
                 size="md"
+                disabled={isBusy}
               />
             </div>
           )}
@@ -56,17 +52,19 @@ export function PurchasePanel({ vm }: PurchasePanelProps) {
                   variant="primary"
                   size="lg"
                   full
-                  onClick={handleBuyNow}
+                  onClick={() => buyNow(qty)}
+                  disabled={isBusy}
                 >
-                  바로 구매하기
+                  {busy === 'buying' ? '이동 중…' : '바로 구매하기'}
                 </Button>
                 <Button
                   variant="ghost"
                   full
                   iconStart={<Icon name="cart" size={13} />}
-                  onClick={handleAddToCart}
+                  onClick={() => addToCart(qty)}
+                  disabled={isBusy}
                 >
-                  장바구니에 담기
+                  {busy === 'adding' ? '담는 중…' : '장바구니에 담기'}
                 </Button>
               </>
             ) : (
