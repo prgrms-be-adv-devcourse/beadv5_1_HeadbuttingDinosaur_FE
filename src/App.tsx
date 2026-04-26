@@ -21,6 +21,7 @@ const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
 // lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1)
 const LoginV2             = lazy(() => import('./pages-v2/Login'))
 const EventListV2         = lazy(() => import('./pages-v2/EventList'))
+const EventDetailV2       = lazy(() => import('./pages-v2/EventDetail'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
@@ -88,7 +89,7 @@ export default function App() {
         {/* 일반 사용자 */}
         <Route element={<Layout />}>
           <Route path="/"                       element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />
-          <Route path="/events/:id"             element={<EventDetail />} />
+          <Route path="/events/:id"             element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
           <Route path="/cart"                   element={<RequireAuth><Cart /></RequireAuth>} />
           <Route path="/payment"                element={<RequireAuth><Payment /></RequireAuth>} />
           <Route path="/payment/complete"       element={<RequireAuth><PaymentComplete /></RequireAuth>} />
