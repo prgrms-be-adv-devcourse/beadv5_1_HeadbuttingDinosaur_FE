@@ -1514,6 +1514,101 @@ export function EmptyRefunds() {
 ### 8.2 API 매핑
 ### 8.3 상태 처리
 
+`useRefunds(page)` 의 `FetchState<RefundsData>` 를 `TabFetchState`(§ 4.2.2) 로 분기. URL `?page=N` owner 는 `RefundTab` (Orders 와 동형). § 8 시나리오 A 기준 — B / C 는 빈 상태 행 1줄만 노출 + 다른 분기 미적용.
+
+| 상태 | 트리거 | 렌더 | 비고 |
+|---|---|---|---|
+| `loading` | 첫 fetch 또는 페이지 변경 직후 | `<RefundsSkeleton rows={6} />` | flat-card + `<RefundTableHeader/>` 그대로 + 빈 `<tr>` 6행. 헤더는 정적이라 첫 렌더부터 노출 |
+| `error` | 4xx-other / 5xx / 네트워크 (§ 8.2 에러 정책) | `<TabErrorBox onRetry={refetch} />` | flat-card 영역만 차지. 페이저 미렌더 |
+| `empty` | `totalElements === 0` (모든 시나리오 공통) | `<EmptyRefunds />` (§ 8.1.5) | 페이저 미렌더. 시나리오 A 의 정상 빈 상태 = 프로토타입의 의도와 동일. 시나리오 B/C 일 경우엔 fetch 자체 없이 즉시 이 분기 |
+| `ready` | 정상 응답 + 행 ≥ 1 | `<RefundList rows={...} />` + `<RefundsPager .../>` (`totalPages > 1` 일 때만) | 페이저는 응답의 `page / totalPages` 직접 사용 |
+
+#### 8.3.1 빈 상태 — 모든 시나리오 공통
+
+§ 8.1.5 의 `EmptyRefunds` 가 세 시나리오에서 동일하게 등장:
+
+| 시나리오 | 진입 경로 |
+|---|---|
+| **A — 정상 구현** | `getRefunds` 정상 응답 + `content: []` → `TabFetchState.empty` 분기 → `EmptyRefunds` |
+| B — API 없음 | `RefundTab` 이 fetch 자체 안 함. 본문 첫 렌더부터 `EmptyRefunds` (loading/error 분기 미적용) |
+| C — API 있는데 범위 밖 | B 와 동일 동작. § 11 메모로 "조회 미연결 — 후속 PR" 표시 |
+
+본 plan 이 채택한 시나리오는 **A**. B / C 코드 분기는 작성하지 않음.
+
+빈 상태의 메시지/이모지는 § 8.1.5 그대로 — 프로토타입의 카피·이모지 보존이 시나리오 A 의 디자인 의도.
+
+#### 8.3.2 로딩 — `RefundsSkeleton`
+
+- `flat-card` + `<table>` + `<RefundTableHeader/>` (실제 헤더 그대로) + `<tbody>` 안에 빈 `<tr>` 6개.
+- 각 행의 `<td>` 5칸 안에 placeholder 막대 (mono ID 자리 짧음 ×2 / 금액 자리 중간 / 상태 자리 chip 모양 / 날짜 자리 중간).
+- 행 수 6개 — § 8.1.8 결정대로 환불 활동량이 적다는 가정. 첫 fold 채우기 목적.
+- 깜빡임 토큰 정책은 § 5.3.2 / § 6.3.2 와 동일.
+
+#### 8.3.3 에러 — `TabErrorBox`
+
+- 제목: `"환불 내역을 불러오지 못했습니다"`
+- 메시지: `"네트워크 또는 서버 오류일 수 있어요. 잠시 후 다시 시도해주세요."`
+- CTA: `<Button variant="primary">다시 시도</Button>` → `useRefunds().refetch()` (현재 페이지 유지).
+- 페이지 변경 후 에러: `<Button variant="ghost">첫 페이지로</Button>` 보조 CTA — § 11.
+- HTTP 상태별 카피 분기는 1차 PR 범위 외(§ 11). 한 가지 카피로 시작.
+
+#### 8.3.4 페이징 — Orders 와 동형
+
+§ 6.2.8 의 결정을 그대로 적용:
+
+| 항목 | 값 |
+|---|---|
+| 페이지 사이즈 | `size = 20` (v1 호환 — `pages/MyPage.tsx:471` 의 `{ page: 0, size: 20 }`) |
+| URL 동기화 | `/mypage/refund?page=N`. `RefundTab` 이 `useSearchParams` owner. `?page` 미존재 = 1로 처리 |
+| 0-base / 1-base | URL 1-base / API 0-base 변환은 `RefundTab` 안에서 |
+| `?page=1` 직접 노출 안 함 | Orders 와 동일 (§ 2 일관성) |
+| 페이저 모양 | prev/next + `3 / 12` 표기 (1차 PR 미니멀) |
+| `totalPages ≤ 1` | 페이저 미렌더 |
+
+#### 8.3.5 `useRefunds()` 리턴 시그니처
+
+```ts
+// src/pages-v2/MyPage/tabs/Refund/hooks.ts
+type RefundsData = {
+  rows: RefundRowVM[];
+  page: number;        // 1-base (UI 노출용)
+  totalPages: number;
+  totalElements: number;
+};
+
+export function useRefunds(page: number /* 1-base */):
+  FetchState<RefundsData> & { refetch: () => void };
+```
+
+- 내부에서 1-base → 0-base 변환 후 `getRefunds({ page: page - 1, size: 20 })` 호출.
+- `useEffect` 의존성 `[page]`. 페이지 변경 = 새 fetch (keep-previous-data 도입은 § 11).
+- 캐시 라이브러리 미도입(INVENTORY § 5)이므로 같은 페이지 재방문 시 재호출. § 11 안건.
+
+#### 8.3.6 페이저 행동 — Orders 와 동형
+
+- `onPageChange(next)` → `RefundTab` 이 `setSearchParams({ page: String(next) }, { replace: false })`.
+- `replace: false` (push) — 명시적 사용자 액션이라 history entry 1칸 사용.
+- 페이지 변경 직후 `window.scrollTo({ top: 0 })` 도입 여부는 § 11 (Orders 와 동시 결정).
+
+#### 8.3.7 동시 상태 / 경합
+
+- 1차 PR 범위는 조회 only. 환불 *요청* mutation(`refundTicketByPg`, `refundOrder`)은 Tickets 탭(§ 11) 으로 이관.
+- 환불 요청 성공 → 본 탭으로 deep-link(`/mypage/refund`) + 자동 refetch 는 § 11 안건. 1차 PR 에서는 사용자가 탭 클릭 시점에 새로 fetch 됨.
+- 빠른 페이지 연타 stale 응답 처리 — Orders 와 동일 정책(§ 6.3.6). axios cancel 토큰 도입은 § 11.
+
+#### 8.3.8 시나리오 B / C 후퇴 경로 (참고)
+
+본 plan 채택은 A 이지만, 만약 향후 BE 스펙 변경으로 `getRefunds` 가 비활성화되거나 운영상 1차 PR 에서 제외하기로 하면:
+
+| 후퇴 항목 | 변경 |
+|---|---|
+| `RefundTab` 본체 | `useRefunds` / `TabFetchState` 제거 → `<EmptyRefunds />` 직접 반환 |
+| `RefundList` / `RefundRow` / `RefundTableHeader` / `RefundsPager` / `RefundsSkeleton` | 코드 유지 또는 미사용 export 정리 (cutover 시) |
+| `tabs/Refund/hooks.ts` / `adapters.ts` / `types.ts` | unused — § 12 PR 분할에서 제외 |
+| § 11 메모 | "환불 조회 — 다음 PR 에서 합류" 라인 추가 |
+
+후퇴는 기존 컴포넌트 시그니처 변경 없이 마운트 분기만 빼는 형태 → 미래 재합류 시 비용 0.
+
 ## 9. 인증 / 가드
 (작성 예정)
 
