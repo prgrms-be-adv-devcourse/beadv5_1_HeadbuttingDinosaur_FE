@@ -465,7 +465,211 @@ axios 인터셉터가 처리하는 401/403(`PROFILE_NOT_COMPLETED`)은 페이지
 | `error` (previous 없음) | — | `idle` | 페이지 레벨 에러 카드 + "다시 시도" |
 
 ## 7. 결제 플로우
-(작성 예정)
+
+§ 5 (4) 결제 시퀀스의 상세 + 도입/생략 항목 결정. SPEC § 9 "결제 플로우 유지" 결정에 묶임.
+
+### 7.1 결제 수단 선택 UI — **본 PR 범위 ✅ (단, v1 컴포넌트 재사용)**
+
+- 프로토타입(`Cart.jsx`)엔 결제 수단 선택 UI **없음** — `alert('결제가 완료되었습니다! (프로토타입)')` 한 줄로 끝.
+- v1(`Payment` 페이지가 아니라 **`src/components/PaymentModal.tsx`**)이 PG / WALLET / WALLET_PG(예치금+PG) 3종을 모달로 처리.
+- **결정**: v2 Cart는 신규 결제 모달을 만들지 않고 **기존 `PaymentModal`을 그대로 임포트**해 띄움 (SPEC § 9 "기존 결제 플로우 유지" + 본 plan SPEC § 0 "기존 코드 건드리지 않음" 양쪽 충족).
+- 톤 차이는 v1 PaymentModal이 자체 인라인 스타일로 그려져 v2 디자인 시스템과 미세하게 어긋남 → § 9에 "PaymentModal v2 마이그레이션" 별 PR로 후속 등재.
+
+### 7.2 PG 연동 방식 — **SDK 스크립트 + redirect**
+
+INVENTORY § 5: `@tosspayments/tosspayments-sdk ^2.6.0` 의존성 존재. 다만 v1 PaymentModal은 `window.TossPayments(clientKey)` 글로벌 객체를 사용 — npm 패키지가 아니라 외부 스크립트 로드 방식(레거시 v1 JS SDK).
+
+| 옵션 | 적용 여부 | 설명 |
+|---|---|---|
+| (a) `window.location` 변경 | ❌ | 사용 안 함. Toss는 자체 결제 페이지로 이동시킴 |
+| (b) **SDK + redirect** | ✅ | `window.TossPayments(clientKey).requestPayment('카드', { ... successUrl, failUrl })` → Toss 호스트로 redirect (PaymentModal 내부 처리, v1 그대로) |
+| (c) 새 창 / popup | ❌ | 사용 안 함 |
+| (d) 자체 결제 페이지 (카드 직접 입력) | ❌ | PCI-DSS 회피 위해 PG에 위임 |
+
+**호출 인자** (PaymentModal 코드 발췌):
+
+```ts
+const tossPayments = window.TossPayments('test_ck_GjLJoQ1aVZplbR1KB0MW8w6KYe2R')
+await tossPayments.requestPayment('카드', {
+  amount: pgAmount,
+  orderId: payment.paymentId,        // 백엔드 paymentId 를 PG orderId 로 매핑
+  orderName: '이벤트 티켓',
+  successUrl: `${window.location.origin}/payment/success`,
+  failUrl:    `${window.location.origin}/payment/fail`,
+})
+```
+
+> v2가 npm `@tosspayments/tosspayments-sdk`를 직접 사용하도록 마이그레이션할지는 § 9에 후속 등재(SDK 초기화 방식이 다르고 타입이 잡혀 있어 권장되나, 본 PR 범위 밖).
+
+### 7.3 결제 완료 페이지 라우팅 — **이번 PR 범위 ❌**
+
+| 라우트 | 처리 | 비고 |
+|---|---|---|
+| `/payment/success` | 기존 `PaymentSuccess.tsx` 유지 (`confirmPayment` 호출 후 `/payment/complete` 이동) | SPEC § 9 |
+| `/payment/fail` | 기존 `PaymentFail.tsx` 유지 (`failPayment` 호출 후 안내) | SPEC § 9 |
+| `/payment/complete` | 기존 `PaymentComplete.tsx` 유지 ("주문 완료" + CTA) | SPEC § 9 |
+| `/wallet/charge/success` `/wallet/charge/fail` | 기존 유지 | SPEC § 9 |
+
+이 페이지들은 v2 토글 대상이 **아니다** (현재 `App.tsx`가 `<RequireAuth><PaymentSuccess /></RequireAuth>` 같은 평이한 마운트). v2 Cart 작업은 `/cart` 한 라우트만 다룸.
+
+### 7.4 결제 취소 / 뒤로가기
+
+| 시나리오 | 동작 | 처리 위치 |
+|---|---|---|
+| Toss 모달에서 X / "취소" | PaymentModal `catch`에서 `USER_CANCEL` / `PAY_PROCESS_CANCELED` 코드 → info 토스트("결제가 취소되었습니다") + 모달 닫힘 | PaymentModal (v1) |
+| Toss 페이지에서 브라우저 뒤로가기 | Toss 자체적으로 `failUrl`로 redirect (혹은 사용자에 따라 history 복원) → `/payment/fail` 처리 | PaymentFail (기존) |
+| `createOrder` 직후 사용자가 결제하지 않고 페이지 이탈 | order는 백엔드에 생성된 채 만료. cart는 v1 동작 그대로 백엔드 정책에 위임(§ 5) | — |
+| Cart로 다시 돌아오면 | `getCart()` 재페치 — 결제 시도 항목이 그대로 남아 있음(백엔드가 cart를 비우지 않는 한). 사용자 재시도 가능 | useCart |
+
+> v2 Cart 코드는 취소 자체를 별도 핸들링하지 **않음**. PaymentModal 내부 catch가 처리하고, Cart는 모달이 닫힌 뒤의 일반 상태로 복귀.
+
+### 7.5 멱등성 (중복 결제 방지)
+
+`src/api/client.ts`에 `idempotencyConfig()` 헬퍼가 존재 (UUID v4 + crypto fallback 3단). v1은 PaymentModal에서 `readyPayment` 호출 시 이를 부착하지 **않음** — 따라서 사용자가 빠르게 두 번 클릭하면 중복 `paymentId`가 생성될 수 있음.
+
+| 보호 계층 | 적용 여부 | 어디서 |
+|---|---|---|
+| 클라이언트 disable 가드 | ✅ | OrderSummary 결제 버튼 `checkoutState='submitting'` (§ 5). PaymentModal "결제" 버튼 `loading` (v1 그대로) |
+| `Idempotency-Key` 헤더 — `createOrder` | **§ 9 결정**(권고: 도입) | `Cart/hooks.ts :: useCheckout`에서 `createOrder` 호출 시 `idempotencyConfig()` 부착 |
+| `Idempotency-Key` 헤더 — `readyPayment` | **§ 9 결정**(권고: 도입) | PaymentModal v2 마이그레이션 시점에 부착(본 PR 범위 밖) |
+| 백엔드 단 중복 검사 | 가정 — 확인 필요 | 백엔드팀과 § 9 검증 항목 |
+
+> 본 plan 채택안: **`createOrder`에만 idempotency 부착**(클라이언트 가드 + `Idempotency-Key` 이중). PaymentModal은 기존 코드 변경 금지라 손대지 않음. § 9에 "전 결제 플로우 idempotency 통일"을 후속 PR 항목으로 등재.
+
+### 7.6 시퀀스 다이어그램 (full)
+
+```
+Cart.tsx        useCheckout         PaymentModal (v1)        Toss SDK              Backend                     Pages (existing)
+────────        ───────────         ─────────────────        ────────              ───────                     ────────────────
+"결제하기" 클릭
+   │ check empty / pending guard (§5,§6.2)
+   │
+   ├─►submit(items)
+   │            │ checkoutState='submitting'
+   │            │ createOrder({ cartItemIds }) + idempotency  ──────────────────►  POST /orders
+   │            │                                              ◄───────────────── { orderId, totalAmount }
+   │            │ openPaymentModal({ orderId, totalAmount })
+   │            │ checkoutState='idle'
+   │
+PaymentModal opens
+                                    │ method 선택
+                                    │ readyPayment({orderId,method,walletAmount?})───►  POST /payments/ready
+                                    │                                              ◄── { paymentId, ..., tossPaymentUrl?, pgAmount }
+                                    │
+                                    ├ method='WALLET' ────────────────────────────────────────► onSuccess()
+                                    │                                                          navigate('/payment/complete', state)
+                                    │
+                                    └ method∈{PG, WALLET_PG}
+                                       │ sessionStorage.payment_context = {...}
+                                       │ tossPayments.requestPayment('카드', {
+                                       │   amount: pgAmount,
+                                       │   orderId: payment.paymentId,
+                                       │   successUrl, failUrl
+                                       │ })  ─────────────────────────► (Toss host)
+                                                                          │ 사용자 인증
+                                                                          │
+                                                          ┌───────────────┴───────────────┐
+                                                          ▼                               ▼
+                                                    successUrl                       failUrl
+                                                    /payment/success                 /payment/fail
+                                                    └─► PaymentSuccess.tsx           └─► PaymentFail.tsx
+                                                          confirmPayment                   failPayment
+                                                          → /payment/complete              → 안내 + 재시도
+```
+
+### 7.7 v2 Cart가 책임지는 범위 (요약)
+
+✅ 결제 진입점 버튼·empty/pending/error 가드 (§ 5, § 6)
+✅ `createOrder` 호출 + idempotency
+✅ `<PaymentModal>`(v1) 마운트·언마운트
+✅ WALLET 단일 결제 성공 시 `navigate('/payment/complete')`
+❌ PG redirect 이후 `/payment/success`·`/payment/fail` 페이지 — 기존 유지
+❌ `confirmPayment` / `failPayment` 호출 — 기존 페이지 책임
+❌ PaymentModal 디자인/구조 변경 — 별도 후속 PR
+
+---
+
+## 8. 라우터 등록 방법
+
+`router-toggle.plan.md` 메커니즘에 그대로 합류. 새 path 신설하지 않고 기존 `/cart` element만 `<VersionedRoute>`로 교체.
+
+### 8.1 라우트 경로 — **`/cart` 그대로**
+
+- 신규 `/v2/cart` 만들지 않음 (router-toggle § 2-3 결정: 기존 라우트 element wrapping). 이유: 북마크/링크 보존, 가드/Layout 트리 복제 회피.
+- 가드/레이아웃 적용도 그대로: 상위 `<Route element={<Layout />}>` 트리 안의 `<Route path="/cart" ... />`.
+
+### 8.2 변경할 한 곳 — `src/App.tsx`
+
+**현재 (`src/App.tsx:93`)**:
+
+```tsx
+<Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />
+```
+
+**변경 후**:
+
+```tsx
+// 상단 lazy import 추가 (현재 LoginV2/EventListV2/EventDetailV2 옆)
+const CartV2 = lazy(() => import('./pages-v2/Cart'))
+
+// 라우트 element 교체
+<Route
+  path="/cart"
+  element={
+    <RequireAuth>
+      <VersionedRoute v1={<Cart />} v2={<CartV2 />} />
+    </RequireAuth>
+  }
+/>
+```
+
+근거:
+- `RequireAuth`는 **바깥**에 둠 — 토글 버전과 무관하게 비로그인 차단을 v1과 동일하게 보장 (`router-toggle.plan` § 1-4 패턴: `<RequireAuth><VersionedRoute .../></RequireAuth>`).
+- `<Suspense fallback={<Loading fullscreen />}>`는 이미 `App.tsx:78`에서 트리 루트를 감싸고 있어 추가 코드 없음.
+- v1 `Cart` lazy import는 그대로 유지(폴백 보장).
+
+### 8.3 결제/완료/실패 라우트 — **본 PR 범위 ❌**
+
+| 라우트 | v2 토글 추가? | 사유 |
+|---|---|---|
+| `/payment` | ❌ | SPEC § 9 "결제 플로우 유지". 본 PR은 cart만 |
+| `/payment/complete` | ❌ | 동일 |
+| `/payment/success` | ❌ | Toss successUrl. 변경 시 PG 호출 인자도 동기 변경 필요 — 별도 PR |
+| `/payment/fail` | ❌ | Toss failUrl. 동일 |
+| `/wallet/charge/success` `/wallet/charge/fail` | ❌ | 본 PR은 cart 무관 |
+
+`App.tsx`에서 위 라우트들의 element는 **그대로** 둠 (`<RequireAuth><PaymentSuccess /></RequireAuth>` 같은 형태).
+
+### 8.4 검증 — `?v=2` 토글 (router-toggle § 2-1)
+
+| 채널 | 사용처 | 비고 |
+|---|---|---|
+| `?v=2` 쿼리 | QA / PR 미리보기. `https://…/cart?v=2` | URL 처리 시 `localStorage['ui.version']='2'` 동기화 |
+| `localStorage['ui.version']` | 세션 sticky 선호 | 콘솔에서 `localStorage.setItem('ui.version','2')` 후 새로고침 |
+| `VITE_UI_DEFAULT_VERSION=2` (env) | 스테이징 강제 | 빌드 시점 |
+
+### 8.5 검증 체크리스트
+
+본 PR 머지 후 수동/자동으로 확인:
+
+- [ ] `/cart?v=1` → v1 Cart 그대로 (lazy fallback 정상)
+- [ ] `/cart?v=2` → v2 Cart 마운트 + `?v=2` 제거 후 새로고침해도 localStorage로 sticky
+- [ ] 비로그인 상태로 `/cart?v=2` → `/login`으로 redirect (RequireAuth가 VersionedRoute 바깥에서 동작)
+- [ ] EventDetail v2 → "장바구니 담기" → 토스트 → `/cart?v=2`로 이동 시 마운트
+- [ ] EventDetail v2 → "바로 구매하기" → `/cart`로 navigate 시 토글 상태 보존(localStorage가 떠받침)
+- [ ] `?v=2` 환경에서 결제 시퀀스: createOrder → PaymentModal(v1 그대로) → Toss redirect → `/payment/success`(v1)
+- [ ] `?v=2` 환경에서 401 발생 → 인터셉터 재발급 실패 시 `/login`으로 떨어지는지 (router 토글과 무관해야 정상)
+
+> 자동화 테스트는 SPEC § 5 "테스트 러너 의존성 없음"이라 도입 전. 수동 QA 체크리스트로 운영.
+
+### 8.6 영향 범위 (코드 diff 예측)
+
+| 파일 | 변경 | 라인 수 |
+|---|---|---|
+| `src/App.tsx` | lazy import 1줄 추가 + `/cart` 라우트 element 교체 | +2 / -1 |
+| `src/router-v2/*` | 변경 없음 (기존 `VersionedRoute` 재사용) | 0 |
+| 신규 `src/pages-v2/Cart/**` | § 1 디렉토리 트리 신설 | (PR 단위로 § 10 분할) |
+| 기존 `src/pages/Cart.tsx`, `src/components/PaymentModal.tsx` | **수정 금지** (SPEC § 0) | 0 |
 
 ## 8. 라우터 등록 방법
 (작성 예정)
