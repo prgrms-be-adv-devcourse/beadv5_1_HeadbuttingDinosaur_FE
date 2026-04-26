@@ -70,3 +70,20 @@
 .ed-seat-sold {
   color: var(--danger);
 }
+
+/* EventDescription (§2 EventDescription) — §8-O9 단순 h2, §8-O2 plain text + pre-wrap */
+.ed-description__title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.ed-description__body {
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  margin: 0;
+}
