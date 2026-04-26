@@ -1178,7 +1178,207 @@ return (
 - "최종 업데이트" 라인은 mock 전용이라 1차 PR 에서 미노출. prop 자리만 마련.
 
 ### 7.2 API 매핑
+
+#### 7.2.1 호출 함수 (1차 PR — 조회만)
+
+```ts
+// src/api/wallet.api.ts (기존, 수정 금지)
+export const getWalletBalance = () =>
+  apiClient.get<ApiResponse<WalletBalanceResponse>>('/wallet');
+```
+
+- 엔드포인트: `GET /wallet`. SPEC § 3 의 `/api/me/wallet` 표기는 baseURL `/api` 합성 후 동일.
+- **`ApiResponse<T>` 래퍼 있음** → 어댑터에서 `unwrapApiData(res)` 또는 `res.data.data` 접근.
+- 인증: axios 인터셉터 자동 주입 (INVENTORY § 4).
+- 호출 위치는 § 3.3 결정대로 **shell 의 `WalletBalanceProvider`**. `WalletTab` 은 직접 호출 X — `useWalletBalance()` 훅 소비자.
+
+#### 7.2.2 응답 타입 (실측)
+
+```ts
+// src/api/types.ts:522
+interface WalletBalanceResponse {
+  walletId: string;
+  balance: number;        // 원 단위 정수
+}
+```
+
+#### 7.2.3 응답 필드 매핑 (mock → API → VM)
+
+| 프로토타입 mock 필드 | API 필드 | 실제 위치 | VM 필드 (`WalletBalanceVM`) | 변환 |
+|---|---|---|---|---|
+| `120,000` (잔액 큰 숫자) | `balance` (number) | `types.ts:524` | `amount: number` | passthrough. 표기 분리는 컴포넌트에서 `formatBalanceParts(amount)` (§ 4.3.2) |
+| `원` (단위) | (클라이언트 상수) | — | (없음 — `formatBalanceParts.unit`) | 어댑터 단계에선 만들지 않음 |
+| `최종 업데이트 · 2026.04.18 10:23` | **없음** | — | `lastFetchedAt: number` (Date.now()) | § 7.2.5 결정 |
+| (없음) | `walletId` | `types.ts:523` | (VM 미포함) | 충전/출금 호출에서 직접 필요하지 않음 — drop. 향후 logging 등에 필요해지면 VM 에 추가 |
+
+#### 7.2.4 `WalletBalanceVM` 시그니처
+
+```ts
+// src/pages-v2/MyPage/tabs/Wallet/types.ts
+export interface WalletBalanceVM {
+  amount: number;        // = api.balance
+  lastFetchedAt: number; // 클라이언트 fetch 완료 시각 (Date.now())
+}
+```
+
+- `lastFetchedAt` 은 § 7.1.5 옵션 2 가 활성화될 때를 위해 **VM 단계에서 미리 채워둠**. 컴포넌트에선 `lastUpdatedAtLabel: null` (1차 PR) → 옵션 2 도착 시 `timeAgo(vm.lastFetchedAt)` 한 줄로 노출. VM 자체 변경 없음.
+- 어댑터 위치: `tabs/Wallet/adapters.ts` 의 `toWalletBalanceVM(api: WalletBalanceResponse): WalletBalanceVM`. `lastFetchedAt` 은 어댑터가 호출되는 순간의 `Date.now()` — fetch 직후 어댑터 호출 시점이 사실상 응답 수신 시점.
+
+#### 7.2.5 "최종 업데이트" 라인 — § 7.1.5 결정 재확인
+
+- 1차 PR: `BalanceCard` 의 `lastUpdatedAtLabel` prop = `null` → 라인 미렌더.
+- VM 의 `lastFetchedAt` 만 채워두고, 옵션 결정(§ 11) 후 `WalletTab` 에서 한 줄로 prop 채움:
+  ```tsx
+  lastUpdatedAtLabel={timeAgo(data.lastFetchedAt)}  // 옵션 2 도입 후
+  ```
+- `timeAgo` 헬퍼 v2 도입(`src/lib/format.ts` 추가)도 § 11 안건.
+
+#### 7.2.6 확장 — 충전 / 출금 / 거래내역 (§ 11 결정 후 합류)
+
+본 표는 시그니처 사전조사. **1차 PR 호출 X**.
+
+##### `POST /wallet/charge` — 충전 시작
+
+```ts
+export const startWalletCharge = (body: WalletChargeStartRequest) =>
+  apiClient.post<WalletChargeStartResponse>('/wallet/charge', body, idempotencyConfig());
+```
+- **`ApiResponse<T>` 래퍼 없음** (`src/api/wallet.api.ts:11`). 응답이 직접 `WalletChargeStartResponse`.
+- `idempotencyConfig()` 필수 (`src/api/client.ts`) — 중복 충전 방지.
+
+| 필드 | 타입 | 용도 |
+|---|---|---|
+| 요청 `amount` | `number` | 충전 금액 (원) |
+| 응답 `chargeId` | `string` | PG confirm 단계에서 `WalletChargeConfirmRequest` 에 사용 |
+| 응답 `amount` | `number` | 검증용 (요청 amount 와 일치 확인) |
+| 응답 `status` | `string` | PG 진입 가능 여부 (`PENDING` 등) |
+| 응답 `createdAt` | `string` | logging |
+
+##### `POST /wallet/charge/confirm` — PG 콜백 후 확정
+
+```ts
+export const confirmWalletCharge = (body: WalletChargeConfirmRequest) =>
+  apiClient.post<WalletChargeConfirmResponse>('/wallet/charge/confirm', body, idempotencyConfig());
+```
+- 호출 위치는 **MyPage 가 아니라** 기존 `pages/WalletChargeSuccess.tsx` (INVENTORY § 1, § 7). MyPage 는 시작만 트리거. PG 결과 라우트는 v1 유지.
+- `confirm` 후 `useWalletBalance().refresh()` 자동 트리거는 § 11 (기존 v1 페이지 → MyPage 로 deep-link 시 잔액 자동 갱신).
+
+##### `POST /wallet/withdraw` — 출금
+
+```ts
+export const withdrawWallet = (body: WalletWithdrawRequest) =>
+  apiClient.post<ApiResponse<WalletWithdrawResponse>>('/wallet/withdraw', body, idempotencyConfig());
+```
+- **`ApiResponse<T>` 래퍼 있음** → `unwrapApiData`.
+- `WalletWithdrawResponse.status`: `'SUCCESS' | 'FAILED'` 두 값. `FAILED` 는 HTTP 200 + status='FAILED' 형태 가능 — **에러 분기를 HTTP 만으로 못 함**, 응답 status 도 함께 검사.
+
+| 필드 | 타입 | 용도 |
+|---|---|---|
+| 요청 `amount` | `number` | 출금 금액 |
+| 응답 `withdrawnAmount` | `number` | 실제 출금된 금액 |
+| 응답 `balance` | `number` | 출금 후 잔액 — `useWalletBalance` 캐시 갱신용 |
+| 응답 `status` | `'SUCCESS' \| 'FAILED'` | UI 분기 |
+| 응답 `transactionId` | `string` | 거래내역 매핑 (확장 시) |
+
+##### `GET /wallet/transactions` — 거래내역
+
+```ts
+export const getWalletTransactions = (params?: WalletTransactionListRequest) =>
+  apiClient.get<ApiResponse<WalletTransactionListResponse>>('/wallet/transactions', { params });
+```
+- 페이지네이션 (`page`, `size`, `currentPage`, `totalElements`, `totalPages`).
+- `WalletTransactionItem.type`: `'CHARGE' | 'USE' | 'REFUND' | 'WITHDRAW'` — 부호/색 매핑은 v1 `pages/MyPage.tsx:45-50` 그대로 차용 가능.
+
+#### 7.2.7 에러 처리
+
+§ 5.2.9 / § 6.2.9 와 동일 정책. 401 / 403 / 토큰 갱신은 axios 인터셉터가 흡수, 페이지 코드는 4xx-other / 5xx / 네트워크 3종만.
+
+| HTTP / 조건 | 처리 |
+|---|---|
+| 401 | 인터셉터 자동 처리 (`src/api/client.ts:68`) |
+| 403 + `code: PROFILE_NOT_COMPLETED` | 인터셉터 자동 처리 (`src/api/client.ts:60`) |
+| 4xx (그 외) | `useWalletBalance` error 상태 → `TabErrorBox` (재시도 버튼) |
+| 5xx | 동일 |
+| 네트워크 오류 | 동일 |
+| 빈 응답 (`balance: 0`) | error 가 아닌 정상. `EmptyState` 분기 없음(§ 7.1.6) — `BalanceCard` 가 "0원" 표기 |
+| 잘못된 응답 (`balance: null`, 음수 등) | 어댑터에서 `Number.isFinite(api.balance) && api.balance >= 0` 검증 실패 시 error 로 던지기 — § 11 |
+
+##### 충전/출금 에러 (확장 — § 11 후 합류)
+
+| 케이스 | 처리 |
+|---|---|
+| `startWalletCharge` 4xx (잔액/한도 등) | 에러 메시지 toast + 모달 닫지 않음 (사용자 재시도 가능) |
+| PG 위젯 fail | `WalletChargeFail` 라우트(기존 v1 페이지) 그대로 사용 |
+| `confirmWalletCharge` fail | `WalletChargeFail` 라우트 처리 |
+| `withdrawWallet` HTTP 200 + `status: 'FAILED'` | toast 또는 모달 인라인 에러. 잔액 미갱신 |
+| `withdrawWallet` 4xx | toast |
+| 동시 충전·출금 클릭 (`idempotencyConfig` 의 같은 키) | BE 가 동일 응답 반환 — 중복 차감 없음. UI 는 `chargePending` / `withdrawPending` prop 으로 버튼 disabled |
+
 ### 7.3 상태 처리
+
+`useWalletBalance()` 의 `FetchState<WalletBalanceVM>` 를 `TabFetchState` (§ 4.2.2) 로 분기. § 3.3 결정대로 hook 은 **shell 의 컨텍스트** 가 owner — `WalletTab` 과 `ProfileHeader` 가 같은 인스턴스를 본다.
+
+| 상태 | 트리거 | 렌더 | 비고 |
+|---|---|---|---|
+| `loading` | 첫 fetch 진행 중 | `<BalanceCardSkeleton />` | shell `ProfileHeader` 메타 라인은 같은 hook 결과를 따라 "예치금 -" placeholder (§ 3.3 `BalanceSlot.state='loading'`) |
+| `error` | 4xx-other / 5xx / 네트워크 | `<TabErrorBox onRetry={refresh} />` | shell 메타 라인은 `'state: error'` 분기 — § 3.3 결정대로 라인 형태 미세조정은 § 11 |
+| `empty` | (해당 없음) | — | § 7.1.6 — `balance: 0` 도 정상 ready |
+| `ready` | 정상 응답 | `<BalanceCard balance={data.amount} ...>` | shell 메타 라인은 `'state: ready'` 분기로 같은 amount 노출 |
+
+#### 7.3.1 `useWalletBalance()` 리턴 시그니처 (§ 3.3 합류)
+
+```ts
+// src/pages-v2/MyPage/shared/walletBalance.tsx
+type WalletBalanceState =
+  | { status: 'loading' }
+  | { status: 'error'; error: Error; refresh: () => void }
+  | { status: 'ready'; data: WalletBalanceVM; refresh: () => void };
+
+export function useWalletBalance(): WalletBalanceState;
+```
+
+- shell 의 `<WalletBalanceProvider>` 가 마운트 시 `getWalletBalance()` 1회 호출 → context value 갱신.
+- `refresh()` 호출 시 새 fetch (이전 데이터 즉시 폐기 + `loading` 으로 — keep-previous-data 도입은 § 11).
+- `useEffect` cleanup 으로 unmount 후 setState 방지 (마운트 동안 axios cancel 토큰 도입 여부는 § 11).
+
+#### 7.3.2 `BalanceCardSkeleton` 형태
+
+- 같은 `flat-card` (`padding 28`) + 라벨 자리 짧은 막대 / 잔액 자리 큰 막대(38px 높이 흉내) / 캡션 자리 (1차 PR 미렌더라 비움) / 버튼 자리 둥근 박스 2개.
+- 깜빡임 토큰은 § 5.3.2 / § 6.3.2 와 동일 정책.
+
+#### 7.3.3 빈 상태 — 미적용
+
+- § 7.1.6 / § 4.0 결정대로 빈 상태 분기 없음. `balance: 0` 도 `ready` 로 직진.
+- `BalanceCard` 가 `formatBalanceParts(0) → { value: '0', unit: '원' }` 로 자연스럽게 "0원" 표기.
+
+#### 7.3.4 에러 상태 카피
+
+- 제목: `"예치금 정보를 불러오지 못했습니다"`
+- 메시지: `"네트워크 또는 서버 오류일 수 있어요. 잠시 후 다시 시도해주세요."`
+- CTA: `<Button variant="primary">다시 시도</Button>` → `useWalletBalance().refresh()`.
+
+#### 7.3.5 충전 / 출금 액션 결과 — 1차 PR 동작
+
+§ 7.1.3 결정대로 1차 PR 의 `onCharge` / `onWithdraw` 는 placeholder:
+
+| 액션 | 1차 PR 동작 | § 11 후 동작 |
+|---|---|---|
+| 충전하기 클릭 | `alert('충전 — 준비 중입니다')` 또는 toast | 충전 모달 / 라우트 진입 → `startWalletCharge` → PG → 콜백 → `useWalletBalance().refresh()` |
+| 출금 요청 클릭 | `alert('출금 — 준비 중입니다')` 또는 toast | 출금 모달 → 비밀번호 확인 → `withdrawWallet` → 결과 toast + `refresh()` |
+| 트랜잭션 완료 후 잔액 갱신 | (해당 없음) | shell 의 `useWalletBalance().refresh()` 호출 1번으로 `ProfileHeader` + `BalanceCard` 동시 갱신 |
+| 충전 진행 중 UI | (해당 없음) | `chargePending=true` → "충전하기" 버튼 disabled + spinner |
+| 출금 진행 중 UI | (해당 없음) | `withdrawPending=true` → 동일 |
+| 결과 toast | toast 컨테이너 — 기존 `src/contexts/ToastContext.tsx`(INVENTORY § 5) 그대로 사용 | 동일 |
+
+#### 7.3.6 PR 범위 / § 11 / § 12 정합
+
+다음 결정은 § 11 → § 12 로 흐름:
+
+- 1차 PR 은 **잔액 조회 only**. 충전/출금/거래내역은 미포함.
+- `BalanceCard` 시그니처(§ 7.1.2)는 **확장을 미리 흡수**하도록 작성됨 → § 11 결정 후 BalanceCard 본체 변경 없이 합류.
+- `TransactionList` 도입 시점은 § 11 결정 후 § 12 의 PR 분할(추가 PR 또는 wallet PR 확장)에 반영.
+- 충전/출금 모달 도입 시 `tabs/Wallet/components/` 에 `ChargeModal.tsx` / `WithdrawModal.tsx` 추가, `WalletTab` 은 모달 표시/숨김 상태만 보유 (`useState<'charge' | 'withdraw' | null>(null)`).
+- 충전/출금 콜백은 결과를 toast 로 노출 + 성공 시 `refresh()` 호출 패턴. 모달 내부 폼/검증 로직은 § 11 결정 후 별도 plan.
 
 ## 8. 탭 4: 환불 내역
 (작성 예정)
