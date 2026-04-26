@@ -48,6 +48,38 @@ const EMPTY_FORM: EventForm = {
   imageUrls: [],
 };
 
+function useKakaoPostcode(onSelect: (address: string) => void) {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if ((window as any).daum?.Postcode) {
+      setLoaded(true);
+      return;
+    }
+    const existing = document.getElementById('kakao-postcode-script');
+    if (existing) {
+      existing.addEventListener('load', () => setLoaded(true));
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'kakao-postcode-script';
+    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.onload = () => setLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  const open = () => {
+    if (!loaded) return;
+    new (window as any).daum.Postcode({
+      oncomplete: (data: any) => {
+        onSelect(data.roadAddress || data.jibunAddress);
+      },
+    }).open();
+  };
+
+  return { open, loaded };
+}
+
 function EventForm({
   initialData,
   onSubmit,
@@ -64,6 +96,10 @@ function EventForm({
   const [loading, setLoading] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+
+  const { open: openAddressSearch, loaded: postcodeLoaded } = useKakaoPostcode(
+    (address) => setForm((f) => ({ ...f, location: address }))
+  );
 
   const handleFileSelect = async (file: File, slotIndex: number) => {
     const MAX_SIZE = 5 * 1024 * 1024;
@@ -220,15 +256,28 @@ function EventForm({
           </div>
           <div className="form-group">
             <label className="form-label">장소 *</label>
-            <input
-              className="form-input"
-              placeholder="서울 강남구 / 온라인"
-              value={form.location}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, location: e.target.value }))
-              }
-              style={errors.location ? { borderColor: "var(--danger)" } : {}}
-            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                className="form-input"
+                placeholder="주소 검색 버튼을 클릭하세요"
+                value={form.location}
+                readOnly
+                style={{
+                  flex: 1,
+                  cursor: "default",
+                  ...(errors.location ? { borderColor: "var(--danger)" } : {}),
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={openAddressSearch}
+                disabled={!postcodeLoaded}
+                style={{ whiteSpace: "nowrap", flexShrink: 0 }}
+              >
+                주소 검색
+              </button>
+            </div>
             {errors.location && (
               <span className="form-error">{errors.location}</span>
             )}
