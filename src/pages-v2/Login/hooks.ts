@@ -1,5 +1,14 @@
 import { useState, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { login as loginApi } from '@/api/auth.api';
+import { unwrapApiData } from '@/api/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+const GOOGLE_OAUTH_URL =
+  import.meta.env.VITE_GOOGLE_OAUTH_URL ?? 'http://localhost:8080/oauth2/authorization/google';
+
+const SIGNUP_HREF = '/signup';
 
 export type LoginFormState = {
   email: string;
@@ -86,6 +95,10 @@ function mapValidationErrors(data: unknown): LoginFieldErrors {
 }
 
 export function useLoginForm() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [form, setForm] = useState<LoginFormState>({ email: '', password: '' });
   const [errors, setErrors] = useState<LoginFieldErrors>({});
   const [loading, setLoading] = useState(false);
@@ -100,8 +113,7 @@ export function useLoginForm() {
     setErrors(e => ({ ...e, password: undefined, form: undefined }));
   };
 
-  // Step 1 스텁: 클라 검증까지만. axios 호출 + 토큰 저장 + 리다이렉트는 Step 2에서 연결.
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const fieldErrors = validate(form);
     if (Object.keys(fieldErrors).length > 0) {
@@ -109,10 +121,18 @@ export function useLoginForm() {
       return;
     }
     setErrors({});
+    setLoading(true);
+    try {
+      const res = await loginApi(form);
+      const { accessToken, refreshToken } = unwrapApiData(res.data);
+      await auth.login(accessToken, refreshToken);
+      navigate(safeReturnTo(searchParams.get('returnTo')), { replace: true });
+    } catch (err) {
+      setErrors(mapLoginError(err));
+    } finally {
+      setLoading(false);
+    }
   };
-
-  // setLoading은 Step 2(API 통합)에서 사용. tsconfig noUnusedLocals=false라 미참조 허용.
-  void setLoading;
 
   return {
     form,
@@ -121,5 +141,7 @@ export function useLoginForm() {
     onChangeEmail,
     onChangePassword,
     onSubmit,
+    signupHref: SIGNUP_HREF,
+    googleOAuthUrl: GOOGLE_OAUTH_URL,
   };
 }
