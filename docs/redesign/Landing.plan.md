@@ -1379,4 +1379,160 @@ E. **a11y / 빌드**
 | `index.html` | 미수정 — 메타 태그는 PR 4 |
 
 ### 12.4 PR 4: CTA + 통합 + 라우터
+
+**목적**: CTA 섹션 추가 + 5 섹션을 `Landing.tsx` 에 조합 + `/` 라우트 v2 매핑 교체 + SEO 메타 + Lighthouse 검수.
+
+**의존**: PR 1, PR 2, PR 3 **모두 머지 후**. 본 PR 의 `Landing.tsx` 가 5개 섹션 컴포넌트를 모두 import.
+
+**§ 11 결정 반영 (PR 4 결선 항목)**:
+- #2 (⌘K 팔레트): PR 0 (별 PR — 팔레트 컴포넌트 본체) 머지 여부에 따라 `index.tsx` 의 `onOpenPalette` 결선 한 줄 추가/생략. 미머지 시 § 7.2 fallback (`onBrowseEvents`) 동작 그대로.
+- #8 (로그인 분기): Featured 를 `recommendEvents` (auth 필수) 로 교체. PR 4 에 포함할지 별 후속 PR 로 분리할지 § 12.5 결정 — **기본 가정 = PR 4 에 포함** (Landing 통합 PR 이 가장 자연스러움).
+- #9 (메타 태그): `index.html` 에 og 4종 + twitter 1종 정적 추가. helmet-async 도입은 EventDetail v2 PR 시점.
+
+**§ 10 라우터 변경 (3 줄 수정 + 1 줄 추가)** + § 10.8 체크리스트 6 항목 모두 본 PR 책임.
+
+#### 포함 파일
+
+| 파일 | 종류 | 추정 LOC | 비고 |
+|---|---|---|---|
+| `src/pages-v2/Landing/sections/CtaSection.tsx` | 신규 | ~35 | dashed border + brand-light 그라디언트 + h3 + 서브카피 + primary lg "시작하기 →". `onStart: () => void` props (§ 2). 내부 카피 하드코딩 |
+| `src/pages-v2/Landing/Landing.tsx` | 신규 | ~40 | 페이지 컨테이너. `<div className="editor-scroll">` + gutter + `editor-body` 안에 5 섹션 세로 조합 (Hero → Stats → Categories → Featured → CTA). props 패스스루만, 자체 상태 없음 |
+| `src/pages-v2/Landing/index.tsx` | 신규 | ~30 | 라우트 진입점. `useNavigate` + 5 hooks (`useFirstPage`, `useLandingStats`, `useLandingCategories`, `useFeaturedEvents`, 로그인 분기 시 `useAuth + recommendEvents`) → `<Landing>` 에 props 주입. PR 0 머지 시 `onOpenPalette` 결선 |
+| `src/pages-v2/Landing/hooks.ts` | 수정 (선택) | +30 | #8 분기 도입 시 `useFeaturedEvents` 가 `useAuth().isLoggedIn` 분기로 `recommendEvents` 결선. 별 PR 분리 시 LOC 0 |
+| `src/styles-v2/pages/landing.css` | 수정 | +55 | `.cta-section`, `.editor-scroll`, `.gutter`, `.ln`, `.editor-body`, `@media (prefers-reduced-motion: reduce)` 일괄 정리 (§ 9.5) |
+| `src/App.tsx` | 수정 | +5 / -1 | `import { lazy, Suspense } from 'react'` 확보 후 `const LandingV2 = lazy(() => import('./pages-v2/Landing'))` 추가. `<Route path="/">` 의 `v2` prop 을 `<EventListV2 />` → `<Suspense fallback={<Loading />}><LandingV2 /></Suspense>` 로 교체. `<Route path="/events" element={<VersionedRoute v2={<EventListV2 />} />} />` 한 줄 추가 |
+| `index.html` | 수정 | +8 | og:type / og:title / og:description / og:image / og:url + twitter:card 5 줄 추가. 이미지 자산은 `public/og/landing.png` 별 커밋 |
+| `public/og/landing.png` | 신규 (binary) | (asset) | 1280×640. PR 4 자산 작업 |
+| `src/pages-v2/_dev/*` (PR 1·2·3 의 showcase) | 유지 | — | 본 PR 에서 **제거하지 않음**. cutover PR 에서 일괄 정리 (§ 12.1 머지 조건 / § 10.7) |
+
+**총 추정 LOC**: 본체 (CtaSection 35 + Landing 40 + index 30) 105 + (선택) hooks 30 + 스타일 55 + 라우터/메타 (App +5 + index.html +8 + lazy 1) 14 = **~204 LOC** (#8 미포함 시 ~174). 목표 150~250 안.
+
+#### 파일 생성 순서
+
+1. **CTA 섹션 (가장 작은 신규)**:
+   1. `sections/CtaSection.tsx` — 정적 카드.
+   2. `landing.css` 에 `.cta-section` 클래스 append.
+2. **페이지 컨테이너**:
+   3. `Landing.tsx` — 5 섹션 조합 + `editor-scroll` chrome.
+   4. `landing.css` 에 `.editor-scroll`, `.gutter`, `.ln`, `.editor-body` + `@media (prefers-reduced-motion: reduce)` append.
+3. **라우트 진입점**:
+   5. `index.tsx` — hooks orchestration + `useNavigate` 콜백 합성. 본 시점 `onOpenPalette` 미주입 (PR 0 머지 여부에 따라 분기).
+4. **(선택) 로그인 분기 — § 11 #8**:
+   6. `hooks.ts` 의 `useFeaturedEvents` 에 `useAuth` 분기 추가. 비로그인 = `getEventRecommendations`/`getEvents` 폴백 그대로, 로그인 = `recommendEvents` 1차 + 동일 폴백.
+5. **라우터**:
+   7. `src/App.tsx` 에 `LandingV2` lazy import + `/` 의 v2 prop 교체 + `/events` 라인 추가. § 10.8 체크리스트 6 항목 즉시 검증.
+6. **메타 태그**:
+   8. `public/og/landing.png` 자산 추가.
+   9. `index.html` 에 og 4종 + twitter 1종 추가.
+7. **로컬 검증** (아래 절차) → Lighthouse 검수 (§ 9.7) → 머지.
+
+#### Commit 메시지 시퀀스
+
+작은 커밋 5~6개:
+
+1. `feat(landing): add CtaSection (PR 4/4)`
+   - `sections/CtaSection.tsx` + `landing.css` 의 CTA 부분.
+2. `feat(landing): add Landing page container composing 5 sections`
+   - `Landing.tsx` + `landing.css` 의 chrome / editor-scroll / reduced-motion 부분.
+3. `feat(landing): add Landing route entry with hook orchestration`
+   - `index.tsx`. (PR 0 미머지 시 `onOpenPalette` 미주입 그대로)
+4. `feat(landing): branch Featured to personalized recommendations when authed`
+   - `hooks.ts` 의 `useFeaturedEvents` 분기. **§ 11 #8 / § 12.5 결정에 따라 PR 4 포함 여부 변동**.
+5. `feat(router-v2): swap / to LandingV2 and add /events route`
+   - `src/App.tsx`. `/?v=2` → LandingV2, `/events?v=2` → EventListV2.
+6. `feat(seo): add og/twitter meta tags for landing`
+   - `index.html` + `public/og/landing.png`.
+
+#### 검증 방법
+
+A. **`/?v=2` 전체 동작 검증** (§ 10.4 의 8 케이스 + Landing 전 섹션)
+
+| 케이스 | 확인 |
+|---|---|
+| 1 | `/?v=2` 첫 방문 → LandingV2 렌더 (`localStorage.ui.version === '2'`). React.lazy 청크 1회 로드 |
+| 2 | Hero 좌측 카피 즉시 노출 (LCP 후보), 우측 TypedTerminal 마운트되며 라인 1 의 `out` 이 실제 `totalElements` 와 일치 |
+| 3 | Stats 4 카드: 1=totalElements / 2=ON_SALE / 3=잔여좌석합 / 4=`24+` |
+| 4 | Categories 6 타일 모두 카운트 채워짐. 클릭 시 `/events?v=2&cat=…` 로 이동, EventListV2 가 카테고리 chip active 로 마운트 |
+| 5 | Featured 5 rows. 행 클릭 시 `/events/:id?v=2` |
+| 6 | "전체 보기 →" 클릭 시 `/events?v=2` |
+| 7 | CTA "시작하기 →" 클릭 시 `/events?v=2` |
+| 8 | "이벤트 둘러보기 →" / "빠른 검색 ⌘K" 두 CTA 모두 동작 (팔레트 PR 0 미머지 시 ⌘K = `onBrowseEvents` fallback) |
+| 9 | `/?v=1` 진입 시 기존 EventList 그대로 (변화 없음). `localStorage.ui.version` 제거 확인 |
+| 10 | `/` (sticky=2 상태) 재진입 시 LandingV2 렌더 |
+| 11 | `/events?v=2` 진입 시 EventListV2 렌더 (PR 4 신규 라우트) |
+
+B. **공유 fetcher 검증 (PR 2 ↔ PR 3 결합)**
+
+- DevTools Network 에서 `/?v=2` 새로고침.
+- 기대 요청:
+  - `/events?page=0&size=10` × 1 (Stats + Hero 의 totalCount 공유 — § 5.5)
+  - `/events?category=…&page=0&size=1` × 6 (Categories — § 4 표 2)
+  - `/events/recommendations` × 1 (Featured 1차)
+  - 빈 응답 시 추가 `/events?page=0&size=10` × 1 (Featured 폴백, 위 Stats 호출과 별 캐시 키)
+- Stats 의 `landing:events:firstpage` 와 Featured 의 `landing:featured` 캐시 키 충돌 0.
+
+C. **로그인 분기 검증 (§ 11 #8)**
+
+- 비로그인 진입: 위 A·B 그대로.
+- 로그인 후 `/?v=2` 재진입: Featured 가 `/events/user/recommendations` 호출로 교체 (Network 탭에서 401 없음 — `Authorization` 헤더 자동 주입). Hero / Stats / Categories / CTA 동일.
+- 로그아웃 후: 다시 비로그인 동선.
+
+D. **SEO / 메타 검증**
+
+- View Source: og:type / og:title / og:description / og:image / og:url + twitter:card 5 메타가 head 에 정적 존재.
+- Facebook Sharing Debugger 또는 `og-link` 같은 로컬 검증 도구로 미리보기 정상.
+- `<title>DevTicket</title>` 그대로.
+
+E. **Lighthouse / Web Vitals (§ 9.7 체크리스트)**
+
+- Performance 90+, A11y 100, Best Practices 95+, SEO 95+.
+- LCP ≤ 2.5s (로컬 throttled 4G), CLS < 0.1 (스켈레톤 슬롯 고정 검증), TBT < 200ms.
+- `prefers-reduced-motion` ON 상태에서 모든 정보 접근 가능.
+- 콘솔 에러 0, 경고 0.
+
+F. **회귀 검증**
+
+- `/` (v1) 진입 시 EventList 그대로 — 비-v2 사용자 영향 0.
+- `/cart`, `/mypage`, `/payment/*` 등 기존 라우트 정상 동작.
+- 다른 v2 페이지 (`/cart?v=2`, `/login?v=2` 등) 정상 동작.
+
+#### 머지 조건
+
+- [ ] PR 1·2·3 모두 머지 완료 후 rebase
+- [ ] PR 0 (⌘K 팔레트) 머지 여부에 따라 `index.tsx` 의 `onOpenPalette` 결선 분기 명확화
+- [ ] A~F 검증 통과
+- [ ] § 10.8 라우터 체크리스트 6 항목 모두 통과
+- [ ] § 9.7 Lighthouse 체크리스트 6 항목 모두 통과
+- [ ] `index.html` diff 가 og/twitter 메타 추가 5 줄 + favicon 등 기존 라인 변화 없음
+- [ ] `src/App.tsx` diff 가 lazy import 1 + `/` v2 prop 1 + `/events` 라인 1 = 3 변경 (이외 의도치 않은 수정 없음)
+- [ ] `npm run build` 통과, `tsc --noEmit` 통과
+- [ ] PR 0 / PR 1 / PR 2 / PR 3 의 dev 라우트 (`/_dev/*`) 는 본 PR 에서 **유지** (cutover 정리 대상)
+
+#### Cutover 와의 관계 (PR 4 외)
+
+| 항목 | PR 4 | Cutover PR |
+|---|---|---|
+| `/?v=2` → LandingV2 | ✅ 본 PR | 동일 — `?v=2` 토글 제거 후 무조건 LandingV2 |
+| `/?v=1` → EventList | ✅ 그대로 | 제거 — `VersionedRoute` 헬퍼 자체 삭제 |
+| `/events?v=2` → EventListV2 | ✅ 본 PR (신규) | `/events` 단일 매핑으로 정리 |
+| `src/pages/EventList.tsx` (v1) | 유지 | 삭제 |
+| `index.html` 메타 | og/twitter 추가 | (변경 없음) |
+| Toss Payments script lazy | 미적용 | § 11.5 후속 |
+| `/_dev/*` 라우트 | 유지 (QA 편의) | 일괄 삭제 |
+| 사이트맵 / SEO | (변경 없음 — `?v=2` 사용자만 영향) | `/` (Landing) + `/events` 신규 등록 |
+
+#### 영향 받지 않는 영역
+
+| 영역 | 보장 |
+|---|---|
+| `src/pages-v2/EventList/`, `EventDetail/`, `Cart/`, `Login/`, `PaymentCallback/` | 미수정 |
+| `src/pages/*` (v1) | 미수정 |
+| `src/components-v2/*` | 미수정 (import 만) |
+| `src/api/*` | 미수정 |
+| `src/styles-v2/tokens.css`, `globals.css` | 미수정 (페이지 전용 스타일은 `landing.css`) |
+| 다른 v2 라우트 (`/cart?v=2`, `/login?v=2`) | 미수정 |
+| `?v=1` 사용자 동선 | 영향 0 — `/` v1 prop 그대로 EventList |
+
 ### 12.5 PR 간 의존성
+(작성 예정)
+
