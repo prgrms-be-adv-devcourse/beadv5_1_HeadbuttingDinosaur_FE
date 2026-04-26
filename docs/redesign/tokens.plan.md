@@ -319,7 +319,98 @@ body {
 - ❌ 페이지별 레이아웃 (`.ide` grid 정의 등) — 페이지/컴포넌트 CSS 로
 
 ## 3. 기존 토큰과 충돌 / alias 필요 항목
-(작성 예정)
+
+### 3-0. 기존 토큰 위치
+
+기존 프로젝트는 **CSS 토큰 파일이 별도로 존재하지 않음**. (INVENTORY.md § 5 — "CSS 라이브러리 의존성 없음. 순수 CSS 한 파일")
+
+- 단일 파일: `src/styles/globals.css` (494 LOC)
+- 구조: 리셋 → `:root` 토큰 (lines 7-64) → 컴포넌트 클래스 (`.btn`, `.card`, `.form-*` 등) → `[data-theme="dark"]` 컴포넌트 단위 오버라이드 (lines 443-494)
+- ThemeContext.tsx 가 일부 변수를 JS 로 직접 주입 (`prototype/tokens.css:3` 주석 참고)
+- v2 작업 중 **`src/styles/globals.css` 는 cutover PR 전까지 수정 금지** (CLAUDE.md 절대 규칙)
+- 따라서 v2 토큰 파일은 `src/styles-v2/tokens.css` 로 **신규 추가**, 기존 globals.css 는 cutover 시 일괄 폐기 대상
+
+### 3-1. 토큰 이름 충돌 분석
+
+기존 `globals.css:7-64` 와 `prototype/tokens.css:9-115` 비교 결과:
+
+> **결론: 이름·값 모두 동일하거나 신규 추가만 있음. 충돌(같은 이름·다른 값) 0건.**
+> 즉 v2 tokens.css 가 기존 globals.css 와 같은 페이지에 동시 로드돼도 변수 충돌은 없음 (마지막 선언이 이김 → 동일 값이라 무시 가능).
+
+| 기존 토큰 | 신규 토큰 | 처리 방침 | 비고 |
+|---|---|---|---|
+| `--brand` `#4F46E5` | `--brand` `#4F46E5` | 유지 | 동일 |
+| `--brand-hover` `#4338CA` | `--brand-hover` `#4338CA` | 유지 | 동일 |
+| `--brand-light` `#EEF2FF` | `--brand-light` `#EEF2FF` | 유지 | 동일 |
+| `--brand-muted` `#818CF8` | `--brand-muted` `#818CF8` | 유지 | 동일 |
+| `--bg` `#F8FAFC` | `--bg` `#F8FAFC` | 유지 | 동일 |
+| `--surface` / `-2` / `-3` | 동일 | 유지 | 동일 |
+| `--text` / `-2` / `-3` / `-4` | 동일 | 유지 | 동일 |
+| `--border` / `-2` | 동일 | 유지 | 동일 |
+| `--success` / `-bg` / `-text` | 동일 | 유지 | 동일 |
+| `--warning` / `-bg` / `-text` | 동일 | 유지 | 동일 |
+| `--danger` / `-bg` / `-text` | 동일 | 유지 | 동일 |
+| `--info` / `-bg` / `-text` | 동일 | 유지 | 동일 |
+| `--r-sm` / `md` / `lg` / `xl` / `full` | 동일 | 유지 | 동일 |
+| `--shadow-sm` / `md` / `lg` | 동일 | 유지 | 동일 |
+| `--font` / `--font-mono` | 동일 | 유지 | 동일 |
+| `--nav-h` `60px` / `--sidebar-w` `240px` / `--content-max` `1200px` | 동일 | 유지 | 동일 |
+
+### 3-2. 기존 토큰 미존재 → 신규 추가 (alias 불필요, 충돌 없음)
+
+기존 globals.css 에는 **없고** 프로토타입에만 있는 토큰. v2 가 새로 들여오는 항목.
+
+| 카테고리 | 신규 토큰 | 처리 방침 | 비고 |
+|---|---|---|---|
+| Accent | `--accent-indigo` / `-sky` / `-emerald` / `-amber` / `-violet` / `-pink` / `-red` | 신규 추가 | 이벤트 카드 회전 팔레트. 기존엔 색상 7종을 인라인 사용 중 |
+| Shadow | `--shadow-card-hover` `0 12px 32px rgba(0,0,0,0.12)` | 신규 추가 | 기존엔 카드 호버 박스섀도 정의 없음 |
+| Shadow | `--shadow-modal` `0 20px 60px rgba(0,0,0,0.2)` | 신규 추가 | 기존엔 모달 정의 자체가 없음 |
+| Type scale | `--fs-display` … `--fs-3xs` (11종) | 신규 추가 | 기존은 컴포넌트마다 `font-size` 하드코딩 |
+| Weights | `--fw-regular` … `--fw-black` (5종) | 신규 추가 | 기존은 `font-weight: 500` 등 하드코딩 |
+| Line height | `--lh-tight` / `body` / `relaxed` | 신규 추가 | 기존 body 의 `line-height: 1.6` 만 존재 (하드코딩) |
+| Letter spacing | `--ls-tight` / `wide` | 신규 추가 | 기존엔 letter-spacing 토큰 없음 |
+| Motion | `--dur-fast` / `base` / `slow` / `--ease` | 신규 추가 | 기존은 `transition: all 0.15s` 등 하드코딩 |
+| IDE 전용 | `--term-green*`, `--syn-*`, `--chrome*`, `--gutter*`, `--editor-*`, `--sidebar-bg`, `--status-bg/text`, `--minimap-bg` | 신규 추가 (스코프 결정 보류 → § 4) | 기존엔 전무 |
+
+### 3-3. alias 필요 여부
+
+> **결론: alias 없음.**
+> 기존 코드(`src/components/`, `src/pages/`)는 모두 `--brand`, `--surface` 같은 동일 이름을 그대로 쓰고 있고 v2 토큰도 같은 이름이므로, 호환 alias(`--primary: var(--brand)` 등)를 만들 필요가 없음. 기존 컴포넌트 코드는 cutover 전까지 손대지 않으므로 호환성 이슈 자체가 발생하지 않음.
+
+| 후보 | 판단 | 근거 |
+|---|---|---|
+| `--primary` → `var(--brand)` | ❌ 불필요 | 기존 코드에 `--primary` 사용처 없음 |
+| `--text-primary` → `var(--text)` | ❌ 불필요 | 기존 코드는 `--text` 직접 사용 |
+| `--radius-md` → `var(--r-md)` | ❌ 불필요 | 기존 코드는 `--r-md` 직접 사용 |
+
+### 3-4. 폐기 권고 (cutover 시점에 처리)
+
+기존 `globals.css` 의 다음 항목들은 v2 토큰/컴포넌트 도입 후 **cutover PR 에서 globals.css 를 통째로 제거**하면 자연스럽게 사라짐. 사전에 따로 폐기할 필요 없음.
+
+| 기존 위치 | 항목 | 대체 |
+|---|---|---|
+| `globals.css:1-5` | 리셋 | v2 `global.css` (§ 2-2) |
+| `globals.css:7-64` | `:root` 토큰 | v2 `tokens.css` (§ 1) |
+| `globals.css:66-91` | html/body/a/button/input 기본 | v2 `global.css` (§ 2-3) |
+| `globals.css:93-114` | 스크롤바, `.sr-only`, `.truncate` | v2 `global.css` (§ 2-5, 2-6) |
+| `globals.css:116-441` | 컴포넌트 클래스 (`.btn`, `.card`, `.form-*`, `.table`, `.tabs`, `.empty-state`, `.spinner`, `.toast`, `.pagination`, `.stat-card`, `.search-*` 등) | v2 컴포넌트별 CSS / `prototype/ide-theme.css` 의 클래스 (§ 4) |
+| `globals.css:443-494` | `[data-theme="dark"]` 컴포넌트 단위 오버라이드 | v2 는 변수 단위 오버라이드로 전환 (§ 5) |
+
+### 3-5. 하드코딩 → v2 에서 토큰화될 값 (참고)
+
+표에 넣은 "신규 추가" 와 별개로, 기존 globals.css 에서 **리터럴로 박혀있는데 v2 토큰으로 회수 가능**한 값들. 컴포넌트 재구현 시 주의.
+
+| 위치 | 하드코딩 값 | 회수할 토큰 |
+|---|---|---|
+| `globals.css:72` body | `line-height: 1.6` | `var(--lh-body)` |
+| `globals.css:87` input | `font-size: 14px` | `var(--fs-base)` |
+| `globals.css:146` `.btn` | `transition: all 0.15s` | `var(--dur-base)` + `var(--ease)` |
+| `globals.css:167` `.btn-danger` | `border: 1px solid #FECACA` | semantic 확장 검토 (`--danger-border` 신설 후보) |
+| `globals.css:169` `.btn-danger:hover` | `background: #FEE2E2` | semantic 확장 검토 |
+| `globals.css:230` `.form-input:focus` | `box-shadow: 0 0 0 3px rgb(79 70 229 / 0.1)` | `--shadow-focus` 신규 토큰 신설 후보 (또는 `var(--brand-light)` 활용) |
+| `globals.css:493` 다크 header | `rgba(15, 23, 42, 0.92)` | 다크 변수 정리 시 `--surface-overlay` 류로 회수 (§ 5) |
+
+> 위 항목은 § 1 토큰 표에는 아직 안 들어간 "후보". 실제 추가 여부는 v2 컴포넌트 PR 단위에서 합의.
 
 ## 4. IDE 전용 토큰 처리 방침
 (작성 예정)
