@@ -733,7 +733,130 @@ helper 만 추가하고 `useAddToCart` 성공 분기에서 호출. 본 plan 의 
 **기본: (a)**. PR 3 검증 케이스 (§ 9.3 표 케이스 3) 도 (a) 기준으로 작성됨.
 
 ## 7. 라우터 등록 방법
-(작성 예정)
+
+`router-toggle.plan.md` 의 `<VersionedRoute>` 헬퍼를 그대로 사용한다. EventList
+v2 가 이미 같은 패턴으로 등록되어 있어 (`src/App.tsx:90`) 본 페이지도 동일한
+한 줄 변경.
+
+### 7.1 라우트 경로 결정
+
+**채택: `/events/:id` 그대로 유지** (별도 path 신설 안 함).
+
+| 옵션 | 평가 |
+|---|---|
+| **(a) `/events/:id` 그대로 + VersionedRoute** | router-toggle.plan.md § 2-3 의 채택안. 외부 북마크 / 공유 링크 / 검색엔진 인덱스 / 다른 페이지에서 거는 `<Link>` 가 모두 깨지지 않음. v2 도입 = `App.tsx` 한 줄 교체. **권고.** |
+| (b) `/events-v2/:eventId` 신설 | URL 이 v1/v2 로 갈라짐. EventList v2 의 카드 링크도 같이 바꿔야 함 (`/events/{id}` → `/events-v2/{id}`). 외부 호환성 깨짐. router-toggle § 2-3 비채택안. |
+| (c) `/v2/events/:id` 같은 prefix | 같은 사유로 비채택. |
+
+> 본 plan 의 일부 표/예시 (특히 § 4-(5), § 5, § 9.2 검증) 에 `/events-v2/:eventId`
+> 라고 표기된 곳이 있는데 이는 plan 작성 단계의 잘못된 표기. **실제 라우트는
+> `/events/:id`**. 추후 정리 PR 에서 plan 본문을 일괄 정리하거나, 실제 PR 작업
+> 시 path 만 정확히 사용하면 됨 (plan 의 의도는 변하지 않음).
+
+**`useParams` 키**: 기존 v1 라우트가 `:id` 라 `useParams<{ id: string }>` 로
+받음. v2 코드도 `id` 키로 통일 (별칭 안 만듦).
+
+### 7.2 `App.tsx` 변경
+
+**현재** (`src/App.tsx:91`):
+```tsx
+<Route path="/events/:id" element={<EventDetail />} />
+```
+
+**변경 후**:
+```tsx
+// 상단 lazy imports 영역 (EventListV2 옆에 추가)
+const EventDetailV2 = lazy(() => import('./pages-v2/EventDetail'))
+
+// /events/:id 라인 한 줄 교체
+<Route path="/events/:id"
+  element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
+```
+
+**변경 대상은 두 줄**: lazy import 한 줄 + element 한 줄. EventListV2 등록과
+형식 동일 (선례).
+
+### 7.3 가드 정책
+
+EventDetail 은 **공개 라우트** (현행 v1 도 `RequireAuth` 미적용,
+`router-toggle.plan.md` INVENTORY § 4 의 "가드 없음(공개)" 목록에 포함). v2
+도 동일하게 가드 없이 등록.
+
+```tsx
+// 가드 미적용 — EventListV2 와 같은 형태
+<Route path="/events/:id"
+  element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
+```
+
+> 비로그인 상태에서도 페이지가 정상 렌더되어야 § 5-(4) / § 6.3 의 returnTo
+> 흐름이 성립. `RequireAuth` 를 씌우면 비로그인 사용자가 detail 진입 자체가
+> 막혀서 본 시리즈의 결정 (액션 시점 차단) 과 충돌.
+
+### 7.4 레이아웃 적용
+
+현재 v1 `/events/:id` 는 `<Layout />` (일반 레이아웃) pathless parent route
+하위에 있음 (`src/App.tsx:84` 류 구조). VersionedRoute 로 바꿔도 **부모
+`<Route element={<Layout />}>` 트리는 그대로 유지** — element 슬롯만 교체
+하므로 v1 / v2 둘 다 같은 Layout 를 받음.
+
+**Phase 0 Layout chrome (SPEC § 7) 가 머지되면**: Layout 컴포넌트 자체가
+바뀌지만 본 라우트 등록 형태는 변경 없음. v2 EventDetail 도 자연스럽게 새
+chrome 안에 들어감.
+
+### 7.5 `?v=2` 토글 동작
+
+`VersionedRoute` 가 router-toggle.plan.md § 2-1 / § 2-2 의 우선순위에 따라
+v1 / v2 element 를 선택:
+
+1. URL `?v=2` / `?v=1` (최우선)
+2. `localStorage['ui.version']` (sticky)
+3. `VITE_UI_DEFAULT_VERSION` env
+4. 모두 없으면 `'1'`
+
+`?v=2` 첫 진입 시 `useUiVersion` 이 localStorage 에 동기화 → 같은 사용자가
+다른 detail 로 이동 (`<Link to="/events/{otherId}">`) 해도 v2 유지.
+
+### 7.6 다른 페이지에서 거는 링크
+
+다음 위치들이 `/events/{id}` 형태로 navigate / `<Link>` 한다 — **모두 변경
+없음** (v1/v2 분기는 `VersionedRoute` 가 처리):
+
+| 위치 | 호출 형태 | 본 PR 으로 받는 페이지 |
+|---|---|---|
+| `src/pages/EventList.tsx` (v1) | `<Link to={`/events/${id}`}>` | `?v=` 미설정 → v1 / `?v=2` 면 v2 |
+| `src/pages-v2/EventList/EventList.tsx` (v2) | (구현 시 동일 path) | sticky 가 v2 면 v2, v1 이면 v1 |
+| `src/pages/Cart.tsx` (v1, 추천 카드) | `<Link to={`/events/${event.eventId}`}>` (`Cart.tsx:237`) | sticky 따름 |
+| `src/pages-v2/EventDetail/components/RecommendedCard.tsx` (본 PR 산출물) | `<Link to={`/events/${eventId}`}>` | sticky 따름 (v2 에서 카드 클릭 시 v2 유지) |
+
+**다른 path 신설 안 함**의 핵심 이득. 모든 진입점이 자동으로 토글 따라감.
+
+### 7.7 외부 호환성
+
+- 북마크 / 공유 링크: `/events/{id}` 그대로 유지 → 깨지지 않음.
+- 외부 검색엔진 / SNS 미리보기: 동일.
+- 결제/주문 완료 후 detail 로 돌아오는 흐름 (예: 메일링) 이 있다면 그대로 동작.
+- v2 채택 후에도 `?v=1` 로 강제 v1 접근 가능 → 회귀 발견 시 즉시 사용자별로
+  v1 fallback 가능.
+
+### 7.8 검증 (router-toggle § 5 Step 3 표 형식)
+
+PR 2 의 § 9.2 검증 12~16케이스에 이미 포함된 항목과 중복되므로 본 § 7 의
+검증은 **라우터 wiring 자체**의 회귀에만 집중.
+
+| # | 동작 | 기대 결과 |
+|---|---|---|
+| 1 | `/events/{유효id}` (쿼리 없음, sticky 미설정) | v1 `<EventDetail>` 렌더 — 라우트 매칭 + `useParams` 로 id 추출이 작동 |
+| 2 | `/events/{유효id}?v=2` 첫 진입 | v2 `EventDetailV2` 렌더 + `localStorage.getItem('ui.version') === '2'` |
+| 3 | (#2 직후) 다른 detail 카드 클릭으로 `/events/{otherId}` 이동 | v2 유지 (sticky) |
+| 4 | (#3 상태에서) 새 탭에서 `/events/{유효id}` 직접 입력 | 새 탭의 localStorage 가 같은 origin 이라 v2 유지 (정상). 다른 origin/시크릿 모드면 v1. |
+| 5 | `/events/{유효id}?v=1` | v1 + `localStorage.getItem('ui.version') === null` |
+| 6 | (#5 직후) 다른 detail 이동 | v1 유지 |
+| 7 | `/cart` 같은 다른 라우트로 이동 후 `/events/{유효id}` 로 복귀 | sticky 값 따라 v1 또는 v2 — 마지막 명시 토글 기준 |
+| 8 | 외부 링크 (메일/SNS) 가정으로 직접 `/events/{유효id}` 입력 | sticky 따름. sticky 없으면 v1 (현행 호환). |
+| 9 | `Suspense fallback` 동작 — 첫 v2 진입 시 lazy chunk 로딩 동안 | `<Loading fullscreen />` 또는 상위 Suspense fallback 노출 (App.tsx 의 Suspense 트리 따라). |
+
+**검증 결과 기록**: 9케이스를 PR 2 의 검증 체크리스트에 합치거나 별도 그룹으로
+PR 본문에 기록.
 
 ## 8. 의사결정 필요 지점
 
