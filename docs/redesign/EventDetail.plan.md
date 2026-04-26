@@ -225,7 +225,126 @@ hook 은 그 후의 최종 상태만 본다.
 > 컴포넌트 단위로 다시 확정한다. 본 표는 HTTP 분류 기준만.
 
 ## 4. 데이터 페칭 전략
-(작성 예정)
+
+EventList 가 채택한 패턴과 **동일하게** 작성한다 (일관성). SPEC § 9 의 확정
+사항 ("추가 라이브러리 미도입 — axios + `useEffect/useState` 기반 현행 패턴
+유지, React Query/SWR 미사용") 를 그대로 따른다.
+
+### 1) 사용 훅 — EventList 와 동일
+
+`src/pages-v2/EventList/hooks.ts#useEvents` 와 같은 방식:
+
+- 커스텀 훅 `useEventDetail(eventId)` — `useState<EventDetailQuery>` + `useEffect`
+- 모듈 레벨 `Map<string, { data: EventDetailVM; fetchedAt: number }>` 캐시 (LRU)
+- `AbortController` 로 효과 정리 시 in-flight 요청 취소
+- 상태 union (EventList 의 `EventsQuery` 와 같은 형태):
+  ```ts
+  EventDetailQuery =
+    | { status: 'loading'; previous?: EventDetailVM }
+    | { status: 'success'; data: EventDetailVM; fetchedAt: number }
+    | { status: 'not-found' }                        // 404 전용 (§ 5)
+    | { status: 'forbidden' }                        // 403 전용 (§ 5)
+    | { status: 'error'; error: unknown; previous?: EventDetailVM };
+  ```
+- 노출: `EventDetailQuery & { refetch: () => void }` — 404/403 은 `refetch` 호출
+  해도 효과 없으므로 컨테이너가 호출하지 않는다.
+
+React Query / SWR 채택 시의 `useQuery({ queryKey, queryFn, select })` 형태는
+사용하지 **않는다**. 사용자가 예시로 제시한 코드는 의도 전달용 모양이므로, 본
+프로젝트 패턴으로 옮긴 코드 예시는 아래 (5)에 둠.
+
+### 2) 캐시 키 설계
+
+EventList 는 `serializeFilters(filters)` 로 직렬화한 문자열을 키로 쓴다.
+EventDetail 은 입력이 `eventId` 단일 path param 이므로 키도 단순:
+
+```
+key = eventId            // UUID 문자열 그대로
+```
+
+EventList 와 **다른 모듈 레벨 Map** 을 사용한다 (`detailCache`). 같은 Map 을
+공유하면 Value 타입이 `EventListPage` vs `EventDetailVM` 으로 달라 키 충돌 위험
+이 발생한다. 두 캐시는 독립적으로 관리하고, "list 캐시에서 detail 의 일부를
+빌려쓰기" 는 (3) 의 placeholder 경로로 처리한다.
+
+### 3) EventList 캐시 공유 / prefetch
+
+두 가지 옵션 검토:
+
+- **A) 카드 hover/focus/click 시 detail prefetch** — 카드가 이벤트 핸들러에서
+  `useEventDetail` 을 호출할 수는 없으므로, hooks 모듈에 `prefetchEventDetail(eventId)`
+  명령형 함수를 추가하고 EventList 카드의 `onMouseEnter` / `onFocus` /
+  `onClick` 에서 호출. 캐시 워밍 효과만 노림.
+  - 장점: 라우팅 후 즉시 success.
+  - 단점: 마우스만 스쳐도 호출 → 백엔드 부하 ↑. 디바운스/포커스 추적 로직
+    필요. EventList 컴포넌트에 책임 추가 (현재 EventList 는 detail 모름).
+- **B) EventList 캐시에서 placeholder 합성** — `useEventDetail` 의 초기 state
+  계산 시, detail 캐시에 hit 가 없으면 EventList 의 캐시들을 훑어서 같은
+  `eventId` 를 가진 `EventVM` 을 찾아 부분 placeholder VM 을 만든다.
+  - 공유 가능한 필드: `eventId`, `title`, `category`, `price`,
+    `remainingQuantity`, `status`, `eventDateTime`, `dateLabel`, `timeLabel`,
+    `techStacks`, `isFree`, `isLowStock`, `thumbnailUrl`.
+  - 누락 필드: `description`, `location`, `sellerNickname`, `totalQuantity`
+    → 컴포넌트에서 `undefined` 가능 처리 필요.
+  - 상태는 `loading` 으로 유지하고 `previous` 슬롯에 placeholder VM 을 담아서
+    스켈레톤 대신 즉시 표시. 백그라운드 요청 성공 시 `success` 로 교체.
+  - 장점: 추가 호출 없음. 라우팅 직후 사용자 체감 즉시 표시. EventList 책임
+    무변화.
+  - 단점: EventList 의 캐시를 detail hook 이 들여다봐야 하므로 두 모듈 사이에
+    의존이 생김 (또는 두 캐시를 모두 다루는 작은 공유 모듈 신설).
+
+→ **기본 채택 안: B (placeholder)**. 단, EventList 측 캐시 export 가 필요
+하므로 § 9 / § 8 의사결정에 "EventList hooks 의 캐시를 외부 노출할지" 항목
+추가. 노출 비용이 크다고 판단되면 B 보류 → 본 페이지는 그냥 스켈레톤만 쓰고
+A/B 모두 도입하지 않음 (가장 단순). 그래도 현 plan 의 후속 섹션은 placeholder
+가 없는 시나리오를 기준으로 작성.
+
+### 4) stale time / cache time
+
+EventList 와 동일 값으로 시작:
+
+| 항목 | 값 | 근거 |
+|---|---|---|
+| `STALE_MS` | `60_000` (60s) | EventList 와 일치. 상세는 변경 빈도가 더 낮지만 `remainingQuantity` 가 빠르게 변하므로 너무 길게 잡지 않음. |
+| `LRU_LIMIT` | `12` | 사용자가 list ↔ detail 을 왕복하는 패턴이 더 흔하므로 list (8) 보다 약간 크게. 실제 메모리는 항목당 작음. |
+| 백그라운드 refetch | 없음 | window focus / interval refetch 도입하지 않음. 사용자가 명시적으로 재시도 / 새로고침할 때만. |
+
+`refetch()` 는 EventList 와 같이 캐시 엔트리를 먼저 삭제 → tick 증가로 효과
+재실행. 5xx / 네트워크 에러 케이스에서 사용 (§ 5).
+
+### 5) router param 에서 eventId 추출
+
+라우트는 § 7 에서 `/events-v2/:eventId` 로 등록 예정. `index.tsx` 에서 추출:
+
+```tsx
+// src/pages-v2/EventDetail/index.tsx
+import { useParams, Navigate } from 'react-router-dom';
+import { EventDetail } from './EventDetail';
+
+export default function EventDetailPage() {
+  const { eventId } = useParams<{ eventId: string }>();
+  if (!eventId) return <Navigate to="/events-v2" replace />;  // 라우터가 보장하지만 타입 안전
+  return <EventDetail eventId={eventId} />;
+}
+```
+
+훅 사용처 (컨테이너):
+
+```ts
+// src/pages-v2/EventDetail/hooks.ts (개념 골격 — EventList useEvents 와 동형)
+const detailCache = new Map<string, { data: EventDetailVM; fetchedAt: number }>();
+
+export function useEventDetail(eventId: string): EventDetailQuery & { refetch: () => void } {
+  // 1) 초기 state: cache hit 면 success, 아니면 loading (placeholder 옵션은 (3)-B 채택 시 추가)
+  // 2) useEffect([eventId, tick]):
+  //    - fresh hit → success 세팅 후 return
+  //    - else AbortController 로 getEventDetail 호출 → 200 success / 404 not-found / 403 forbidden / 그 외 error
+  // 3) refetch: detailCache.delete(eventId) + setTick(n => n + 1)
+}
+```
+
+전체 구현은 EventList `hooks.ts` 의 `useEvents` 를 그대로 본떠 작성하므로 본
+plan 에서는 형태만 명시.
 
 ## 5. 신규 상태 처리 (로딩/에러/404/권한)
 (작성 예정)
