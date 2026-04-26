@@ -335,23 +335,32 @@ src/pages-v2/{Page}/
 
 | 기존 페이지 | 처리 방침 |
 |---|---|
-| /signup | (미정) — 별도 작업 또는 기존 유지 |
-| /admin/* | 토큰만 자동 적용, UI 그대로 |
-| (기타) | |
+| /signup, /signup/complete | 기존 화면 유지 (Phase 0 범위 밖) |
+| /oauth/callback, /social/profile-setup | 기존 소셜 로그인 플로우 유지 |
+| /payment, /payment/complete, /payment/success, /payment/fail | 기존 결제 플로우 유지 (v2 페이지 작업 후 점진 이관) |
+| /wallet/charge/success, /wallet/charge/fail | 기존 유지 |
+| /seller-apply | 기존 유지 |
+| /seller/* | 토큰만 자동 적용, 화면 구조는 판매자 영역 현행 유지 |
+| /admin/* | 토큰만 자동 적용, 화면 구조는 관리자 영역 현행 유지 |
+| /not-found(*) | 기존 유지 |
 
 ### 기존에 없는 프로토타입 항목
 | 프로토타입 항목 | 처리 |
 |---|---|
+| Landing 페이지 | 신규 페이지로 작성 (현재 `/`는 EventList) |
 | Landing TypedTerminal | 신규 컴포넌트로 작성 |
-| MyPage 환불 탭 | API 존재 여부 확인 후 결정 |
-| (기타) | |
+| IDE Layout chrome (타이틀바/사이드바/탭/상태바) | Phase 0 공용 레이아웃으로 신규 작성 |
+| MyPage 환불 탭 | `src/api/refunds.api.ts` 활용하여 구현 가능 (빈 상태 포함) |
 
 ### 의사결정 보류
 | 항목 | 상태 |
 |---|---|
-| Layout chrome A/B 선택 | 팀 논의 필요 |
-| 장바구니 서버 저장 여부 | 기존 패턴 확인 필요 |
-| (기타) | |
+| Layout chrome A/B 선택 | **Option A 확정**: 프로토타입의 IDE chrome(사이드바/탭/상태바) 구조를 충실히 재현 |
+| 장바구니 서버 저장 여부 | **서버 저장 확정**: `src/pages/Cart.tsx`가 `getCart/addCartItem/clearCart` 사용 |
+| CSS 솔루션 | **기존 방식 유지 확정**: 전역 CSS(`src/styles/globals.css`) + 컴포넌트 `className` + 필요한 인라인 스타일 (Tailwind/CSS Modules/styled-components 미사용) |
+| 데이터 페칭 라이브러리 | **추가 라이브러리 미도입 확정**: axios + `useEffect/useState` 기반 현행 패턴 유지 (React Query/SWR 미사용) |
+| TypeScript 강제 적용 여부 | **강제 적용 확정**: 현행 페이지/컴포넌트가 `.tsx` 기반이므로 v2도 TSX로 통일 |
+| API/DTO 변경 허용 여부 | **변경 최소화 확정**: 기존 `src/api/*.ts` 계약을 유지하고 UI 계층에서만 변환 |
 
 ---
 
@@ -361,6 +370,13 @@ src/pages-v2/{Page}/
 
 | 페이지 | 사용 API | 위치 |
 |---|---|---|
+| Login (`prototype/Login.jsx`) | `login` | `src/api/auth.api.ts` |
+| EventList (`prototype/EventList.jsx`) | `getEvents`, `searchEvents`, `getCategorySummary`, `recommendEvents`, `getTechStacks`, `extractTechStacks` | `src/api/events.api.ts`, `src/api/auth.api.ts`, `src/api/techStacks.ts` |
+| EventDetail (`prototype/EventDetail.jsx`) | `getEventDetail`, `addCartItem` | `src/api/events.api.ts`, `src/api/cart.api.ts` |
+| Cart (`prototype/Cart.jsx`) | `getCart`, `addCartItem`, `clearCart`, `createOrder`, `recommendEvents` | `src/api/cart.api.ts`, `src/api/orders.api.ts`, `src/api/events.api.ts` |
+| MyPage (`prototype/MyPage.jsx`) | `getTickets`, `getOrders`, `cancelOrder`, `getWalletBalance`, `getWalletTransactions`, `startWalletCharge`, `withdrawWallet`, `getRefunds`, `getRefundInfo`, `refundTicketByPg`, `refundOrder`, `getTechStacks`, `updateProfile`, `changePassword`, `withdrawUser`, `extractTechStacks` | `src/api/tickets.api.ts`, `src/api/orders.api.ts`, `src/api/wallet.api.ts`, `src/api/refunds.api.ts`, `src/api/auth.api.ts`, `src/api/techStacks.ts` |
+| Landing (`prototype/Landing.jsx`) | (신규 매핑 필요) `getEvents` 기반 통계/featured, 카테고리 API 유무 확인 후 확정 | 우선 `src/api/events.api.ts` |
+| Layout (`prototype/Layout.jsx`) | `logout` (+ 인증 컨텍스트) | `src/api/auth.api.ts` |
 
 ### 어댑터 규칙 (필수)
 - 모든 API 응답은 페이지 단위 `adapters.ts` 거쳐서 VM으로 변환
