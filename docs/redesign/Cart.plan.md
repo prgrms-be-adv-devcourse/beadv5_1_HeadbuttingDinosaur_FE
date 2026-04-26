@@ -675,7 +675,65 @@ const CartV2 = lazy(() => import('./pages-v2/Cart'))
 (작성 예정)
 
 ## 9. 의사결정 필요 지점
-(작성 예정)
+
+§ 3·§ 7 결정이 § 10(PR 분할)에 직접 영향. 본 섹션은 **결정 단일 진실 공급원**.
+
+각 항목: 추천안(앞 섹션·SPEC·INVENTORY 근거) → **본인 결정** → 영향(앞 섹션 갱신 필요 시 § 10에서 흡수).
+
+### 9.1 핵심 결정 (사용자 직접 입력)
+
+| # | 항목 | 추천안 | **본인 결정** | 영향 |
+|---|---|---|---|---|
+| 1 | 장바구니 상태 관리 (A 로컬 / B 서버 / C 하이브리드) | **B**. v1 패턴 + RequireAuth 가드 + 백엔드 풀 CRUD + SPEC § 9 확정 (§ 3) | **B 서버 저장** | § 3 그대로. 추가 변동 없음 |
+| 2 | 같은 이벤트 추가 시 합산 vs 덮어쓰기 | **합산**. `AddCartItemResponse`가 단일 cartItemId에 누적 quantity로 응답한다는 가정 (§ 5) | **합산** | § 5 (1) 그대로. 백엔드 동작 검증 필요(§ 9.3) |
+| 3 | 수량 변경 디바운스 적용 여부 | **미적용**. PATCH가 delta 의미라 디바운스 시 race·중복 위험 (§ 3) | **기존 코드로 가능한 범위 내에서** = 디바운스 라이브러리 도입 X. 클릭 1회 = PATCH 1회 + `pendingItemIds` 가드 | § 3·§ 5 (2) 그대로 |
+| 4 | 단건 아이템 삭제 confirm 모달 여부 | **즉시 삭제** (낙관적 + 토스트). v1에는 단건 삭제 UI 자체가 없어 precedent 없음. v1의 confirm은 "전체 비우기"에만 적용됨 | **기존 코드 확인 결과: 단건 삭제 UI 없음 → confirm 없이 즉시 삭제로 진행** | § 5 (3) 그대로. 토스트 Undo 패턴은 도입 X (단순 즉시 삭제) |
+| 5 | 결제 직전 재고 / 가격 재검증 prefetch | **미도입**. `createOrder`가 서버에서 검증 후 409로 응답 → 인라인 배너 + `getCart()` 재페치로 통일 (§ 6.4) | **서버 단 검증에 위임. 409 응답 시 § 6.3.3 처리 패턴 적용** | § 6.4 그대로 |
+| 6 | 쿠폰 / 할인 코드 입력 UI | 백엔드 API 부재(`OrderRequest = { cartItemIds }` 외 필드 없음, INVENTORY § 2 / § 3) → 도입 시 백엔드 변경 동반 | **이번 PR 범위 ❌ (없음)** | OrderSummary는 "할인 0원" 라인만 placeholder로 노출. 입력 UI 미구현 |
+| 7 | 결제 수단 선택 UI (이번 PR 범위?) | § 7.1에서 **v1 PaymentModal 그대로 재사용**으로 적었음 (SPEC § 9 "결제 플로우 유지" + § 0 "기존 코드 보존") | **이번 PR 범위 ✅ (기능·흐름 그대로, UI/UX만 v2 톤앤매너로 리스킨)** | **§ 7.1·§ 7.7과 충돌** → § 10 PR 분할에서 별도 PR로 분리(`PaymentModal v2`). 본 plan의 § 7.7 "❌ PaymentModal 디자인 변경"은 § 9의 본 결정으로 **덮어쓰기** |
+| 8 | 결제 완료 / 실패 페이지 (이번 PR 범위?) | § 7.3·§ 8.3에서 **본 PR 범위 ❌**로 적었음 (SPEC § 9 / Toss successUrl·failUrl 묶임) | **이번 PR 범위 ✅ (기능·흐름 그대로, UI/UX만 v2 톤앤매너로 리스킨)** = `/payment/success`, `/payment/fail`, `/payment/complete` 3개 페이지 v2 신설 | **§ 7.3·§ 8.3과 충돌** → § 10에서 별도 PR로 분리. SPEC § 9의 "결제 플로우 유지" 항목도 부분 갱신 필요(별도 작업) |
+| 9 | 비로그인이 카트 담은 후 로그인 시 마이그레이션 (하이브리드 가정 시) | 9.1-1에서 B 채택했으므로 시나리오 자체가 발생 X | **불가능. 서버 관리 방식이라 비로그인은 RequireAuth 가드로 차단됨** (§ 3) | EventDetail "장바구니 담기"의 비로그인 처리는 `returnTo` redirect로 충분 (§ 5 (1)) |
+
+### 9.2 부속 결정 (앞 섹션에서 § 9로 미룬 항목)
+
+| # | 항목 | 출처 | 추천안 | **결정** |
+|---|---|---|---|---|
+| 10 | 빈 상태 variant 단일화 | § 6.1 | 결제 직후 진입 경로가 사실상 부재(완료 페이지 → "주문내역 보기" 경로 우선) → **단일 메시지로 축소**. `location.state.fromCheckout` 분기 제거 | **단일 빈 상태로 통합**. variant 분기 미구현 |
+| 11 | 409 발생 시 자동 수량 보정 | § 6.3.2 | (b) 알림만. 사용자 동의 없이 quantity 변경 위험 | **(b) 알림 + 인라인 chip + `getCart()` 재페치**. 자동 보정 X |
+| 12 | 단발 `getCart()` 재페치 트리거 (수량 mutation 409 후) | § 5 (2) | 409 시 1회 재페치. 서버 stock 변동을 즉시 반영 | **409 시 1회 재페치 채택** |
+| 13 | "전체 비우기" UI 노출 여부 | (v1엔 있음, 프로토타입엔 없음) | 프로토타입에 없으므로 v2도 미노출. 결제 후 백엔드가 cart를 비운다고 § 5 (4)에서 가정 | **미노출**. UI에 전체 삭제 버튼 두지 않음 |
+| 14 | 결제 실패 시 백엔드 cart 보존 동작 확인 | § 6.3.3 | 백엔드팀 확인 필요. v1은 명시 호출 X | **검증 항목 (§ 9.3)으로 등재**. 결과에 따라 보충 `clearCart()` 추가 검토 |
+| 15 | `Idempotency-Key` 부착 범위 | § 7.5 | `createOrder`에 부착(클라 가드 + 헤더 이중). PaymentModal은 후속 | **`createOrder`에 `idempotencyConfig()` 부착**. PaymentModal v2(§ 9.1-7) PR에서 `readyPayment`도 동시 부착 |
+| 16 | npm `@tosspayments/tosspayments-sdk` 마이그레이션 | § 7.2 | 권장(타입 안정성). 그러나 결제 수단 UI 리스킨(§ 9.1-7)과 함께 진행 | **§ 9.1-7 PR에서 함께 마이그레이션**. 별도 PR 분할 X |
+| 17 | `RecommendedCardVM` 위치 (`EventDetail/adapters.ts` → `_shared/`) | § 1 | Cart도 `recommendEvents` 사용하므로 `_shared/recommendation.ts`로 승격 | **`_shared/recommendation.ts`로 승격**. § 10 PR 1에 포함 |
+| 18 | 클라이언트 stock 상한 가드 (수량 컨트롤 max) | § 5 (2) | (A) 서버 위임. `CartItemDetail`이 stock을 안 내려줌 | **(A) 서버 위임**. 클라이언트 max 미설정 (단, min=1은 유지) |
+| 19 | 오프라인 배너 (`navigator.onLine`) | § 6.3.4 | 도입 안 함. 5xx 처리로 흡수 | **미도입** |
+| 20 | EventDetail 비로그인 → 로그인 후 액션 자동 재실행 | § 5 (1) | 미구현(returnTo 후 사용자 재클릭). 본 plan 범위 밖 | **미구현 유지**. 별도 의사결정 항목 아님 |
+
+### 9.3 백엔드 검증 항목 (PR 1 시작 전 확인)
+
+§ 9.1·§ 9.2의 가정 중 **백엔드 동작 가정**이 들어간 항목들. 시작 전 1회 검증.
+
+| # | 가정 | 확인 방법 | 실패 시 영향 |
+|---|---|---|---|
+| V1 | `addCartItem` 같은 eventId 재호출 시 **합산** (§ 9.1-2) | 같은 eventId로 quantity 1 두 번 POST → 응답에 단일 cartItemId·quantity 2 확인 | 덮어쓰기 동작이면 클라 측 "이미 담긴 항목" 안내 추가 필요 |
+| V2 | `createOrder` 성공 시 백엔드가 cart를 **비움** (§ 5 (4) / § 9.2-13) | 결제 성공 후 `getCart()` 호출 → `items: []` 확인 | 비우지 않으면 결제 성공 후 보충 `clearCart()` 호출 필요 |
+| V3 | `createOrder` 409 응답 코드/메시지 포맷 (§ 6.3.3) | 의도적으로 매진 이벤트로 호출 → 응답 body 확인 | 인라인 배너 메시지 매핑 갱신 |
+| V4 | `updateCartItemQuantity` quantity가 음수일 때(0 이하 도달) 백엔드 거동 (§ 5 (2)) | quantity=1인 row에 -1 PATCH 보내고 응답 확인 | 클라이언트가 min=1 가드를 강제(현 plan 그대로) |
+| V5 | 결제 실패/취소 후 cart 보존 (§ 6.3.3) | `/payment/fail` 도달 후 `getCart()` 확인 | 비워지면 사용자 혼란 — `/payment/fail` 페이지에서 안내 추가 |
+| V6 | `Idempotency-Key` 헤더 처리 여부 (§ 9.2-15) | 같은 키로 `createOrder` 2회 → 두 번째는 첫 결과 반환되는지 | 미처리면 클라 가드(`checkoutState`)만으로 충분히 방어. 헤더는 무해 |
+
+### 9.4 § 10 (PR 분할) 영향 요약
+
+§ 9의 결정으로 § 10에 다음 PR이 추가/조정됨:
+
+- **신규 PR**: `PaymentModal v2 리스킨` (§ 9.1-7) — `src/components-v2/PaymentModal/` 신설 + Cart v2가 기존이 아닌 v2 Modal 임포트.
+- **신규 PR**: `결제 콜백 페이지 v2 리스킨` (§ 9.1-8) — `/payment/success`, `/payment/fail`, `/payment/complete` 3개를 `<VersionedRoute>`로 토글 진입.
+- **PR 1 추가 작업**: `RecommendedCardVM`을 `_shared/`로 승격 (§ 9.2-17).
+- **PR 1 추가 작업**: `createOrder`에 `idempotencyConfig()` 부착 (§ 9.2-15).
+- **시작 전 작업**: § 9.3의 6개 백엔드 검증 (별도 PR 아님, 검증 후 결과를 § 9.3에 갱신).
+
+이 전체 구체적 PR 분할은 § 10에서 정리.
 
 ## 10. PR 분할 (골격만)
 (작성 예정)
