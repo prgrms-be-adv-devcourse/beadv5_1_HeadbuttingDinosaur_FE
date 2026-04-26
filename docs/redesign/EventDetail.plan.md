@@ -468,7 +468,7 @@ canBuy    = status === 'ON_SALE' && remainingQuantity > 0;
 | 1 | "바로 구매" 후 이동 경로 + "장바구니에 담기" 후 동작 | (a) 바로 구매 → `addCartItem` 후 `/cart` 이동 / 장바구니 담기 → `addCartItem` 후 토스트만, 현재 페이지 유지 / (b) 바로 구매가 결제 페이지로 직행 | **(a) 장바구니 경유 + 담기는 페이지 유지** | 사용자 추가 확인: 바로 구매 = `/cart` 이동, 장바구니에 담기 = 페이지 유지. 기존 `src/pages/EventDetail.tsx#handleBuyNow`/`handleAddCart` 와 동일 패턴. § 6 (구매 플로우) 와 § 9.3 (PR 3 검증 8케이스) 모두 이 동작 가정으로 작성됨. |
 | 2 | 동일 이벤트 재담기 동작 | (a) 백엔드 합산 / (b) 백엔드 거부 (409) / (c) 덮어쓰기 | **(a) 합산** | 클라는 합산을 전제로 단순 호출 후 토스트만 띄움. PR 1 시작 전 백엔드 동작 1회 실측 필요 — 다르면 hook 에서 409/200 분기 추가. |
 | 3 | 매진 임박 (잔여 < N) UI 강조 | (a) 강조 없음 / (b) `isLowStock` 으로 amber 색 / (c) "마감 임박" chip 추가 | **강조 적용 (잔여 < 5, amber 색)** | EventList 의 `isLowStock` 임계값은 `< 10`. 두 페이지 일관성 위해 공유 헬퍼 `isLowStock` 의 임계값을 **`< 5` 로 통일 + EventList 동시 수정** 권고 (§ 9 의 추출 PR 시점). 통일하지 않으면 페이지 간 동작 불일치. |
-| 4 | 관련/추천 이벤트 섹션 | (a) 도입 안 함 / (b) 별도 추천 API (`/events/user/recommendations`) 사용 / (c) **현재 사용자의 장바구니 항목을 재노출** | **(c) 장바구니 재노출 — 도입 확정** | 사용자 결정. 데이터 소스는 `src/api/cart.api#getCart`. 별도 추천 API 작업/디자인 협의 불필요해서 본 시리즈 범위 안에서 처리 가능. **세부 동작 가정** (이견 있으면 수정): (i) 비로그인 → 섹션 숨김, (ii) 로그인 + 장바구니 빈 상태 → 섹션 숨김, (iii) 현재 보고 있는 이벤트 자체는 목록에서 제외 (`cartItems.filter(i => i.eventId !== currentEventId)`), (iv) 정렬은 cart 추가 역순 그대로, (v) 카드 클릭 시 해당 이벤트 detail 로 이동 (현 detail 에서 다음 detail). 카드 디자인은 EventList 의 `EventCard` 재사용 검토 — § 2 영향. |
+| 4 | 관련/추천 이벤트 섹션 | (a) 도입 안 함 / (b) 별도 추천 API 신규 / (c) **Cart v1 이 이미 쓰고 있는 `recommendEvents()` 그대로 재사용** | **(c) `recommendEvents()` 재사용 — 도입 확정** | 사용자 결정. 데이터 소스는 `src/api/events.api.ts:102#recommendEvents` (= `GET /api/events/user/recommendations`). 동일한 호출이 `src/pages/Cart.tsx:47` 에서 이미 사용 중 — 신규 API/디자인 협의 불필요. **응답 형태** (Cart.tsx 사용 기준): `{ events: Array<{ eventId, title, price, eventDateTime, category, ... }> }` → `slice(0, 5)` → 추천 카드 5장. **세부 동작 가정** (이견 있으면 수정): (i) 호출 자체는 인증 무관하게 항상 시도, 401/네트워크 실패 시 try/catch 로 swallow + 섹션 숨김 (Cart.tsx 와 같은 폴백 패턴), (ii) 응답 `events.length === 0` → 섹션 숨김, (iii) 현재 보고 있는 이벤트는 결과에서 제외 후 표시 (`events.filter(e => e.eventId !== currentEventId).slice(0, 5)`), (iv) 카드 클릭 → `/events-v2/{eventId}` 이동 (현 detail 에서 다음 detail), (v) 카드 안 quick-add 버튼은 본 시리즈에선 **빼고** 단순 링크만 노출 (Cart 의 quick-add 는 cart 페이지 컨텍스트에서 의미 있음 — detail 에서는 PurchasePanel 이 이미 그 역할). 카드 디자인은 Cart.tsx 의 RecommendedEventCard 패턴을 참고하되 v2 디자인 톤 (카테고리 mono pill / accent / mono date) 으로 다시 그림. EventList 의 `EventCard` 와는 정보 밀도가 다름 (mini 카드) → 별도 `RecommendedCard` 컴포넌트 신설 권고. |
 | 5 | 공유 버튼 / 즐겨찾기 | (a) 도입 안 함 / (b) 도입 | **도입 안 함** | 프로토타입에 없음 + 즐겨찾기는 백엔드 API 부재. |
 | 6 | `QuantityControl` 공용 승격 (Cart 와 공유) | (a) `src/components-v2/` 신설 / (b) Detail 페이지 전용 유지 | **(a) 승격** | `src/components-v2/QuantityControl.tsx` 로 신설. § 9 의 PR 0 / PR 1 에 포함. props 시그니처는 보수적으로 (`value`, `min`, `max`, `onChange`, `size?`). |
 
@@ -495,17 +495,17 @@ canBuy    = status === 'ON_SALE' && remainingQuantity > 0;
 - ⏳ **항목 3 의 임계값 통일 여부** — `< 5` vs `< 10` 두 페이지 동기화
 - ⏳ **항목 4 의 세부 동작 (i)~(v) 확인** — 본 표의 가정이 맞는지 한번만 확인하면 됨
 
-### 항목 4 채택 (장바구니 재노출 추천 섹션) 의 다른 섹션 영향
+### 항목 4 채택 (`recommendEvents()` 재사용 추천 섹션) 의 다른 섹션 영향
 
 본 § 8 만 갱신했고 아래 섹션들은 사용자 추가 신호 후 갱신 예정:
 
-- **§ 2 (컴포넌트 분해)**: `RecommendedSection` (또는 `CartReplaySection`) + 카드 컴포넌트 추가 필요. EventList 의 `EventCard` 와 모양이 거의 같으므로 공용으로 승격 검토 (§ 8-D-style 결정).
-- **§ 3 (API 매핑)**: `getCart` 호출 추가 (의존 API 2개로 늘어남). `CartResponse` → 추천 카드 VM 배열로의 매핑 필요. cart item 에 `eventId` 만 있고 카드 표시에 필요한 정보 (제목/가격/일시/잔여 등) 가 일부 누락되면 `getEventDetail` N회 또는 `getEvents` 의 multi-id 지원 여부 확인 필요 — `src/api/types.ts#CartItemDetail` 실 형태 확인이 선행.
-- **§ 5 (상태 처리)**: 추천 섹션의 자체 로딩/에러 분기는 본문 표시를 막지 않도록 격리 (섹션 단위 ErrorBoundary 또는 분기 로컬화).
-- **§ 6 (구매 플로우 — 미작성)**: 장바구니에 새로 담은 후 추천 섹션이 자동 갱신되는지 (cache invalidation) 가 새로운 검증 항목이 됨.
+- **§ 2 (컴포넌트 분해)**: `RecommendedSection` + `RecommendedCard` 두 컴포넌트 추가. EventList 의 `EventCard` 와는 정보 밀도가 달라 공용 승격 비추 (별도 mini 카드).
+- **§ 3 (API 매핑)**: `recommendEvents()` 호출 추가 (의존 API 2개: `getEventDetail` + `recommendEvents`). 응답은 Cart.tsx 가 사용하는 5필드 (`eventId`/`title`/`price`/`eventDateTime`/`category`) 만 추출. 응답 타입이 `src/api/types.ts` 에 정식 정의 없음 (Cart.tsx 가 `any` 매핑) — `events.api.ts:102` 의 시그니처도 제네릭 없음. v2 작업 시 `RecommendationResponse` 타입을 `src/api/types.ts` 에 추가하는 게 깔끔하지만, 보존 원칙 (§ 0) 충돌 → v2 어댑터 안에서 좁은 타입 정의 후 사용 권고.
+- **§ 5 (상태 처리)**: 추천 섹션의 자체 로딩/에러 분기는 본문 표시를 막지 않도록 격리 (섹션 단위 try/catch + 빈 배열 폴백 — Cart.tsx 패턴). 401/네트워크 실패는 섹션 자체를 안 그리는 것으로 흡수.
+- **§ 6 (구매 플로우 — 미작성)**: `recommendEvents` 는 사용자 행동 기반 추천이므로 PurchasePanel 에서 cart 추가 후 자동 갱신할 가치가 있을 수 있음. 단순 1회 fetch 로 둘지 cart 변동 후 refetch 할지 § 6 작성 시 결정. 기본은 1회 fetch.
 - **§ 9 PR 분할**:
-  - PR 2 또는 PR 3 에 추가 작업 (~150 LOC 추산). 인증 의존이 있어 비로그인 분기 회귀 위험 → PR 3 에 묶는 게 자연스러움.
-  - 또는 별도 PR 4 로 분리 가능. 결정은 § 9 갱신 시.
+  - PR 2 또는 PR 3 에 추가 작업 (~120 LOC 추산: `RecommendedSection` ~50 + `RecommendedCard` ~50 + hooks 추가 ~20). 인증 무관 호출이라 비로그인 회귀는 가벼움 → **PR 2 에 묶는 게 자연스러움** (api 통합 작업 묶음).
+  - 또는 별도 PR 4 로 분리해 본문 PR 들과 격리 가능. 결정은 § 9 갱신 시.
 
 ## 9. PR 분할 + 파일 생성 순서
 
