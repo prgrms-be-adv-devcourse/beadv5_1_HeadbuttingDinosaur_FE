@@ -821,7 +821,165 @@ handling`), C6 단독 — 총 3 commits 도 가능.
   → 다시 detail 진입 시 v2 유지) 도 케이스 3 으로 확인됨.
 
 ### 9.3 PR 3: 구매 플로우 (장바구니 연동) — 선택
-(작성 예정)
+
+**상태 메모**: § 6 (구매 플로우) 본문은 아직 placeholder. 다만 § 8 의 사용자
+결정 (항목 1: 장바구니 경유, 항목 2: 합산) + § 5-(4) (비로그인 returnTo 흐름)
++ 기존 `src/pages/EventDetail.tsx#handleBuyNow`/`handleAddCart` 패턴이 충분
+한 결정 자료를 제공하므로 본 PR 의 범위/검증은 확정 가능. § 6 본문이 작성되면
+세부 메시지/토스트 카피 정도가 추가되며, 본 PR 의 파일 목록/LOC 추정은 변하지
+않음.
+
+#### 분리 vs 통합 판단
+
+**권고: 별도 PR 3 으로 분리.** 단, 다음 조건 모두 만족 시 PR 2 에 통합 가능.
+
+| 분리 권고 근거 | 통합 가능 조건 |
+|---|---|
+| PR 2 의 12케이스 검증 (§ 9.2) 이 이미 큼. 구매 플로우 검증 (비로그인 redirect / returnTo / 토스트 / cart 이동 / 합산 동작) 6케이스를 더하면 17~18 케이스 → 한 리뷰에서 다루기 부담. | 팀 인원 1~2명 + 빠른 cadence + cart auth 흐름이 단순 (이미 `src/pages/EventDetail.tsx` 에 동일 패턴 존재). |
+| § 8-항목2 의 백엔드 합산 동작 1회 실측이 PR 2 머지 직전까지 안 끝나면 PR 3 시작이 늦어짐 — PR 2 가 미루어짐. 분리하면 PR 2 는 placeholder CTA 로 먼저 머지 가능. | 백엔드 합산 동작이 이미 검증돼 있고 추가 위험 없음. |
+| Cart v1 (`/cart`) 와의 통합 회귀 (e.g. v2 detail 에서 담은 아이템이 v1 cart 에 정상 표시) 가 별도 검증 영역. | Cart v1 인터페이스 (`getCart`/`addCartItem`) 가 안정 — INVENTORY § 2 기준 이미 운영 중. |
+
+**기본 가정: 분리.** 통합 채택 시 § 9.2 의 commit C2 (`feat(event-detail-v2):
+add ErrorState ...`) 와 C4 (`feat(event-detail-v2): wire container ...`) 사이
+에 본 PR 의 변경을 끼워 넣고 본 § 9.3 항목들은 PR 2 의 추가 step 으로 흡수.
+
+#### 포함 파일 / 변경 사항 (분리 시)
+
+**수정 (2):**
+
+| # | 경로 | 변경 |
+|---|---|---|
+| M1 | `src/pages-v2/EventDetail/hooks.ts` | `useAddToCart()`, `useBuyNow()` 두 hook 추가. 둘 다 (a) `useAuth().isLoggedIn === false` → `navigate(`/login?returnTo=${encodeURIComponent(현재 path + search)}`)` / (b) 로그인 + `addCartItem({ eventId, quantity })` 호출. AddToCart → `useToast()` 로 "장바구니에 담았습니다" / 에러 토스트 / BuyNow → 성공 시 `navigate('/cart')`. 진행 중 상태 (`adding`, `buying`) 는 hook 의 반환에 포함. § 8-항목2 (합산) 가정으로 200 만 success 처리, 그 외는 토스트로 폴백. |
+| M2 | `src/pages-v2/EventDetail/components/PurchasePanel.tsx` | PR 1/2 의 placeholder 핸들러 (`console.log` 또는 noop) → `useAddToCart()` / `useBuyNow()` 호출로 교체. 진행 중에는 두 버튼 모두 `disabled` + 텍스트 변경 ("담는 중..." / "이동 중..."). |
+
+**신규 (선택, 1):**
+
+| # | 경로 | 변경 |
+|---|---|---|
+| N1 | `src/pages-v2/EventDetail/utils/returnTo.ts` | `buildLoginReturn(pathname, search?)` 단순 함수. inline 으로 충분하면 생략 가능. |
+
+**기존 모듈 재사용 (수정 없음):**
+
+- `useAuth` (`src/contexts/AuthContext`) — 보존 영역, 그대로 import.
+- `useToast` (`src/contexts/ToastContext`) — 보존 영역, 그대로 import.
+- `addCartItem` (`src/api/cart.api`) — 그대로.
+
+#### 추정 LOC
+
+| 그룹 | LOC |
+|---|---|
+| `hooks.ts` 의 `useAddToCart` + `useBuyNow` 추가 (M1) | +90 |
+| `PurchasePanel.tsx` 핸들러 교체 + disabled 처리 (M2) | +30 / -10 (placeholder 제거) |
+| `utils/returnTo.ts` (선택, N1) | +15 |
+| **합계 (순증)** | **~120** |
+
+200~400 budget 안. PR 2 와 통합 시 (~260 + ~120 = ~380) 도 budget 안에 들지
+만 검증 케이스 수가 늘어 리뷰 부담은 더 큼.
+
+#### 파일 생성/수정 순서
+
+1. (선택) **N1** `utils/returnTo.ts` 신규.
+2. **M1** `hooks.ts` 에 `useAddToCart` + `useBuyNow` 추가. 단독 빌드 통과 확인
+   (사용처 없어도 export 만 컴파일).
+3. **M2** `PurchasePanel.tsx` onClick 교체 + 진행 상태 표시.
+
+각 단계 후 `npm run build` 통과 확인.
+
+#### 단계별 commit 메시지 권장
+
+| 커밋 | 단계 | 메시지 |
+|---|---|---|
+| C1 | 1 (선택) | `feat(event-detail-v2): add returnTo utility for login redirect` |
+| C2 | 2 | `feat(event-detail-v2): add useAddToCart and useBuyNow hooks` |
+| C3 | 3 | `feat(event-detail-v2): wire PurchasePanel CTAs to cart actions` |
+
+3 commits 가 부담스러우면 1+2 통합, 또는 1~3 통합한 단일 commit (`feat(event-
+detail-v2): wire purchase flow with cart and login redirect`).
+
+#### 검증 방법
+
+`?v=2` 토글로 `/events/:id?v=2` 진입 후 다음 케이스. 케이스 1, 2 는 PR 2 의
+케이스 12 가 placeholder 였던 부분의 실제 동작 검증.
+
+| # | 동작 | 기대 결과 |
+|---|---|---|
+| 1 | 로그아웃 상태에서 "장바구니에 담기" 클릭 | `/login?returnTo=%2Fevents%2F{eventId}` 로 이동. 로그인 완료 후 자동으로 detail 로 복귀. |
+| 2 | 로그아웃 상태에서 "바로 구매하기" 클릭 | 동일 redirect. |
+| 3 | 로그인 상태에서 "장바구니에 담기" | 토스트 "장바구니에 담았습니다" + 페이지 이동 없음. 진행 중 1~2 프레임 버튼 disabled + "담는 중..." 노출. |
+| 4 | (#3 직후) 같은 이벤트 다시 "장바구니에 담기" | § 8-항목2 가정 (백엔드 합산) — 토스트 노출. 백엔드가 거부 (409 등) 면 "이미 담겨있습니다" 류 폴백 토스트 (정확한 메시지는 § 6 본문 작성 시 확정). |
+| 5 | 로그인 상태에서 "바로 구매하기" → `/cart` 이동 | cart v1 화면에서 방금 추가한 이벤트가 항목으로 표시. |
+| 6 | 매진 / 잔여 0 이벤트 | 두 hook 호출 자체가 안 일어남 (PurchasePanel 이 disabled 단일 버튼 노출 — PR 1 회귀). |
+| 7 | "바로 구매하기" 클릭 직후 네트워크 끊김 (DevTools throttle Offline) | 에러 토스트 노출 + 페이지 그대로 (cart 이동 안 됨). 진행 중 상태 해제. |
+| 8 | `?v=1` 으로 v1 detail 에서 "바로 구매하기" 클릭 | 본 PR 에 영향 받지 않음 (회귀 확인). 기존 동작 그대로. |
+
+**검증 결과 기록**: 8케이스를 PR 본문에 체크리스트. 케이스 1 (returnTo), 5
+(cart 이동) 스크린샷 1장씩 권장.
+
+**회귀 확인:**
+
+- PR 2 의 12케이스 중 1, 4, 5, 6, 9 (v1 회귀, NotFound, 네트워크 에러, 재시도,
+  ?v=1 끄기) 는 본 PR 영향 없음 — 빠르게 한 번 더 확인.
+- v1 `/cart` 페이지 동작은 본 PR 변경 없음 (Cart v1 의 `addCartItem` 호출처
+  unchanged). 케이스 5 가 v1 Cart 에서 아이템이 보이는지로 간접 검증.
+
+---
 
 ### 9.4 PR 간 의존성 / 머지 순서
-(작성 예정)
+
+#### 본 plan 내부 의존
+
+```
+PR 1 (skeleton + visual + 공유 모듈 + QuantityControl)
+  │
+  ▼
+PR 2 (live API + 상태 처리 + VersionedRoute 등록)
+  │
+  ▼
+PR 3 (구매 플로우)        ← 분리 시
+   또는 PR 2 에 흡수      ← 통합 시
+```
+
+- 세 PR 모두 **순차 의존**. 병렬 작업 불가 (PR 2 가 PR 1 의 hook 시그니처 / 컴
+  포넌트 props / `App.tsx` wire 형태에 의존, PR 3 가 PR 2 의 hook 위치 + 컴포
+  넌트 핸들러 슬롯에 의존).
+- PR 1 의 마지막 commit (T1 의 임시 wire 검증 후 revert) 이 머지 시점에 누락
+  되어 있음을 PR 2 진입 전 `git diff main -- src/App.tsx` 로 재확인.
+
+#### 외부 의존 / 같이 살펴볼 PR
+
+| 외부 PR / 작업 | 본 시리즈와의 관계 | 권고 |
+|---|---|---|
+| **EventList plan / EventList 추가 작업** | PR 1 이 EventList 의 `types.ts`/`adapters.ts` 를 수정 (M1, M2). EventList 측 PR 진행 중이면 충돌 위험. | EventList 측 PR 을 먼저 머지 → PR 1 의 EventList 수정 부분을 그 위에서 rebase. 두 PR 가 모두 진행 중이면 한쪽이 base 가 될 수밖에 없음. EventList 우선. |
+| **`QuantityControl` 공용 승격 (§ 8-항목6)** | 별도 PR 로 빠지지 않음. **PR 1 에 흡수** (§ 9.1 의 N3). 따라서 외부 의존 없음. | (별도 작업 불필요) |
+| **Cart v2 plan / Cart v2 PR** | 현재 미존재 (`docs/redesign/` 아래 Cart 관련 plan 없음). PR 3 의 "바로 구매" 가 redirect 하는 `/cart` 는 **v1 Cart** 가 그대로 받음. | Cart v2 작업이 시작되면 `QuantityControl` 을 PR 1 산출물 (`src/components-v2/QuantityControl.tsx`) 에서 import — 본 시리즈가 prerequisite 가 됨 (반대 방향). 본 PR 시리즈 진행에 Cart v2 의존 없음. |
+| **Layout chrome (Phase 0, SPEC § 7)** | EventDetail 본문이 `editor-scroll` / `gutter` 컨테이너를 가정 (§ 2 메모). Phase 0 Layout 이 아직 없으면 본문만 정상 렌더 + chrome 누락 상태. | Phase 0 Layout 이 별 PR 로 머지된 후 본 시리즈 합류가 이상적이지만, 본 시리즈는 Layout 부재 시에도 동작 (상위 `<Layout />` 없으면 페이지가 평탄 렌더). **선결 의존 아님.** |
+| **공용 `ErrorState`/`NotFoundCard` 컴포넌트화** | PR 2 에서 페이지 전용으로 신설 (`pages-v2/EventDetail/components/`). 추후 다른 페이지가 동일 패턴이 필요하면 그때 `src/components-v2/` 로 추출 — 그 추출 PR 은 본 시리즈 머지 후 진행. | 지금 시점 외부 의존 없음. |
+| **EventList `cache` export (§ 8-O6 placeholder 채택 시)** | 본 시리즈 PR 2 가 EventList `hooks.ts` 의 작은 수정 (cache export 한 줄) 을 같이 포함. 별도 PR 로 빼지 않음. | (PR 2 안에서 처리) |
+
+#### 머지 순서 권고
+
+```
+1. (있다면) EventList 진행 중 PR 머지
+2. PR 1 (EventDetail 골격) 머지 + revert 확인
+3. PR 2 (live API + router) 머지 + ?v=2 케이스 12 통과
+4. PR 3 (구매 플로우) 머지 + 케이스 8 통과   ← 분리 시
+```
+
+**병렬 가능한 작업** (본 시리즈와 무관):
+
+- Layout chrome (Phase 0) — 본 시리즈와 독립적으로 진행 가능. 머지 순서 무관.
+- 다른 페이지의 v2 작업 (Login v2, Landing v2 등) — 본 시리즈와 독립.
+- Cart v2 plan 작성 (코드 변경 없음) — 동시에 가능.
+
+#### 롤백 시나리오
+
+- PR 3 머지 후 cart 호출 회귀 발생 → PR 3 단독 revert 시 PR 2 상태로 복귀
+  (placeholder CTA). v2 detail 자체는 살아 있음.
+- PR 2 머지 후 hook 회귀 → PR 2 revert 시 PR 1 상태로 복귀하는데 PR 1 의
+  `App.tsx` wire 가 없으므로 `?v=2` detail 접근 불가 (스켈레톤 노출 자체가
+  사라짐). v1 detail 은 정상. 이 시점에서 PR 1 자체는 시각 컴포넌트만 살아
+  있는 상태로 dormant.
+- PR 1 revert → 공유 모듈 (`src/types-v2/event.ts`, `_shared/eventFormat.ts`,
+  `components-v2/QuantityControl.tsx`) 와 EventList 리팩터까지 같이 revert
+  됨. EventList 가 본 시리즈 후 다른 작업의 base 가 되어 있다면 conflict 가능
+  → 가급적 PR 1 단독 revert 는 피하고 hot-fix 로 대응.
