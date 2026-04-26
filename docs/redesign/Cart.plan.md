@@ -376,7 +376,93 @@ PaymentModal (v1 컴포넌트 재사용 — `src/components/PaymentModal.tsx`)
 | `idempotencyConfig()` (옵션) | `client.ts` | `createOrder`/`readyPayment` 중복 방지 — 채택 여부 § 9 |
 
 ## 6. 신규 상태 처리 (빈 / 로딩 / 에러)
-(작성 예정)
+
+§ 3의 `CartQuery` 디스크리미네이티드 유니온(`loading | success | error`) + 페이지 로컬 보조 상태(`pendingItemIds`, `checkoutState`)로 표현. 모든 분기는 `Cart.tsx`에서 분기·렌더링하고, mutation 가드는 § 5의 가드 요약 표를 따름.
+
+### 6.1 빈 상태
+
+| 트리거 | 표시 | 사용자 액션 |
+|---|---|---|
+| 첫 페치 결과 `items.length === 0` | `<EmptyCart>` (§ 2). 🛒 이모지 + h2 17px "장바구니가 비어있습니다" + 14px text-3 안내문 + primary "이벤트 둘러보기". `flat-card` 40px padding, 가운데 정렬 (프로토타입 그대로) | "이벤트 둘러보기" → `navigate('/events')` |
+| 결제 직후 비워진 경우 | 동일 `<EmptyCart>`이되 `variant='postCheckout'`로 메시지만 분기: "결제가 완료되어 장바구니를 비웠습니다" + 보조 CTA "주문 내역 보기" → `/mypage?tab=orders`. 이모지는 ✅ | 둘러보기 / 주문내역 두 CTA |
+| 빠른 깜빡임 방지 | mutation 후 마지막 1개를 지웠을 때 `<EmptyCart>` 즉시 노출(낙관적). 서버 실패 시 롤백되며 다시 리스트 노출 | — |
+
+**분기 판정**: 결제 직후 여부는 navigation `state.fromCheckout === true`로 판별 (Cart 페이지 진입 시 `location.state` 확인). 결제완료 페이지(`/payment/complete` 등 기존)에서 "장바구니로 돌아가기" CTA가 없으면 사실상 도달 X — 그래도 안전하게 분기는 둠. 도달 경로 부재 시 단일 메시지로 축소 가능 → § 9 결정.
+
+### 6.2 로딩 상태
+
+| 위치 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| 페이지 초기 로드 | `CartQuery.status === 'loading'` (마운트 직후 `getCart()` 인플라이트) | `<CartSkeleton>` (§ 2): 헤더 라인 1개 + 아이템 placeholder 3개 + 우측 요약 카드 placeholder. 2-column 그리드 골격 유지해 레이아웃 시프트 방지 | 차단 |
+| 수량 `+`/`−` 인플라이트 | `pendingItemIds.has(cartItemId)` | `QuantityStepper` 양 버튼 `disabled` + 숫자 옆 inline `◐` 스피너(11px). row 자체는 `opacity: .85` 유지(완전 어두워지지 않게) | 동일 row 추가 클릭 무시 |
+| 단건 삭제 인플라이트 | 동일 `pendingItemIds` | row 전체 `opacity: .6` + 휴지통 버튼 disabled | row 머무름 |
+| 추천 카드 페치 | `recommendQuery.status === 'loading'` | 별도 영역 placeholder 4~5개 (§ 2 범위 외 — 본 plan은 셀프 미디어 박스 4개 정도로 제안). 실패해도 메인 카트는 영향 없음 | 무시 가능 |
+| 결제 시퀀스 | `checkoutState === 'submitting'` | OrderSummary "결제하기" 버튼: `loading` prop → `◐ 결제 진행 중...` + `disabled`. 다른 row의 mutation 버튼은 **계속 활성**(취소 가능해야 의미 있음 — 단, 결제는 cart snapshot 기준으로 진행 중이므로 § 9 토론 항목) | 차단 |
+
+**스피너 자산**: 프로토타입의 `◐` 회전(SPEC § 1 Login 항목)을 그대로 사용. 별도 컴포넌트 만들지 않음.
+
+### 6.3 에러 상태
+
+axios 인터셉터가 처리하는 401/403(`PROFILE_NOT_COMPLETED`)은 페이지 코드에서 **재처리하지 않음** (§ 4 표 4).
+
+#### 6.3.1 페이지 진입 페치 실패
+
+| 트리거 | 표시 | 사용자 액션 |
+|---|---|---|
+| `getCart()` 5xx / 네트워크 | 본문 영역 단일 에러 카드: 🛑 + "장바구니를 불러오지 못했습니다" + 캡션 (오류 코드 mono) + ghost "다시 시도" 버튼 | "다시 시도" → `useCart`의 `refetch()` 호출. `CartQuery.previous`가 있으면 stale 상태로 표시 후 백그라운드 재시도(§ 3) |
+| `getCart()` 404 (드뭄) | "장바구니가 비어있습니다"(빈 상태)로 흡수 | 둘러보기 CTA |
+
+#### 6.3.2 mutation 실패 — 수량 / 삭제
+
+| 트리거 | 표시 | 사용자 액션 |
+|---|---|---|
+| 409 재고 부족 / 매진 | 해당 row 하단에 인라인 chip(`StatusChip variant='sold'`) "재고 부족 — 보유 N개" + 토스트(error). 낙관 업데이트 **롤백**. **권고: 단발 `getCart()` 재페치**로 서버 quantity·price 동기화. 자동 수량 조정은 하지 않음(사용자 확인 우선) | 다시 `−` 누르거나 삭제 버튼으로 정리 |
+| 422 검증 실패 | 토스트 한 줄 ("수량이 올바르지 않습니다"). 롤백 | 재시도 |
+| 5xx / 네트워크 | 토스트 ("일시적인 오류입니다"). 롤백 | 재시도 |
+| 동시 클릭 | mutation 시작 전 `pendingItemIds` 가드로 무시(§ 5) | — |
+
+> § 9 결정: **(a) 409 시 자동 수량 보정** vs **(b) 사용자에게 알림만**. 본 plan 기본은 (b). (a)는 직관적이지만 사용자 동의 없이 quantity를 바꾸는 게 결제 직전엔 위험.
+
+#### 6.3.3 결제 실패
+
+| 단계 | 트리거 | 표시 | 사용자 액션 |
+|---|---|---|---|
+| `createOrder` 409 | 카트 내 항목 중 일부 매진/재고 부족 | OrderSummary 위쪽에 인라인 배너(red, dashed): "재고가 변경되었습니다. 다시 확인해주세요" + 자동으로 `getCart()` 재페치. 결제 버튼 `disabled`(서버 응답 후 해제) | 카트 정리 후 재시도 |
+| `createOrder` 5xx / 네트워크 | — | 토스트("주문 생성에 실패했습니다") + `checkoutState='error'` | "결제하기" 다시 클릭 가능. 카트 그대로 유지 |
+| `readyPayment` 실패 | PaymentModal 내부 catch (v1 그대로 재사용) | 모달 안 토스트("결제 처리 중 오류가 발생했습니다"). 모달은 **열린 상태 유지** | 다시 결제 / 모달 닫기 |
+| Toss `USER_CANCEL` / `PAY_PROCESS_CANCELED` | PaymentModal | info 토스트("결제가 취소되었습니다") + 모달 닫힘 | 카트 머무름 |
+| `/payment/fail` 도달 | 기존 페이지가 처리 (SPEC § 9). Cart 페이지 책임 아님 | (기존) | (기존) "장바구니로 돌아가기" 시 카트 유지 — 결제 시도 항목은 그대로 |
+
+**카트 유지 원칙**: 결제 실패 / 취소 / 콜백 fail 시 **백엔드가 cart를 비우지 않는다고 가정**. 만약 비워서 돌아오면 사용자 혼란 → § 9에 백엔드 동작 확인 항목 추가.
+
+#### 6.3.4 네트워크 끊김 / 오프라인
+
+- 페치/뮤테이션 모두 5xx 처리와 동일 라우팅. 별도 오프라인 배너는 본 plan 범위 밖(`navigator.onLine` 도입은 SPEC § 9 라이브러리 미도입 원칙 위반 아님 → § 9 검토 항목으로만).
+
+### 6.4 가격 변경 / 매진 감지 (재검증)
+
+**결정: 본 plan 범위 밖 (§ 9에 의사결정 항목으로 등재)**.
+
+이유:
+- 백엔드 `createOrder`가 이미 서버 측에서 재고/가격을 검증해 409로 응답한다고 § 4 표 4에서 정의함.
+- 클라이언트가 결제 직전에 추가로 `getCart()` 또는 `getEventDetail()`로 prefetch 비교하는 패턴은 **추가 라운드트립**이고, race를 100% 막지 못해 결국 서버 검증에 의존해야 함.
+- 따라서 v2 1차 릴리스는 "서버 409 → 인라인 배너 + 재페치"(§ 6.3.3)로 통일.
+- 향후 가격이 자주 바뀌는 도메인이라면 별도 의사결정.
+
+> § 9 등재 항목: "결제 직전 재검증(prefetch) 도입 여부", "가격 변경 발견 시 모달 동의 패턴".
+
+### 6.5 상태 매트릭스 (요약)
+
+| `CartQuery.status` | `pendingItemIds` | `checkoutState` | 렌더 |
+|---|---|---|---|
+| `loading` | — | `idle` | `<CartSkeleton>` |
+| `success` (items=[]) | — | `idle` | `<EmptyCart>` (variant 분기) |
+| `success` (items>0) | empty | `idle` | 정상 리스트 + OrderSummary |
+| `success` | non-empty | `idle` | 리스트(해당 row 인플라이트 표시) + OrderSummary |
+| `success` | — | `submitting` | 리스트 + OrderSummary("결제 진행 중...") |
+| `success` | — | `error` | 리스트 + OrderSummary 위 인라인 배너 |
+| `error` (previous 있음) | — | `idle` | 리스트(stale) + 상단 stale 안내 + 재시도 버튼 |
+| `error` (previous 없음) | — | `idle` | 페이지 레벨 에러 카드 + "다시 시도" |
 
 ## 7. 결제 플로우
 (작성 예정)
