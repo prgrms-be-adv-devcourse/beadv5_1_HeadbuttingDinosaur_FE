@@ -1259,4 +1259,223 @@ export type { IconProps, IconName } from './Icon';
 
 
 ## 7. PR 별 파일 생성 순서
-(작성 예정)
+
+### 7.0 PR 머지 순서 (§ 6.5 결론 정리)
+
+```
+                  ┌─────────────► PR 2 (Form: Input → Button)
+                  │
+   PR 1 ─────────┼─────────────► PR 3 (Display: Card → SectionHead)   ← PR 2 와 병렬
+   (Primitives)   │
+                  └─────────────► PR 4 (Composite 6개)                ← § 4.10 작성 후 별도
+```
+
+| PR | 선결 PR | 병렬 가능 | 사유 |
+|---|---|---|---|
+| PR 1 | 없음 | - | Icon 이 모두의 hub. 가장 먼저 머지 |
+| PR 2 | **PR 1** | PR 3 | Button/Input 의 슬롯에 Icon/Kbd 들어감 (호출 시점 의존) |
+| PR 3 | **PR 1** (느슨) | PR 2 | 어느 컴포넌트도 직접 import 의존 없음. PR 1 머지 전이라도 작업 시작 가능, 머지는 PR 1 후 |
+| PR 4 | **PR 1** | (PR 2/3 와 병렬 가능) | QuantityStepper → Icon 만 직접 의존. 나머지 5개는 PR 1 토큰 + slot |
+
+### 7.0.1 검증 방법 (전 PR 공통)
+
+§ 5 결정에 따라 **Storybook 도입 안 함**. 대안:
+
+| 검증 | 도구 | 시점 |
+|---|---|---|
+| 타입 체크 | `tsc --noEmit` | 모든 commit |
+| 린트 | `eslint` | 모든 commit |
+| Smoke 테스트 | Vitest — render + 기본 props 변경 1~2개 | 컴포넌트별 1 파일 (`{Name}.test.tsx`). 옵셔널이지만 PR 1~4 권장 |
+| 시각 검증 | **임시 showcase 라우트** `/_showcase` (dev 환경에서만 노출) | PR 마지막 commit 에서 해당 섹션 추가 |
+| 페이지 통합 검증 | 실제 v2 페이지 plan PR 에서 사용 | 본 § 7 범위 밖 (별도 페이지 plan) |
+
+#### Showcase 라우트 구조
+
+```
+src/pages-v2/_Showcase/
+├── index.tsx                     ← 진입점 (router-toggle.plan.md 의 dev gate 따름)
+└── sections/
+    ├── PrimitivesSection.tsx     ← PR 1 마무리 commit 에서 추가
+    ├── FormSection.tsx           ← PR 2 마무리 commit
+    ├── DisplaySection.tsx        ← PR 3 마무리 commit
+    └── CompositeSection.tsx      ← PR 4 마무리 commit
+```
+
+각 섹션은 컴포넌트별로 모든 variant × size × state 조합을 렌더. 디자이너/리뷰어 시각 검토용.
+
+---
+
+### 7.1 PR 1 — Primitives
+
+**목표**: Icon 을 시작으로 PR 2~4 의 모든 의존을 해소.
+**브랜치**: `claude/components-v2-pr1-primitives` (예시)
+**전체 LOC**: ≈ 340 + 마무리 30 = **≈ 370**
+
+#### Step 1.1 — Icon
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Icon/index.tsx`, `Icon/Icon.tsx`, `Icon/Icon.types.ts` |
+| LOC | ~118 (`Icon.tsx` 80 / `Icon.types.ts` 35 / `index.tsx` 3) |
+| commit 권장 | **2 commits**: ① `feat(components-v2): add Icon types and paths` (types + paths 객체) → ② `feat(components-v2): add Icon component` (forwardRef wrapper) |
+| 검증 | tsc / eslint / smoke test (`Icon.test.tsx`: 임의 name 렌더 확인 + size prop 변경) |
+| 의존 | 없음 |
+
+> **`common.jsx` 의 paths 객체를 그대로 이전**. 사용 0인 7개 (`ext`/`bell`/`check`/`play`/`zap`/`calendar`/`pin`) 도 포함 (§ 4.1 결정).
+
+#### Step 1.2 — Kbd
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Kbd/index.tsx`, `Kbd/Kbd.tsx`, `src/styles-v2/components/kbd.css` |
+| LOC | ~30 (`Kbd.tsx` 18 / `index.tsx` 3 / `kbd.css` 12). 타입 동거 (단순) |
+| commit 권장 | **1 commit**: `feat(components-v2): add Kbd primitive` |
+| 검증 | tsc / smoke test (`children` 텍스트 렌더 + `inverse` 변종 클래스 적용) |
+| 의존 | 없음. Icon 머지 대기 불필요 → **Step 1.1 과 병렬 작업 가능** |
+
+#### Step 1.3 — Eyebrow
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Eyebrow/index.tsx`, `Eyebrow/Eyebrow.tsx`, `src/styles-v2/components/eyebrow.css` |
+| LOC | ~50 (`Eyebrow.tsx` 25 / `index.tsx` 3 / `eyebrow.css` 22) |
+| commit 권장 | **1 commit**: `feat(components-v2): add Eyebrow primitive` |
+| 검증 | smoke test (tone × size × dot 4조합 — md/sm × term-green) |
+| 의존 | 없음 (PR 1 시점 dot 은 인라인). PR 4 머지 후 TermDot 치환은 별도 후속 PR (§ 6.1 메모) |
+
+#### Step 1.4 — StatusChip
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/StatusChip/index.tsx`, `StatusChip/StatusChip.tsx`, `src/styles-v2/components/status-chip.css` |
+| LOC | ~70 (`StatusChip.tsx` 30 / `index.tsx` 3 / `status-chip.css` 37) |
+| commit 권장 | **1 commit**: `feat(components-v2): add StatusChip with 4 variants` |
+| 검증 | smoke test (4 variant × dot on/off — 8 케이스 렌더 확인) |
+| 의존 | 없음 |
+
+#### Step 1.5 — Chip
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Chip/index.tsx`, `Chip/Chip.tsx`, `src/styles-v2/components/chip.css` |
+| LOC | ~60 (`Chip.tsx` 30 / `index.tsx` 3 / `chip.css` 27) |
+| commit 권장 | **1 commit**: `feat(components-v2): add Chip with active state and count` |
+| 검증 | smoke test (default / active / count 표시 / onClick 호출) |
+| 의존 | 없음 |
+
+#### Step 1.F — PR 1 마무리 commit
+
+| 항목 | 값 |
+|---|---|
+| 작업 | ① `src/components-v2/index.ts` 배럴에 Icon/Kbd/Eyebrow/StatusChip/Chip + 타입 추가 ② `src/styles-v2/index.css` 에 신규 CSS 4개 (`@import './components/kbd.css'` 등) 추가 ③ `src/pages-v2/_Showcase/sections/PrimitivesSection.tsx` 추가 ④ FileIcon 함께 이전 시 추가 (§ 2.2 메모) ⑤ accent / fmt utility 이전 (`src/lib/utils` 또는 `src/styles-v2/accent.ts`) |
+| LOC | ~30 (배럴 + index.css + showcase) + utility 이전 ~40 |
+| commit 권장 | **2 commits**: ① `chore(components-v2): wire PR 1 barrel and styles index` ② `feat(pages-v2): add showcase primitives section` (utility 이전은 ②와 합치거나 ① 앞에 별도) |
+| 검증 | dev 서버 → `/_showcase` 진입 → 모든 variant 시각 확인. `npm run build` 통과 |
+
+---
+
+### 7.2 PR 2 — Form / Action (선결: PR 1 머지 완료)
+
+**목표**: Login 폼과 EventList 검색바 그리고 모든 페이지의 액션 버튼 기반 마련.
+**브랜치**: `claude/components-v2-pr2-form` (예시)
+**전체 LOC**: ≈ 200 + 마무리 25 = **≈ 225**
+
+#### Step 2.1 — Input
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Input/index.tsx`, `Input/Input.tsx`, `Input/Input.types.ts`, `src/styles-v2/components/input.css` |
+| LOC | ~90 (`Input.tsx` 50 / `Input.types.ts` 15 / `index.tsx` 3 / `input.css` 22) |
+| commit 권장 | **2 commits**: ① `feat(components-v2): add Input default variant with label/error` (default variant + states) → ② `feat(components-v2): add Input code variant with iconStart/hintEnd` (code variant 슬롯) |
+| 검증 | smoke test (default + label + error / code + iconStart + hintEnd / `forwardRef` 로 외부 focus() 호출) |
+| 의존 | PR 1 의 Icon (`code` variant 의 iconStart 에 `<Icon name="search" />` 주입), PR 1 의 Kbd (`hintEnd` 에 `<Kbd>/</Kbd>`) — **모두 슬롯**. 직접 import 없음 |
+
+> **Input 먼저 시작 사유**: Button 보다 상태 머신이 단순(loading 없음). Login 페이지 plan 이 가장 먼저 진행될 가능성이 높아 빠른 머지 가치.
+
+#### Step 2.2 — Button
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Button/index.tsx`, `Button/Button.tsx`, `Button/Button.types.ts`, `src/styles-v2/components/button.css` (+ `globals.css` 에 `@keyframes spin` 없으면 추가) |
+| LOC | ~110 (`Button.tsx` 40 / `Button.types.ts` 20 / `index.tsx` 3 / `button.css` 47) |
+| commit 권장 | **2 commits**: ① `feat(components-v2): add Button with variants and sizes` (variant × size × full × disabled) → ② `feat(components-v2): add Button loading state and icon slots` (loading + iconStart/iconEnd + spin keyframe) |
+| 검증 | smoke test (variant × size × full / loading 시 disabled 자동 / type 미지정 시 'button' / iconStart/iconEnd 슬롯) |
+| 의존 | PR 1 의 Icon (iconStart/iconEnd 슬롯에 호출자가 주입). 직접 import 없음 |
+
+#### Step 2.F — PR 2 마무리 commit
+
+| 항목 | 값 |
+|---|---|
+| 작업 | ① 배럴에 Input/Button 추가 ② `src/styles-v2/index.css` 에 `input.css`, `button.css` import 추가 ③ Showcase 라우트에 `FormSection.tsx` 추가 (variant × size × state 매트릭스 시각화) |
+| LOC | ~25 |
+| commit 권장 | **1 commit**: `chore(components-v2): wire PR 2 and add showcase form section` |
+| 검증 | `/_showcase` 에서 Form 섹션 시각 확인 |
+
+---
+
+### 7.3 PR 3 — Display (선결: PR 1 머지 완료, **PR 2 와 병렬 가능**)
+
+**목표**: 페이지 전반의 카드 컨테이너 + Landing 섹션 헤드 기반.
+**브랜치**: `claude/components-v2-pr3-display` (예시)
+**전체 LOC**: ≈ 130 + 마무리 25 = **≈ 155**
+
+#### Step 3.1 — Card
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/Card/index.tsx`, `Card/Card.tsx`, `src/styles-v2/components/card.css` |
+| LOC | ~50 (`Card.tsx` 25 / `index.tsx` 3 / `card.css` 22). 타입 동거 |
+| commit 권장 | **1 commit**: `feat(components-v2): add Card with solid/dashed variants and padding sizes` |
+| 검증 | smoke test (variant 2종 × padding 5종 / `interactive=true` 시 className 'is-interactive' 반영 / `...rest` 로 onClick 통과) |
+| 의존 | 없음 (PR 1 머지 전이라도 작업 가능). 다른 컴포넌트 직접 import 없음 |
+
+#### Step 3.2 — SectionHead
+
+| 항목 | 값 |
+|---|---|
+| 생성 파일 | `src/components-v2/SectionHead/index.tsx`, `SectionHead/SectionHead.tsx`, `src/styles-v2/components/section-head.css` |
+| LOC | ~80 (`SectionHead.tsx` 30 / `index.tsx` 3 / `section-head.css` 47) |
+| commit 권장 | **1 commit**: `feat(components-v2): add SectionHead with hint/caption/action slots` |
+| 검증 | smoke test (title only / hint+caption / action 슬롯에 anchor 주입). `// ` prefix 자동 부착 확인 |
+| 의존 | 없음 (action 슬롯 의존은 호출자) |
+
+#### Step 3.F — PR 3 마무리 commit
+
+| 항목 | 값 |
+|---|---|
+| 작업 | ① 배럴에 Card/SectionHead 추가 ② `src/styles-v2/index.css` 에 `card.css`, `section-head.css` import ③ Showcase 라우트에 `DisplaySection.tsx` 추가 |
+| LOC | ~25 |
+| commit 권장 | **1 commit**: `chore(components-v2): wire PR 3 and add showcase display section` |
+| 검증 | `/_showcase` 에서 Display 섹션 시각 확인 |
+
+---
+
+### 7.4 PR 4 — Composite (참조)
+
+**상태**: § 4.10~ (TermDot / Avatar / AccentMediaBox / QuantityStepper / MetaLine / EmptyState 의 variant·state) 가 미작성. § 4 PR 4 작성 완료 후 본 § 7 에 § 7.4 로 추가.
+**선결**: PR 1 머지. PR 2/3 머지 전이라도 시작 가능 (§ 6.5 결론 5).
+**예상 LOC**: ≈ 320 (§ 2.4)
+
+> § 4.10~ 작성 시점에 ① 컴포넌트별 step ② QuantityStepper → Icon 직접 의존 commit 순서 ③ Composite Showcase 섹션 ④ Eyebrow → TermDot 후속 치환 (옵셔널 별도 PR 또는 본 PR 의 마지막 commit) 까지 정의.
+
+---
+
+### 7.5 전체 타임라인 요약
+
+```
+주차    │ PR 1               │ PR 2               │ PR 3               │ PR 4
+────────┼────────────────────┼────────────────────┼────────────────────┼─────────────────
+W1      │ Icon + Kbd 작업    │                    │ Card 작업 시작 가능 │
+W1 후반 │ Eyebrow / Status   │                    │                    │
+        │ Chip / Chip + 통합 │                    │                    │
+        │ → 머지             │                    │                    │
+────────┼────────────────────┼────────────────────┼────────────────────┼─────────────────
+W2      │                    │ Input / Button     │ SectionHead + 통합 │ TermDot 등 시작
+        │                    │ + 통합 → 머지      │ → 머지 (병렬)      │ (§ 4.10 후)
+────────┼────────────────────┼────────────────────┼────────────────────┼─────────────────
+W3      │                    │                    │                    │ → 머지 + Eyebrow
+        │                    │                    │                    │   후속 치환
+```
+
+각 페이지 plan (Login / EventList / EventDetail / Cart / MyPage / Landing) 의 PR 들은 본 § 7 의 PR 1~3 머지 후 시작. EmptyState 가 필요한 페이지(EventList / Cart / MyPage 환불) 는 PR 4 머지 대기.
+
