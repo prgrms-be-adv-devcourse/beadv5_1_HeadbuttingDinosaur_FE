@@ -449,8 +449,103 @@ src/pages-v2/MyPage/shared/
 § 1 트리 갱신은 § 11 의사결정 종결 후 한 번에 (디렉토리 트리 흔들기 방지).
 
 ## 5. 탭 1: 내 티켓
-(작성 예정)
+
+`prototype/MyPage.jsx:67-102` (tickets 탭 본문). shell + 외부 자산은 § 3·§ 4에서 결정. 이 절은 탭 본문만 다룬다.
+
 ### 5.1 컴포넌트 분해
+
+#### 5.1.1 시각 구조 (프로토타입 매핑)
+
+```
+[탭 본문 영역]
+ ├─ 헤더 라인 (justify space-between)
+ │   ├─ 좌측: "티켓 3개"
+ │   └─ 우측: "사용 가능 2개 · 사용 완료 1개"
+ └─ 그리드 (auto-fill, minmax(340px, 1fr), gap 12)
+     └─ 카드 N개 ── flat-card · padding 0 · overflow hidden · display flex
+         ├─ 좌측 stripe (width 56)
+         │   ├─ background: linear-gradient(180deg, accent22, accent44)
+         │   ├─ border-right: 1px dashed var(--border-2)
+         │   └─ <Icon name="ticket" size=20 />  (accent 색)
+         └─ 우측 본문 (flex 1, padding 16)
+             ├─ <StatusChip variant=ok|end>{t.label}</StatusChip>
+             ├─ 제목 (14.5px / 600 / line-height 1.4)
+             └─ 메타 라인 (flex gap 14)
+                 ├─ "📅 {t.date}"
+                 └─ "💺 {t.seat}"
+```
+
+#### 5.1.2 컴포넌트 표
+
+| 이름 | 역할 | 위치 | props | 의존 |
+|---|---|---|---|---|
+| `TicketsTab` | 탭 진입점. `useTickets()` 호출 → `TabFetchState` 로 로딩/에러/빈/정상 분기. 정상 시 `TicketsHeader` + `TicketGrid` 렌더 | `tabs/Tickets/TicketsTab.tsx` | (라우트 element. props 없음) | `useTickets` (§ 5.3), `TabFetchState` (§ 4.2.2), `TicketsHeader`, `TicketGrid`, `EmptyTickets`, `TicketsSkeleton` |
+| `TicketsHeader` | 좌측 primary "티켓 N개" + 우측 secondary "사용 가능 X개 · 사용 완료 Y개" 한 줄 | `tabs/Tickets/components/TicketsHeader.tsx` | `{ total: number; validCount: number; usedCount: number }` | — (마크업만) |
+| `TicketGrid` | `display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px;` 래퍼. 각 카드에 `key=ticketId` | `tabs/Tickets/components/TicketGrid.tsx` | `{ tickets: TicketVM[] }` | `TicketCard` |
+| `TicketCard` | 카드 1개 컨테이너. `flat-card` 변형(padding 0 / overflow hidden / display flex). 좌측 `<TicketStripe/>` + 우측 `<TicketInfo/>` 합성 | `tabs/Tickets/components/TicketCard.tsx` | `{ ticket: TicketVM }` | Phase 0 `Card`(`variant='flat'`), `TicketStripe`, `TicketInfo` |
+| `TicketStripe` | 좌측 56px 그라디언트 stripe + dashed 우측 border + accent 색 ticket 아이콘 | `tabs/Tickets/components/TicketStripe.tsx` | `{ accent: string }` | Phase 0 `AccentMediaBox`(`variant='stripe' size='sm'`), Phase 0 `Icon` |
+| `TicketInfo` | 우측 본문. 상태 칩 한 줄 + 제목 + 메타(일시/좌석) 한 줄 | `tabs/Tickets/components/TicketInfo.tsx` | `{ statusVariant: 'ok' \| 'end'; statusLabel: string; title: string; dateLabel: string; seatLabel: string }` | Phase 0 `StatusChip` |
+| `EmptyTickets` | 빈 상태. `EmptyState` thin wrapper — 이모지 + 제목 + 메시지 + "이벤트 둘러보기" CTA | `tabs/Tickets/components/EmptyTickets.tsx` | `{ onBrowse(): void }` | Phase 0 `EmptyState`, Phase 0 `Button` |
+| `TicketsSkeleton` | placeholder 6장. `TicketGrid` 와 같은 grid 안에 `<Card variant='flat'/>` 빈 카드를 6번 | `tabs/Tickets/components/TicketsSkeleton.tsx` | `{ count?: number }` (기본 6) | Phase 0 `Card` |
+
+`TicketVM` 시그니처는 § 5.2(API 매핑) 에서 확정. 본 표는 `{ ticketId, title, dateLabel, seatLabel, statusVariant, statusLabel, accent }` 형태가 들어온다고 가정.
+
+#### 5.1.3 합성 결정 — `TicketCard = TicketStripe + TicketInfo`
+
+- 한 카드 안에서 좌측 stripe 와 우측 본문은 **서로 모르는** 영역 (디자인 변경이 한쪽에만 영향). 분리해 두면 stripe 색/아이콘 변경, 본문 메타 추가가 서로 간섭 없이 가능.
+- `TicketCard` 자체는 **레이아웃 컨테이너 + 데이터 → props 매핑** 만 책임:
+  ```tsx
+  <Card variant="flat" className="ticket-card">
+    <TicketStripe accent={ticket.accent} />
+    <TicketInfo
+      statusVariant={ticket.statusVariant}
+      statusLabel={ticket.statusLabel}
+      title={ticket.title}
+      dateLabel={ticket.dateLabel}
+      seatLabel={ticket.seatLabel}
+    />
+  </Card>
+  ```
+- `TicketCard` 가 `ticket: TicketVM` 통째로 받지만 자식들엔 필드를 풀어서 넘김 → 자식 컴포넌트가 VM 형태에 의존하지 않음(테스트/스토리북에서 단독 렌더 쉬움).
+
+#### 5.1.4 Phase 0 자산 사용 — 신규 작성 X
+
+| 자산 | 사용처 | API |
+|---|---|---|
+| `AccentMediaBox` | `TicketStripe` 내부 | `variant='stripe'` (180deg 그라디언트) + `size='sm'` (alpha 22/44) — `src/components-v2/AccentMediaBox/AccentMediaBox.tsx` ALPHA 매핑이 이미 MP 56px stripe 기준값 |
+| `Icon` | `TicketStripe`(ticket), `EmptyTickets`(CTA), `TicketsHeader` (없음 — 텍스트만) | `name='ticket'`, `size=20` |
+| `StatusChip` | `TicketInfo` | `variant='ok'`(VALID) / `'end'`(USED). dot=true 기본 |
+| `Card` | `TicketCard`, `TicketsSkeleton` | `variant='flat'` (`padding=0` 위해 `padding` prop 또는 className 오버라이드 — 현재 Card props 와 맞는지 § 5.3 에서 확인) |
+| `EmptyState` | `EmptyTickets` | § 4.2.1 |
+| `Button` | `EmptyTickets` 의 "이벤트 둘러보기" CTA | `variant='primary'` |
+
+#### 5.1.5 페이지 전용 신규 — `TicketStripe` 의 변형 흡수
+
+`AccentMediaBox` 는 stripe variant 와 56px 사이즈를 **이미 지원** 하지만 다음 두 점이 MP 티켓 카드 요구와 어긋남:
+
+1. **glyph 가 string 한정** (`'</>'` / `'❯_'` 등 텍스트 글리프). MP 는 lucide-style **SVG ticket 아이콘**.
+2. **dashed 우측 border** (1px dashed `var(--border-2)`) 가 컴포넌트에 없음 — Tickets 탭 고유 장식.
+
+**결정**: `TicketStripe` 를 페이지 전용 thin wrapper 로 둠. 내부 마크업:
+```tsx
+<div className="ticket-stripe">
+  <AccentMediaBox accent={accent} variant="stripe" size="sm" glyph="" />
+  <span className="ticket-stripe-icon" style={{ color: accent }} aria-hidden>
+    <Icon name="ticket" size={20} />
+  </span>
+</div>
+```
+- `.ticket-stripe` (페이지 CSS) 가 dashed 우측 border 와 absolute-positioned 아이콘 슬롯을 담당.
+- `glyph=""` 로 AccentMediaBox 의 텍스트 글리프 비우고 위에 Icon 을 절대배치.
+- 다른 탭/페이지에서 같은 변형이 등장하면 `AccentMediaBox` 의 `glyph` 를 `ReactNode` 로 확장 + dashed border 토글 prop 도입 후 `TicketStripe` 흡수 — 후속 PR. 현재는 페이지 전용 유지.
+
+#### 5.1.6 분해 원칙 (요약)
+
+- 데이터 fetching 은 `TicketsTab` 1곳. `TicketsHeader`, `TicketGrid`, `TicketCard` 는 prop drilling 만.
+- `TicketCard` 는 도메인 prop(`ticket: TicketVM`)을 받지만, `TicketStripe` / `TicketInfo` 는 도메인 모름 — 시각/UI prop 만.
+- Skeleton 은 카드 모양을 흉내 내야 해서 `TicketCard` 와 같은 `Card variant='flat'` + 56px stripe 자리만 빈 채로. 별도 컴포넌트로 두는 이유: § 4.2.3 에 따라 탭별 placeholder 모양이 달라 공유 X.
+- 프로토타입의 인라인 `style={{}}` / `window.accent(t.id)` 글로벌 / 한자릿수 알파 hex 직조립은 **가져오지 않음** (SPEC § 0). accent 매핑은 어댑터에서 `accent(eventId)` 헬퍼로 (§ 5.2 에서 위치 결정).
+
 ### 5.2 API 매핑
 ### 5.3 상태 처리
 
