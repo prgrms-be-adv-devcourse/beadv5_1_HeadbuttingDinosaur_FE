@@ -236,10 +236,94 @@ INVENTORY § 4 / `src/contexts/AuthContext.tsx:65` 기준.
 | 사용자 액션 | A: 자동 (대기). B: 자동 (즉시 redirect). C: 폼 입력 → 제출. |
 
 ## 6. 라우터 등록 방법
-(작성 예정)
+
+### 전제 — Phase 0 router-toggle 헬퍼 (`docs/redesign/router-toggle.plan.md` § 3 / § 4)
+
+- 헬퍼: `<VersionedRoute v1={...} v2={...} />` (`src/router-v2/VersionedRoute.tsx`)
+- 보조 훅: `useUiVersion()` (`src/router-v2/useUiVersion.ts`)
+- 우선순위: URL `?v=2|1` > `localStorage['ui.version']` > env `VITE_UI_DEFAULT_VERSION` > `'1'`
+- v2 prop 부재 시 자동 v1 fallback. URL `?v=` 발견 시 localStorage 동기화 (sticky)
+- 모두 Phase 0 에서 도입 완료된 상태라고 가정. 본 plan 은 Login 페이지 등록만 다룸.
+
+### 등록할 라우트
+
+| 라우트 경로 | `/login` |
+|---|---|
+| 가드 | 없음 (공개 페이지) — INVENTORY § 4 「가드 없음(공개): `/login` …」 |
+| 레이아웃 | 없음 (`<Layout>` 미적용) — `router-toggle.plan` § 1-5 「레이아웃 미적용 (공개 페이지): `/login` …」 |
+| 변경 위치 | `src/App.tsx:75` 의 한 줄 |
+
+### legacy / v2 컴포넌트 경로
+
+| 구분 | 경로 | 임포트 형태 |
+|---|---|---|
+| legacy | `src/pages/Login.tsx` (= `./pages/Login`) | `import Login from './pages/Login'` (현재 `App.tsx:12` 즉시 import — INVENTORY § 5 와 router-toggle § 1-3 에 따라 비로그인 첫 화면 5개 즉시 import 패턴 유지) |
+| v2 | `src/pages-v2/Login/index.tsx` (= `./pages-v2/Login`) | `const LoginV2 = lazy(() => import('./pages-v2/Login'))` (이미 lazy 페이지 다수 존재 — `App.tsx:17-45`. Login v2 도 lazy 로 시작해 v1 번들 사이즈에 영향 없게 함). v2 진입점은 §1 의 `LoginPage` (default export). |
+
+### `src/App.tsx` 변경 diff (정확한 위치 명시)
+
+```tsx
+// src/App.tsx 상단 import 영역 — lazy 그룹에 추가 (INVENTORY 의 lazy 패턴 따름)
++ import { VersionedRoute } from './router-v2'
++ const LoginV2 = lazy(() => import('./pages-v2/Login'))
+
+// src/App.tsx:75 — 한 줄 element 만 교체. path / 가드 / Suspense 트리 모두 그대로
+- <Route path="/login" element={<Login />} />
++ <Route path="/login" element={<VersionedRoute v1={<Login />} v2={<LoginV2 />} />} />
+```
+
+다른 라우트는 건드리지 않음. router-toggle § 5 Step 3 의 임시 검증 패치는 본 PR 에서 정식 변경으로 채택하는 셈이라 별도 revert 불필요.
+
+### 검증 방법 (수동)
+
+`npm run dev` 후 다음 5케이스 통과 확인. router-toggle § 5 Step 3 표 그대로 적용하되 Login 기준으로 좁힘.
+
+| # | 동작 | 기대 결과 | 검증 항목 |
+|---|---|---|---|
+| 1 | `/login` 접속 | 기존 `<Login />` (legacy 마크업) 렌더 | 기본값 `'1'` |
+| 2 | `/login?v=2` 접속 | v2 LoginPage 렌더 (DT 마크 + "로그인" 22px + 카드 28px padding) + DevTools 콘솔에서 `localStorage.getItem('ui.version') === '2'` | URL 파싱 + localStorage sync |
+| 3 | (#2 직후) 다른 페이지 이동 후 다시 `/login` (쿼리 없이) | v2 LoginPage 유지 | sticky 동작 |
+| 4 | `/login?v=1` 접속 | legacy `<Login />` + `localStorage.getItem('ui.version') === null` | URL `v=1` 시 키 제거 |
+| 5 | 로그인 성공 후 | `/` 또는 `?returnTo=...` 로 리다이렉트, 재방문 시 §5.4 케이스 B (이미 로그인) 로 즉시 redirect | 권한 가드 + returnTo |
+
+추가 케이스 (Login 고유):
+- `/login?v=2&returnTo=/cart` 접속 → 로그인 성공 후 `/cart` 로 redirect.
+- `/login?v=2&returnTo=https://evil.com` 접속 → §5.4 화이트리스트로 무시, `/` 로 redirect.
+
+### 영향 범위
+
+- `App.tsx`: 2 라인 추가(import + lazy) + 1 라인 교체. 다른 라우트 영향 0.
+- 기존 `src/pages/Login.tsx`: **수정 금지** (SPEC § 0 / `docs/CLAUDE.md` 절대 규칙). cutover PR 까지 보존.
+- 토글이 꺼진 경우 v2 코드는 `lazy` 경로로만 존재해 번들에 미포함.
 
 ## 7. 의사결정 필요 지점
-(작성 예정)
+
+> 사용자 지시로 일부 항목은 **이미 결정**됨. 결정된 항목은 "확정" 컬럼에 명시. 그 외는 작업 시작 전 합의 필요.
+
+### 기능 범위 결정 (사용자 입력 반영)
+
+| 항목 | 결정 | 영향 범위 |
+|---|---|---|
+| 회원가입 링크 처리 | **확정** — 기존 `/signup` 페이지 흐름 유지. UI 만 v2 톤(brand color, semibold)으로 refine. v2 카드 하단 구분선 + "아직 계정이 없으신가요? 회원가입" 링크. `<Link to="/signup">` 사용 (router-toggle 가 v=2 sticky 처리하므로 쿼리 부착 불필요) | §2 `SignupCallout`, `signupHref = '/signup'` |
+| "비밀번호 찾기" 링크 | **확정 — 추가하지 않음** | 마크업에서 제거. 백엔드 reset 엔드포인트도 본 plan 범위 밖 |
+| 소셜 로그인 (Google) | **확정 — 필요함** | 카드 내부 "또는" 구분선 + "Google로 로그인" 버튼 추가. 기존 `src/pages/Login.tsx:96-111` 와 동일한 OAuth start URL(`VITE_GOOGLE_OAUTH_URL`) 사용. v2 마크업에서는 `Button` 공용 컴포넌트의 `secondary` 또는 `ghost` variant + GoogleIcon 으로 재구성 (인라인 `style={{}}` 금지 — SPEC § 0). §2 컴포넌트 분해 표에 `SocialLoginBlock` 추가 필요 (다음 commit 으로 §2 갱신 권장) |
+| 로그인 후 리다이렉트 정책 | **확정 — 메인(`/`) 으로 리다이렉트** | §5.4. `returnTo` 쿼리스트링이 있으면 그 경로(화이트리스트 통과 시) 우선, 없으면 `/`. RequireAuth 가 부여하는 `returnTo` 가 들어올 수 있으므로 처리 로직은 유지 |
+| "로그인 유지" 체크박스 / 자동 로그인 | **확정 — 추가하지 않음** | 마크업에서 제거. 토큰 만료 정책은 백엔드 기본값에 위임 (별도 UI 없음) |
+
+### 미결정 — 작업 시작 전 합의 필요
+
+| 번호 | 항목 | 옵션 | 권장 | 영향 |
+|---|---|---|---|---|
+| D-1 | `/auth/login` 호출의 401 부작용 (§3) | (A) axios 인터셉터 우회 옵션 추가 (`config.skipReissue`) (B) 페이지에서 인터셉터 동작을 그대로 두고 catch 블록 메시지로 무마 | **B**. 인터셉터 수정은 영향 범위가 v2 단일 페이지를 넘어가므로 보수적으로. catch 블록이 reissue 실패보다 먼저 도달하는지 실제 동작 확인 후 확정 | hooks.ts mapLoginError, src/api/client.ts 무수정 |
+| D-2 | 422 검증 응답 스키마 | 백엔드와 합의 필요 — `errors: { email?, password? }` 형태인가, `errors: [{ field, message }]` 배열인가 | 양쪽 모두 어댑팅 가능하도록 `mapLoginError` 가 두 형태 모두 수용. 확정 시 한 갈래로 좁힘 | hooks.ts |
+| D-3 | 429 / 5xx 시 백오프·재시도 횟수 | 현재 구현 0회. 토스트만 띄우고 사용자 재클릭에 위임 | 그대로(추가 구현 X). 자동 재시도는 멱등성 검토 필요한데 login 은 부작용 없어 안전하지만 UX 가치 낮음 | hooks.ts |
+| D-4 | `RequireAuth` 가 `/login` 으로 보낼 때 `returnTo` 부여 | 현재 `App.tsx:48` 미부여 (`router-toggle.plan` § 1-4). v2 페이지가 `returnTo` 를 활용하려면 가드 측 변경 필요 | **본 plan 범위 밖**. cutover PR 또는 별도 인프라 PR 에서 처리. v2 LoginPage 는 `returnTo` 가 없으면 그냥 `/` 로 redirect 하므로 동작은 안전 | App.tsx (별도 PR), §5.4 |
+| D-5 | Login 페이지를 IDE chrome(`Layout`) 안에서 렌더할지 | INVENTORY § 4: 현재 `/login` 은 레이아웃 없음. SPEC § 7 「Layout chrome A/B 선택 — Option A 확정」 와 충돌 가능성 | 현행 유지(레이아웃 없음). 비로그인 페이지에 사이드바·탭바 노출은 부적절 | App.tsx 라우트 위치(공개 평탄 라우트 그대로) |
+| D-6 | `Icon` 공용 컴포넌트의 `spinner` 항목 존재 여부 | SPEC § 0 의 Phase 1 공용 컴포넌트 목록에 Icon 은 있으나 개별 항목 명세 없음. 프로토타입 `◐` 글리프를 어떻게 매핑할지 | Icon 컴포넌트에 `spinner` 추가. 없으면 Login 작업 PR 안에서 1줄 추가 또는 Phase 1 공용 PR 로 위탁 | components-v2/Icon |
+| D-7 | OAuth 시작 URL 환경변수 명 | 기존 `VITE_GOOGLE_OAUTH_URL` (src/pages/Login.tsx:7) 그대로 사용 vs v2 prefix 부여 | 기존 그대로 사용. env 분리 가치 없음 | hooks.ts 내 GOOGLE_OAUTH_URL 상수 |
+| D-8 | OAuth 콜백(`/oauth/callback`) v2 도입 여부 | 본 plan 범위 밖이지만 Login → Google → callback 흐름이 한 묶음이라 명시 | 본 plan 은 Login 만. callback 은 SPEC § 9 「기존 소셜 로그인 플로우 유지」 따라 legacy 그대로 (사용자 흐름은 v2 Login → legacy callback → AuthContext 업데이트 → v2 메인) | callback 페이지 무수정 |
+| D-9 | §2 컴포넌트 분해 갱신 | 사용자 결정으로 `SocialLoginBlock` 이 추가됨 | §2 의 분해 표에 다음 행 보강: `SocialLoginBlock` (위치: `Login.tsx` 내부 named, props: `{ googleOAuthUrl: string }`). 본 plan 의 § 2 갱신은 별도 commit 으로 처리 권장 | 본 문서 § 2 |
+| D-10 | 클라 검증 동작의 onBlur 도입 여부 | §5.3 결정대로 onSubmit 만. 향후 UX 개선 시 검토 | 그대로 | hooks.ts |
 
 ## 8. PR 분할 + 파일 생성 순서
 (작성 예정)
