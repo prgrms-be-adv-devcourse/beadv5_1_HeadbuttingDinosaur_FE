@@ -21,6 +21,7 @@
 @import './components/quantity-stepper.css';
 @import './components/meta-line.css';
 @import './components/empty-state.css';
+@import './components/payment-modal.css';
 
 /* Page-level styles. One file per page route. */
 @import './pages/login.css';
