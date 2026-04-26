@@ -502,7 +502,191 @@ canBuy    = status === 'ON_SALE' && remainingQuantity > 0;
 EventDetail 은 중간 크기라 PR 2~3 개로 분할.
 
 ### 9.1 PR 1: 골격 + 시각 컴포넌트
-(작성 예정)
+
+**목적**: EventDetail 페이지 구조와 모든 시각 컴포넌트를 mock VM 으로 렌더 가능
+한 상태로 만든다. API 호출 / 라우터 정식 등록 / 실제 구매 액션은 PR 2 / PR 3.
+이 PR 의 산출물은 스텁 hook 이 mock 을 반환하므로 컨테이너는 항상 `success`
+분기만 그림.
+
+**범위 메모 — 공유 모듈 추출 포함**: § 1 결정 (도메인 타입 + 헬퍼 추출) 과
+§ 8-항목6 결정 (`QuantityControl` 공용 승격) 의 산출물도 본 PR 의 1~3 단계로
+포함한다. 별도 선행 PR 로 빼지 않는 이유 — 추출만 머지된 상태에서는 사용처가
+없어 독립 검증이 어렵고, 본 PR 의 시각 컴포넌트 (`PurchasePanel`,
+`InfoCard`) 가 곧바로 사용해야 변경 이유가 명확해짐.
+
+#### 포함 파일 / 컴포넌트
+
+**신규 (16):**
+
+| # | 경로 | 종류 |
+|---|---|---|
+| N1 | `src/types-v2/event.ts` | 도메인 타입 (공유) |
+| N2 | `src/pages-v2/_shared/eventFormat.ts` | 헬퍼 (공유) |
+| N3 | `src/components-v2/QuantityControl.tsx` | 공용 컴포넌트 |
+| N4 | `src/components-v2/QuantityControl.module.css` *또는 globals 추가* | 공용 컴포넌트 스타일 |
+| N5 | `src/pages-v2/EventDetail/types.ts` | VM 타입 |
+| N6 | `src/pages-v2/EventDetail/adapters.ts` | API → VM 변환 |
+| N7 | `src/pages-v2/EventDetail/hooks.ts` (스텁) | 마운트 시 mock 반환만 |
+| N8 | `src/pages-v2/EventDetail/__mocks__/sampleEventDetail.ts` | mock 1~2건 (PR 2 에서 삭제) |
+| N9 | `src/pages-v2/EventDetail/components/Breadcrumb.tsx` | |
+| N10 | `src/pages-v2/EventDetail/components/HeroBanner.tsx` | |
+| N11 | `src/pages-v2/EventDetail/components/InfoRow.tsx` | |
+| N12 | `src/pages-v2/EventDetail/components/InfoCard.tsx` | |
+| N13 | `src/pages-v2/EventDetail/components/EventHeader.tsx` | |
+| N14 | `src/pages-v2/EventDetail/components/EventDescription.tsx` | |
+| N15 | `src/pages-v2/EventDetail/components/PriceSummary.tsx` | |
+| N16 | `src/pages-v2/EventDetail/components/PurchasePanel.tsx` | |
+| N17 | `src/pages-v2/EventDetail/EventDetail.tsx` | 컨테이너 |
+| N18 | `src/pages-v2/EventDetail/index.tsx` | (PR 1 에서는 mock id 하드코딩 + 임시 wiring 용) |
+
+> `EventDetailSkeleton` 은 본 PR 에 **포함하지 않음** — 스텁 hook 이 항상
+> success 만 반환해서 PR 1 검증 시 노출 경로가 없음. PR 2 에서 신규 작성.
+
+**수정 (2):**
+
+| # | 경로 | 변경 |
+|---|---|---|
+| M1 | `src/pages-v2/EventList/types.ts` | `EventStatus` 를 `src/types-v2/event` 에서 import 로 교체. 본체 삭제. |
+| M2 | `src/pages-v2/EventList/adapters.ts` | `toStatus`/`toDateTimeLabels`/`isFree`/`isLowStock` 본체 삭제 + `_shared/eventFormat` import 로 교체. § 8-항목3 권고 따라 `isLowStock` 임계값을 `< 10` → `< 5` 로 통일하면서 같이 처리. |
+
+**임시 (PR 2 에서 되돌림):**
+
+| # | 경로 | 변경 |
+|---|---|---|
+| T1 | `src/App.tsx` | `EventDetailV2` lazy import 추가 + `/events/:id` 라우트 element 를 `<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />` 로 한 줄 임시 교체. **PR 1 머지 전 revert 또는 PR 2 의 정식 등록과 합쳐서 처리** — § 9.4 에서 머지 순서 결정 (T1 을 PR 1 에 같이 머지할지, PR 2 에서만 처리할지). |
+
+> T1 을 PR 1 에 합치는 이유: 라우트 등록 없으면 dev 서버에서 페이지 접근이
+> 불가해 시각 검증을 못 함. 단, mock hook 상태로 머지되면 v2 사용자는 항상
+> 같은 mock 데이터만 보게 되므로 위험 → § 9.4 의 권고: **T1 은 로컬 검증용
+> 으로만 적용 후 PR 1 diff 에서 제외**. 정식 등록은 PR 2 에서.
+
+#### 추정 LOC
+
+| 그룹 | LOC |
+|---|---|
+| 공유 모듈 (N1–N4) | ~110 |
+| EventList 리팩터 (M1–M2) | -30 / +5 (순감) |
+| EventDetail types/adapters/hooks/mock (N5–N8) | ~120 |
+| 시각 컴포넌트 9개 (N9–N16) | ~330 |
+| 컨테이너 + index (N17–N18) | ~80 |
+| **합계** | **~640** |
+
+> **사용자 목표 200~400 LOC 초과 (~640)**. 시각 컴포넌트 9개를 한 PR 에 묶
+> 는 것이 본 PR 의 본질이라 단순 축소가 어려움. 200-400 범위로 강제하려면
+> 다음 sub-split 가능:
+>
+> - **PR 1a (~250 LOC)**: 공유 모듈 N1–N4 + EventList 리팩터 M1–M2 + EventDetail
+>   N5–N8 + 단순 컴포넌트 4개 (Breadcrumb / HeroBanner / InfoRow / InfoCard /
+>   EventDescription / PriceSummary). 컨테이너는 mock 데이터 한 줄만 그리는
+>   최소 형태.
+> - **PR 1b (~390 LOC)**: 나머지 컴포넌트 (EventHeader / PurchasePanel) + 컨테
+>   이너 본격 조립 + index.
+>
+> 권고: **단일 PR 1 (~640) 유지**. 두 sub PR 모두 라우트 등록 없이 시각 검증이
+> 모호해 분리 이득이 작음. 단, 리뷰어가 한번에 읽기 부담된다고 판단되면 위처럼
+> 분할.
+
+#### 파일 생성 순서
+
+의존 위에서 아래로. 각 단계 끝에서 `npm run build` (또는 type-check) 통과
+확인.
+
+1. `src/types-v2/event.ts` — 의존 없음.
+2. `src/pages-v2/_shared/eventFormat.ts` — 1 import.
+3. `src/pages-v2/EventList/types.ts` 수정 — 1 import.
+4. `src/pages-v2/EventList/adapters.ts` 수정 — 2 import. **여기서 EventList 동작
+   회귀 없는지 dev 서버 (`/`, `/?v=2`) 로 확인.**
+5. `src/components-v2/QuantityControl.tsx` + CSS — 의존 없음. 사용처 없음 →
+   컴파일만.
+6. `src/pages-v2/EventDetail/types.ts` — 1 import.
+7. `src/pages-v2/EventDetail/adapters.ts` — 6 + 2 import.
+8. `src/pages-v2/EventDetail/__mocks__/sampleEventDetail.ts` — 6 의 VM 형태 따
+   라 1~2건 작성.
+9. `src/pages-v2/EventDetail/hooks.ts` (스텁) — 6 + 8 import. `useEventDetail
+   (eventId)` 가 항상 `{ status: 'success', data: sampleEventDetail, fetchedAt:
+   Date.now() }` 반환. `refetch` 는 noop.
+10. 단순 시각 컴포넌트:
+    - `components/Breadcrumb.tsx`
+    - `components/HeroBanner.tsx`
+    - `components/InfoRow.tsx`
+    - `components/InfoCard.tsx`
+    - `components/EventDescription.tsx`
+    - `components/PriceSummary.tsx`
+11. 의존성 있는 컴포넌트:
+    - `components/EventHeader.tsx` (`StatusChip`, `Chip` Phase 0 사용)
+    - `components/PurchasePanel.tsx` (`QuantityControl` from 5, `PriceSummary`
+      from 10, Phase 0 `Button`/`Icon`/`Card`)
+12. `EventDetail.tsx` 컨테이너 (모든 컴포넌트 조립, hook 호출, success 분기만
+    렌더).
+13. `index.tsx` (`useParams` 로 `eventId` 추출 + 컨테이너에 prop 주입. PR 1
+    에서는 `eventId` 가 어떤 값이든 hook 이 같은 mock 반환).
+14. (로컬 검증용) `src/App.tsx` 임시 교체 (T1) — 검증 후 `git checkout --
+    src/App.tsx` 로 되돌림.
+
+#### 단계별 commit 메시지 권장
+
+각 단계는 빌드 통과 단위로 commit. 그룹별 묶음 권장:
+
+| 커밋 | 단계 | 메시지 |
+|---|---|---|
+| C1 | 1, 2 | `refactor(events-v2): extract EventStatus and event format helpers to v2 shared` |
+| C2 | 3, 4 | `refactor(events-v2/list): consume shared event types and helpers` |
+| C3 | 4 (옵션) | `refactor(events-v2): align isLowStock threshold to <5` (§ 8-항목3 적용 시 같이) |
+| C4 | 5 | `feat(components-v2): add QuantityControl shared component` |
+| C5 | 6, 7, 8, 9 | `feat(event-detail-v2): add types, adapters, mock, and stub hook` |
+| C6 | 10 | `feat(event-detail-v2): add Breadcrumb / HeroBanner / InfoRow / InfoCard / EventDescription / PriceSummary` |
+| C7 | 11 | `feat(event-detail-v2): add EventHeader and PurchasePanel` |
+| C8 | 12, 13 | `feat(event-detail-v2): add EventDetail container with mock-backed hook` |
+
+8 commits 가 부담스러우면 C5/C6/C7/C8 을 묶어 1 commit (`feat(event-detail-v2)
+: add page skeleton with mock`) 도 가능. 단 C1~C4 (refactor / 공용 컴포넌트)
+는 분리 유지 권고 (리뷰 단위가 다름).
+
+#### 검증 방법
+
+**타입/빌드:**
+
+- `npm run build` — 모든 단계 후 통과.
+- (있으면) `npm run lint`, `tsc --noEmit`.
+
+**EventList 회귀 (단계 4 직후):**
+
+- `npm run dev` → `/` 와 `/?v=2` 진입 → 카드 그리드 / status chip / `< 5` 잔여
+  강조가 이전과 동일한지 확인 (단계 4 의 `isLowStock` 임계값 변경이 시각으로
+  어떻게 바뀌는지 같이 점검 — 임계값 5 미만 카드만 amber 처리).
+
+**EventDetail 시각 (모든 단계 후):**
+
+1. `src/App.tsx` 에 임시 wiring (T1) 적용:
+   ```tsx
+   import { lazy } from 'react'
+   const EventDetailV2 = lazy(() => import('./pages-v2/EventDetail'))
+   // /events/:id 라인을 임시 교체
+   <Route path="/events/:id"
+     element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
+   ```
+2. `npm run dev` → `/events/임의문자열?v=2` 접속.
+3. 다음을 시각 확인:
+   - Breadcrumb "이벤트 › {mock title}"
+   - HeroBanner accent gradient + `❯_` 글리프
+   - 카테고리 mono uppercase + `StatusChip` (mock status 따라 ok/sold)
+   - 타이틀 + 기술 스택 `Chip` 그룹
+   - InfoCard 4행 (일시 / 장소 / 주최 / 잔여 좌석). 잔여 0 mock 으로 바꾸면
+     "매진되었습니다" danger 색 노출.
+   - EventDescription 본문 + (mock 에 줄바꿈 포함 시) plain text 처리 확인.
+   - 우측 PurchasePanel: 가격 / `QuantityControl` 동작 (− / + 버튼 클릭 시
+     수량 증감) / 합계 갱신 / "바로 구매하기" + "장바구니에 담기" 버튼 노출
+     (클릭 시 콘솔 로그만, 실제 액션 없음 — PR 3).
+   - mock status 를 `SOLD_OUT` 으로 바꾸면 PurchasePanel 이 "매진된 이벤트입
+     니다" disabled 버튼 1개로 전환.
+4. Sticky 스크롤: 페이지 길이를 mock description 으로 늘려 우측 패널 sticky
+   확인.
+5. 다크모드 토큰: `[data-theme="dark"]` 토글이 있으면 적용해서 색 대비 확인.
+6. 검증 완료 후 `git checkout -- src/App.tsx` 로 임시 wiring 제거.
+7. 최종 PR diff 에 `src/App.tsx` 변경 없는지 `git diff main` 으로 확인.
+
+**검증 결과 기록**: 위 시각 확인 항목을 PR 본문에 체크리스트로 옮기고 OK 표
+시. 가능하면 스크린샷 1~2장 (success / sold-out 분기) 첨부.
 
 ### 9.2 PR 2: API 통합 + 상태 처리 + 라우터 등록
 (작성 예정)
