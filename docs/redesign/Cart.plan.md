@@ -152,7 +152,72 @@ src/pages-v2/Cart/
 3. `CartItemDetail` 직접 렌더 → `CartItemVM` (§ 1)로 어댑터 경유
 
 ## 4. API 매핑 테이블 (주문 / 결제)
-(작성 예정)
+
+기준: INVENTORY § 2 (`src/api/`). 모든 함수는 baseURL `/api` 위에서 동작 (`src/api/client.ts`). 본 plan은 **`src/api/*` 변경 금지**(SPEC § 0 보존 대상) — 시그니처는 *현재 소스* 기준으로 기록.
+
+§ 3에서 **서버 cart(Option B) 채택** → 표 3 포함.
+
+### 표 1. 장바구니 동기화 (서버 cart, § 3 결정)
+
+| 함수 | HTTP | 경로 | 요청 | 응답 (`data`) | 비고 |
+|---|---|---|---|---|---|
+| `getCart()` | GET | `/cart` | — | `CartResponse` `{ cartId: string\|null, items: CartItemDetail[], totalAmount: number }` | 페이지 진입 1회. 응답을 `CartVM`으로 어댑트 |
+| `addCartItem(body)` | POST | `/cart/items` | `CartItemRequest` `{ eventId: UUID, quantity: number }` | `AddCartItemResponse` `{ cartId, items, totalAmount }` | EventDetail "장바구니 담기"·추천 "빠르게 담기"에서 사용. Cart 페이지 자체에서는 호출 X |
+| `updateCartItemQuantity(id, body)` | PATCH | `/cart/items/:cartItemId` | `CartItemQuantityRequest` `{ quantity: number }` (delta `+1` / `-1`) | `CartItemQuantityResponse` `{ cartItemId, quantity }` | 수량 컨트롤. **delta 의미** 주의 — 절대값 PUT 아님 |
+| `deleteCartItem(id)` | DELETE | `/cart/items/:cartItemId` | — | `CartItemDeleteResponse` `{ success: boolean }` | 단건 삭제 |
+| `clearCart()` | DELETE | `/cart` | — | `CartClearResponse` `{ success: boolean }` | 본 페이지에서 직접 호출은 안 함(전체 비우기 UI 미정 — § 9). 결제 후 백엔드 미정리 시 보충용 |
+
+> **참고**: 사용자 프롬프트 예시 `PUT /api/cart` 같은 일괄 동기화 엔드포인트는 백엔드에 **존재하지 않음**. 변경은 항목 단위(POST/PATCH/DELETE)로만 이뤄짐. 어댑터는 PATCH 응답(`{ cartItemId, quantity }`)을 로컬 `CartVM.items`에 부분 머지하면 됨.
+
+> **추천 카드 페치** (Cart 페이지에서 함께 사용): `recommendEvents()` (`src/api/events.api.ts`) — `RecommendationResponse` → `RecommendedCardVM[]` 어댑트(§ 1 참고). 본 표에는 cart 동기화가 아니므로 별도 표기.
+
+### 표 2. 주문 생성
+
+| 함수 | HTTP | 경로 | 요청 | 응답 (`data`) | 비고 |
+|---|---|---|---|---|---|
+| `createOrder(body)` | POST | `/orders` | `OrderRequest` `{ cartItemIds: string[] }` | `OrderResponse` `{ orderId, status, totalAmount, createdAt }` | **요청 형식 주의**: `{ items: [{ eventId, quantity }] }`가 아니라 **`cartItemIds: string[]`**. 서버 cart 식별자 기반이므로 표 1로 cart가 먼저 만들어져 있어야 함. 응답은 `ApiResponse<OrderResponse>` 래퍼로 옴 |
+
+호출 시점: "결제하기" 버튼 클릭 → 성공 시 `OrderResponse.orderId`/`totalAmount`를 가지고 표 3의 `readyPayment`로 진행 (`PaymentModal` 오픈). § 7에서 시퀀스 상세.
+
+### 표 3. 결제 (PG: Toss Payments)
+
+결제는 **3단계**(ready → 사용자 PG 인증 → confirm/fail)로 분리되어 있어 단일 `POST /payments`가 아님.
+
+| 함수 | HTTP | 경로 | 요청 | 응답 (`data`) | 비고 |
+|---|---|---|---|---|---|
+| `readyPayment(body)` | POST | `/payments/ready` | `PaymentRequest` `{ orderId, paymentMethod: 'PG' \| 'WALLET' \| 'WALLET_PG', walletAmount?: number }` | `PaymentResponse` `{ paymentId, orderId, paymentMethod, amount, status, walletAmount?, pgAmount?, tossPaymentUrl? }` | **래퍼 없는 raw 반환** (다른 엔드포인트와 다름 — `apiClient.post<PaymentResponse>` 직접 사용). PG 경로면 `tossPaymentUrl`로 redirect 또는 Toss SDK 호출 |
+| `confirmPayment(body)` | POST | `/payments/confirm` | `PaymentConfirmRequest` `{ paymentId, paymentKey, orderId, amount }` | `PaymentConfirmResponse` `{ paymentId, orderId, paymentMethod, status, amount, approvedAt }` | Toss success 콜백(`/payment/success`)에서 호출 |
+| `failPayment(body)` | POST | `/payments/fail` | `PaymentFailRequest` `{ paymentId, orderId, code?, message? }` | `void` | Toss fail 콜백(`/payment/fail`)에서 호출 |
+
+> **idempotency**: 중복 결제 방지가 필요하면 `idempotencyConfig()` (`src/api/client.ts`) 헤더 옵션을 `readyPayment`/`createOrder` 호출에 부착. v1은 `PaymentModal` 안에서 처리 — § 7에서 v2 채택 여부 결정.
+
+> **본 plan 범위**: Cart 페이지는 `createOrder` → `readyPayment` 트리거까지만 책임. `/payment/success`·`/payment/fail` 라우트는 SPEC § 9에서 "기존 결제 플로우 유지"로 결정됨 → 기존 페이지(`PaymentSuccess.tsx`/`PaymentFail.tsx`)가 `confirmPayment`/`failPayment`를 처리하므로 v2 Cart에서 직접 구현하지 않음.
+
+### 표 4. 에러 응답 → UI 처리
+
+axios 인터셉터(`client.ts`)가 401·403(`PROFILE_NOT_COMPLETED`)을 가로채므로 **페이지 코드는 그 외 케이스만** 처리.
+
+| HTTP / 코드 | 의미 | 발생 가능 위치 | UI 처리 |
+|---|---|---|---|
+| 401 | 토큰 만료/무효 | 모든 호출 | 인터셉터가 `/auth/reissue` 자동 재시도 → 실패 시 `/login` 강제 이동. 페이지 코드 처리 **불필요** |
+| 403 (`PROFILE_NOT_COMPLETED`) | 소셜 가입 미완 | 모든 호출 | 인터셉터가 `/social/profile-setup` 강제 이동. 페이지 코드 처리 **불필요** |
+| 403 (그 외) | 권한 없음 | 드뭄 (RequireAuth 통과 가정) | 토스트 + 페이지는 현 상태 유지 |
+| 404 | 자원 없음 | `getCart`(드뭄), `createOrder`(잘못된 cartItemId) | 토스트 "장바구니 정보를 찾을 수 없습니다" + `getCart()` 재페치 |
+| 409 | **재고 부족 / 매진 / 상태 충돌** | `addCartItem`(EventDetail에서 호출), `updateCartItemQuantity`, `createOrder` | (a) Cart 페이지 안: 해당 row에 인라인 에러 chip "재고 부족" + 낙관적 업데이트 롤백. (b) `createOrder` 단계: `OrderSummary` 영역 인라인 배너 + `getCart()` 재페치로 서버 최신 상태 반영. 결제 진행 차단 |
+| 422 | 검증 실패 | `addCartItem`(quantity 범위 등), `createOrder` | 필드 단위 매핑 (현 화면 인풋이 적어 토스트 한 줄로 충분한 경우 다수) |
+| 429 | 레이트 리밋 | 빠른 연타 | 토스트 + 해당 버튼 잠시 disable. mutation은 `pendingItemIds` 가드로 1차 방지(§ 3) |
+| 5xx | 서버 오류 | 모든 호출 | 페이지 진입 페치 실패: 페이지 레벨 에러 카드 + "다시 시도". mutation 실패: 토스트 + 낙관적 롤백 |
+| 네트워크 끊김 | offline / DNS / timeout | 모든 호출 | 5xx와 동일 처리. 인플라이트 인디케이터 해제 |
+
+### 어댑트 매핑 (요약)
+
+| API | → VM | 어댑터 |
+|---|---|---|
+| `CartResponse` | `CartVM` (§ 1) | `Cart/adapters.ts :: toCartVM` |
+| `CartItemDetail` | `CartItemVM` | `Cart/adapters.ts :: toCartItemVM` |
+| `CartItemQuantityResponse` | `CartItemVM`(부분 갱신) | 동일 파일 :: `mergeQuantityUpdate(prev, response)` |
+| `OrderResponse` | `OrderResultVM` (페이지 한정 — `{ orderId, totalAmount }`) | 동일 파일 :: `toOrderResultVM` |
+| `PaymentResponse` | (어댑터 거치지 않음 — 곧장 PaymentModal/리다이렉트로 위임) | — |
 
 ## 5. 데이터 흐름 (담기 / 수정 / 결제)
 (작성 예정)
