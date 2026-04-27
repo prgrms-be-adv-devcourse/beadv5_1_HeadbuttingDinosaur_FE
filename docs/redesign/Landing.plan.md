@@ -1534,5 +1534,167 @@ F. **회귀 검증**
 | `?v=1` 사용자 동선 | 영향 0 — `/` v1 prop 그대로 EventList |
 
 ### 12.5 PR 간 의존성
-(작성 예정)
+
+#### 머지 순서 그래프
+
+§ 11 #2 결정으로 신설된 **PR 0 (⌘K Palette)** 포함:
+
+```
+                                  ┌─── PR 2 (Hero + Stats) ───┐
+                                  │                            │
+PR 1 (TypedTerminal) ─────────────┤                            ├─── PR 4 (CTA + 통합 + 라우터)
+                                  │                            │
+                                  └─── PR 3 (Categories +      ┘
+                                            Featured) ─────────┘
+                                                                ▲
+                                                                │
+                                  PR 0 (⌘K Palette) ────────────┘  (선택 — 미머지 시 § 7.2 fallback)
+```
+
+- 가로 화살표 = "선행 머지 필요".
+- PR 2 ⊥ PR 3: 동시 진행 + 동시 머지 가능 (서로 의존 0). 단 같은 파일에 append → 충돌 완화 전략 § 12.5.4.
+- PR 0 ⊥ PR 1·2·3: 완전 독립. PR 4 머지 직전까지 어느 시점에든 머지 가능. 미머지 시 PR 4 의 `onOpenPalette` 미주입 → § 7.2 fallback.
+
+#### 12.5.1 PR 의존성 표
+
+| PR | 직접 의존 | 의존 이유 (구체적 import / 동작) |
+|---|---|---|
+| PR 0 (⌘K Palette) | 없음 | 별 PR 트랙 — Layout chrome 또는 `components-v2/CommandPalette/` 신설 |
+| PR 1 (TypedTerminal) | 없음 | 디렉토리 스캐폴딩 부재 → Landing 디렉토리 / `landing.css` / `types.ts` 초기 파일 직접 신설 |
+| PR 2 (Hero + Stats) | **PR 1** | `HeroSection` 이 `<TypedTerminal lines={…} />` 직접 import (§ 12.2) |
+| PR 3 (Categories + Featured) | **PR 1 만** | 디렉토리 스캐폴딩(`landing.css` / `types.ts`)이 PR 1 결과물. 컴포넌트 의존 0 (PR 2 의 Hero/Stats 미사용). `SectionHead` 는 `src/components-v2/SectionHead/` 에 **이미 존재** (§ 2 확인) — PR 2 에서 만들지 않음 |
+| PR 4 (CTA + 통합 + 라우터) | **PR 1 + PR 2 + PR 3** (필수)<br>PR 0 (선택) | `Landing.tsx` 가 5 섹션 컴포넌트 모두 import. PR 0 이 머지돼 있으면 `index.tsx` 의 `onOpenPalette` 한 줄 결선 (§ 12.4) |
+
+#### 12.5.2 병렬 진행 매트릭스
+
+| 페어 | 동시 개발 | 동시 머지 | 비고 |
+|---|---|---|---|
+| PR 0 ↔ PR 1 | ✅ | ✅ | 완전 독립. 다른 디렉토리 |
+| PR 0 ↔ PR 2 | ✅ | ✅ | 완전 독립 |
+| PR 0 ↔ PR 3 | ✅ | ✅ | 완전 독립 |
+| PR 1 ↔ PR 2 | ✅ (인터페이스만 정해두면) | ❌ | PR 2 가 PR 1 결과물 import — 머지 순서 강제 |
+| PR 1 ↔ PR 3 | ✅ | ❌ | PR 3 가 PR 1 의 `landing.css` / `types.ts` 위에 append — 머지 순서 강제 |
+| **PR 2 ↔ PR 3** | ✅ | **✅** | 컴포넌트/데이터 의존 0. 같은 파일에 append 충돌만 § 12.5.4 전략으로 해소 |
+| PR 4 ↔ 나머지 | ❌ | ❌ | 모두 머지된 뒤에만 시작 가능 |
+
+> **권장 일정**: PR 0 + PR 1 을 우선 머지 → PR 2 / PR 3 동시 작업 + 동시 머지(또는 짧은 시간 차) → PR 4 통합. critical path 길이 = 4 단계 (PR 0/1 → PR 2 또는 3 → PR 4).
+
+#### 12.5.3 EventList 와의 데이터 의존성
+
+§ 1 의 자산 공유 정책 + § 5.3 의 캐시 공유 정책을 PR 단위로 매핑.
+
+##### 어댑터 / 타입 (read-only import)
+
+| 자산 | 위치 (이미 존재) | Landing 사용 PR | 의존 형태 |
+|---|---|---|---|
+| `EventVM` | `src/pages-v2/EventList/types.ts` | PR 3 (`FeaturedItemVM = Pick<EventVM, …> & { rank, accent }`) | **타입 import 만**. 런타임 의존 X |
+| `toEventVM` | `src/pages-v2/EventList/adapters.ts` | PR 3 (`getEvents` 응답 → `EventVM` 변환 후 `toFeaturedItemVM`) | **함수 import**. EventList 어댑터 시그니처 변경 시 PR 3 영향 |
+| `toStatus`, `toDateTimeLabels`, `isFree`, `isLowStock` | `src/pages-v2/_shared/eventFormat.ts` | PR 2 (`isLowStock` in `toStatsVM` — § 12.2 어댑터), PR 3 (`toDateTimeLabels` in `FeaturedRow` 메타) | **함수 import**. 시그니처 안정 |
+| `EventListPage` 형태 | EventList types.ts | PR 2 (`useFirstPage` 가 동일 형태 반환) | **타입 import 만** |
+| `SectionHead`, `EmptyState`, `StatusChip`, `Eyebrow`, `Kbd`, `Button` | `src/components-v2/*` | 거의 모든 PR | Phase 0 공용 — Landing 트랙과 EventList 트랙 모두 동일 |
+
+> EventList 의 `EventVM` 가 변경되면 Landing PR 3 가 깨질 수 있으므로 EventList 트랙과 **시그니처 변경 사전 공유** 필요. PR 3 가 import 하는 필드 (`eventId`, `title`, `category`, `price`, `remainingQuantity`, `status`, `eventDateTime`, `techStacks`, `isFree`, `dateLabel`) 만 `Pick` 으로 좁혀 표면 최소화 (§ 1).
+
+##### 캐시 공유 — **하지 않음 (v1)**
+
+| 키 (Landing) | 키 (EventList) | 공유 여부 |
+|---|---|---|
+| `landing:events:firstpage:size=10` (§ 5.2) | `q=\|cat=\|stack=\|page=0` (`EventList/hooks.ts:62-77` `serializeFilters`) | **별 캐시**. 응답이 첫 페이지에서 동일하더라도 키 네임스페이스가 달라 자동 공유 불가 |
+| `landing:categories:counts` | (EventList 에 카테고리 카운트 캐시 없음) | 공유 불가 |
+| `landing:featured` | — | Landing 전용 |
+
+§ 5.3 결론 그대로: **Landing 내부에서만 1차 응답 공유** (Stats + Hero 의 totalCount). EventList 와의 cross-page 캐시 공유는 cutover PR 의 캐시 키 통합 작업으로 분리 (§ 11.5).
+
+| PR | EventList 캐시 영향 |
+|---|---|
+| PR 1 | 없음 |
+| PR 2 | 없음 (Landing 자체 캐시만 추가) |
+| PR 3 | 없음 |
+| PR 4 | 없음. 단 § 11 #8 결선 시 `recommendEvents` 호출 — EventList 가 이미 사용 중인 함수 (`src/pages/Cart.tsx`) — API 자체는 공유, 클라 캐시는 별 |
+
+##### 라우팅 의존성 (EventList plan §4)
+
+| 항목 | EventList plan §4 결정 | Landing 사용 PR | 정합 |
+|---|---|---|---|
+| 카테고리 쿼리 키 = `cat` | EventList plan §4 라인 230 | PR 3 (`/events?v=2&cat=…`), PR 4 (라우터 등록) | ✅ |
+| 한국어 카테고리명 그대로 인코딩 | EventList plan §4 라인 165–166 | PR 3 (`encodeURIComponent`) | ✅ |
+| 기본값 `'전체'` 키 생략 | EventList plan §4 라인 242 | PR 3 (마스터 6개 모두 비-기본값이라 항상 키 노출) | ✅ |
+| `?v=2` sticky | router-toggle.plan §2 | 모든 PR | ✅ |
+
+EventList plan §4 가 변경되면 PR 3 / PR 4 의 URL 합성 코드 수정 필요. **현 시점 변경 없음** — Landing 트랙은 EventList plan §4 결정 그대로 따름.
+
+#### 12.5.4 동시 머지 충돌 완화 전략 (PR 2 ↔ PR 3)
+
+PR 2 와 PR 3 가 같은 4 파일에 append:
+
+| 파일 | PR 2 추가 | PR 3 추가 | 완화 |
+|---|---|---|---|
+| `src/pages-v2/Landing/types.ts` | `StatVM`, `LandingFirstPageQuery` | `CategoryTileVM`, `FeaturedItemVM`, query unions | **always append at bottom**. 영역 헤더 코멘트 (`// ===== Stats =====`, `// ===== Categories =====`) 로 식별 |
+| `src/pages-v2/Landing/adapters.ts` | `toStatsVM`, `buildTerminalLines` | `toCategoryTileVM`, `toFeaturedItemVM`, `CATEGORY_DEFINITIONS` 등 | 동일 — 헤더 코멘트 + 파일 맨 아래 append |
+| `src/pages-v2/Landing/hooks.ts` | `getFirstPage`, `useFirstPage`, `useLandingStats` | `useLandingCategories`, `useFeaturedEvents` | 동일. 모듈 캐시 `Map` 은 PR 2 가 먼저 선언, PR 3 는 같은 `cache` 인스턴스 재사용 (key prefix 만 다름) |
+| `src/styles-v2/pages/landing.css` | `.hero-*`, `.stats-*` | `.categories-*`, `.featured-*` | 영역 헤더 (`/* ===== Stats ===== */`) 로 구분. PR 1 의 `.typed-terminal-*` 는 그대로 |
+
+**머지 순서 권장**: PR 2 가 PR 3 보다 약간 먼저. 이유 = `hooks.ts` 의 모듈 캐시 `Map` / `cachePut` / `cache.get` 보일러플레이트는 PR 2 가 먼저 선언하면 PR 3 는 그대로 재사용 가능. 거꾸로면 PR 2 가 같은 보일러플레이트를 **다시** 추가하는 diff 가 생기지만 의미는 동일 — 결과는 같음.
+
+**rebase 시간**: 위 4 파일은 모두 평균 50~150 라인 추가. 둘 다 파일 맨 아래에 append 하면 충돌 0. 같은 라인을 만지는 경우는 영역 헤더 코멘트 추가 시점만 — 어느 PR 이든 1 분 내 수동 해결.
+
+#### 12.5.5 PR 분할 재검토 (LOC 초과 항목)
+
+| PR | 추정 LOC | 목표 | 분할 여부 |
+|---|---|---|---|
+| PR 0 (Palette) | (별 트랙 산정) | — | — |
+| PR 1 | ~225 | 150~250 | ✅ 분할 불필요 |
+| PR 2 | ~463 (트림 시 ~410) | 200~350 | **유지** — Hero/Stats 분리 시 Hero 가 데이터 의존(`useFirstPage`) 단독으로 외로워짐. Stats 만 따로 떼면 검증 의미 약함. 트리밍 우선 |
+| PR 3 | ~428 (트림 시 ~390) | 250~400 | **유지** — Categories/Featured 분리 가능하지만 둘 다 데이터 fetcher 1 개씩 추가하는 동질 작업. 분할 효율 낮음 |
+| PR 4 | ~204 | 150~250 | ✅ 분할 불필요. § 11 #8 (로그인 분기) 를 별 PR 로 분리 시 ~174 |
+
+**§ 11 #8 (로그인 분기) 위치 결정**: PR 4 에 포함 (기본). 사유:
+1. `useFeaturedEvents` 가 PR 3 에서 신설되므로 PR 3 직후가 자연.
+2. 그러나 PR 3 시점엔 `Landing.tsx` 미통합 → 로그인 분기 검증이 dev 라우트로 제한됨 (`useAuth` Provider mount 는 App.tsx 위라 가능하나 어색).
+3. PR 4 통합 시점에 `Landing.tsx` 가 실제 라우트에 결선되므로 검증 자연스러움.
+4. 향후 분리가 필요해지면 별 후속 PR 로 빼도 회귀 영향 없음 (`useFeaturedEvents` 인터페이스 보존).
+
+#### 12.5.6 SPEC.md 갱신 동반 PR
+
+§ 11.3 의 SPEC 갱신 4 항목 머지 위치:
+
+| SPEC 항목 | 머지 PR |
+|---|---|
+| § 9 — `react-type-animation` Landing 한정 도입 | **PR 1** (라이브러리 추가와 동일 PR — § 12.1) |
+| § 9 — 메타 처리 정책 (`v1=index.html`, EventDetail 시점에 helmet-async) | **PR 4** (`index.html` 변경과 동일 PR — § 12.4) |
+| § 6 Landing — API 연동 표 (실제 함수명 갱신) | **PR 4** (Landing 통합 시점에 일괄) |
+| § 7 Layout/Chrome — ⌘K 팔레트 컴포넌트 신설 | **PR 0** (팔레트 본체 PR) |
+
+각 SPEC 갱신은 해당 PR 의 별 commit (검색·리뷰 용이) — § 12.1·§ 12.4 의 commit 시퀀스에 이미 반영.
+
+#### 12.5.7 critical path / 머지 일정 (예시)
+
+PR 5개 + SPEC 갱신을 시간축에 배치하면:
+
+```
+day 0     1     2     3     4     5     6     7
+─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┐
+[PR 1                ] →
+[PR 0 (병렬)        ] →
+                        [PR 2          ] →
+                        [PR 3 (병렬)    ] →
+                                              [PR 4 ]
+```
+
+- PR 0 + PR 1 동시 시작 → PR 1 머지 후 PR 2/3 동시 시작 → 둘 다 머지 후 PR 4.
+- 보수 일정: PR 1 (1~2일) + PR 2/3 (2~3일) + PR 4 (1~2일) = **총 4~7일**.
+- PR 0 가 길어지면 PR 4 직전까지 미머지 상태로 가도 무방 (§ 7.2 fallback).
+
+#### 12.5.8 위험 / 우발 상황
+
+| 위험 | 확률 | 완화 |
+|---|---|---|
+| EventList `EventVM` 시그니처 변경 | 낮음 (EventList plan 안정) | PR 3 의 `Pick` 으로 표면 최소화. EventList 트랙과 시그니처 변경 시 사전 알림 |
+| EventList plan §4 의 `cat` 키 변경 | 매우 낮음 | URL 합성 코드는 PR 3 의 `CategoriesSection` 한 곳 — 1줄 수정 |
+| 백엔드 `getEventRecommendations` 응답 형식 변동 | 중간 (운영 데이터) | PR 3 의 `useFeaturedEvents` 가 폴백 보유 (§ 11 #4) — 1차 실패 시 자동 `getEvents` |
+| `react-type-animation` 의 reduced-motion / visibility 미지원 | 중간 | PR 1 검증 단계에서 발견 — § 12.1 의 key remount 우회 |
+| `/events` 라우트 충돌 (백엔드 API 가 `/api/events` 와 동일 path 표면) | 0 | Vite dev proxy 가 `/api` prefix 분리 — 충돌 없음 |
+| PR 2 ↔ PR 3 머지 순서 역전 | 중간 | § 12.5.4 의 append 전략 — 영향 ≤ 5분 rebase |
+| PR 0 미머지 상태에서 PR 4 머지 | 높음 (의도적 가능) | § 7.2 fallback 으로 ⌘K 가 `onBrowseEvents` 동작. PR 0 머지 후 `onOpenPalette` 한 줄 추가 PR (1줄 fix) |
+
 
