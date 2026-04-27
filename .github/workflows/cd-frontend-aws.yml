@@ -6,6 +6,11 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/cd-frontend-aws.yml"
+      - "Dockerfile"      # 루트의 Dockerfile 감시
+      - "src/**"          # 루트의 src 폴더 감시
+      - "package.json"    # 루트의 설정 파일 감시
+      - "package-lock.json" # 의존성 변경 감지를 위해 추가 권장
+      - "nginx.conf"     # Nginx 설정 변경 시 배포되도록 추가
 
   workflow_dispatch:
 
@@ -20,7 +25,7 @@ env:
   SERVICE_NAME: frontend
   DEPLOYMENT_NAME: frontend
   CONTAINER_NAME: frontend
-  DIR_NAME: frontend
+  DIR_NAME: .
   IMAGE_NAME: devticket-frontend
 
 jobs:
