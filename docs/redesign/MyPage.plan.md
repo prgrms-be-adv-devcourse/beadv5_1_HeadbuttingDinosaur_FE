@@ -2541,5 +2541,127 @@ PR 4 안에서 4개 commit 분할:
 | 4. 단일 거대 PR (잔액 + 거래 + 충전 + 출금) | ~900+ LOC | reviewer 부담 큼. PG 위젯 / idempotency 까지 한 PR — 회귀 영향 광범위. **거부** |
 
 **결정: 옵션 1 + 옵션 3 — 단일 PR (조회 + 거래내역) + Wallet-Charge / Wallet-Withdraw 별도 후속**. 475 LOC 가 가이드 상회하지만 모달을 분할한 결과로 검증 가능한 가장 작은 단위. § 11.8 영향 표 그대로 반영.
-### 12.5 PR 5: refund
+### 12.5 PR 5: refund (조회 — 시나리오 A)
+
+**Base**: PR 1 (Shell) + PR 2 (Tickets — shared 자산) 머지 후 base. **PR 3 / PR 4 와 병렬 가능**. PR 1 의 placeholder `<div>Refund — 준비 중</div>` 을 실제 구현으로 교체.
+
+**시나리오 결정 (§ 8 / § 11 F1)**: A — 정상 구현. `src/api/refunds.api.ts` 의 `getRefunds` 존재 + v1 `pages/MyPage.tsx:457-505` 가 이미 구현 → API 안정성 검증됨.
+
+**범위**: Refund 탭 **조회** + 페이징 + 빈/로딩/에러. 5컬럼 표(환불번호 / 주문번호 / 환불 금액 / 상태 / 요청일).
+
+**범위 외** (후속 PR):
+- 환불 *요청* 동선 — `Tickets-Refund` PR 의 모달이 성공 후 `/mypage/refund` 로 navigate + `refetch` 트리거 (§ 11 F4 cross-cutting). 본 PR 은 *조회* 만.
+- `refundRate` / `completedAt` 추가 노출 (§ 11 F2) — 별도 후속 PR.
+- `MyPage/shared/DataTable` 승격 (§ 11 F3) — Orders + Refund 머지 후 별도 후속 PR.
+
+본 PR 만 머지하면 `/mypage/refund` 에 5컬럼 표 + 페이징 동작.
+
+#### 시나리오 A/B/C 의 LOC·파일 차이 (참고)
+
+본 plan 채택은 A. B/C 는 미채택이지만 만약 후퇴(§ 8.3.8) 시 차이를 명시:
+
+| 시나리오 | LOC 추정 | 신규 파일 수 | 본 PR 동작 |
+|---|---|---|---|
+| **A — 정상 구현** (채택) | **~370** | **11** | 표 + 페이징 + 빈/로딩/에러 모두 |
+| B — API 없음 | ~50 | 2 (RefundTab + EmptyRefunds) | EmptyRefunds 만 마운트. fetch 코드 0 |
+| C — API 있는데 범위 밖 | ~50 | 2 (B 와 동일) | B 와 동일 + `§ 11` 에 "후속 PR 합류" 메모 |
+
+이하 명세는 **시나리오 A** 기준.
+
+#### 포함 파일 (시나리오 A)
+
+| 경로 | 신/수 | 추정 LOC | 핵심 내용 |
+|---|---|---|---|
+| `src/pages-v2/MyPage/tabs/Refund/types.ts` | 신규 | ~15 | `RefundRowVM`, `RefundStatus = 'REQUESTED' \| 'APPROVED' \| 'COMPLETED' \| 'REJECTED' \| 'FAILED' \| 'UNKNOWN'` |
+| `src/pages-v2/MyPage/tabs/Refund/columns.ts` | 신규 | ~12 | `REFUND_COLUMNS` 5개: `displayRefundId / displayOrderId / amountLabel / statusLabel / dateLabel` (§ 8.1.3) |
+| `src/pages-v2/MyPage/tabs/Refund/adapters.ts` | 신규 | ~40 | `toRefundRowVM(api: RefundItem): RefundRowVM` + `REFUND_STATUS_MAP` (v1 `pages/MyPage.tsx:462-468` 차용) + `shortenId(raw)` (Orders 의 `shortenOrderId` 와 같은 형태 — 본 PR 에선 page-local 복제. § 11 F3 의 DataTable 승격 PR 에서 통합) |
+| `src/pages-v2/MyPage/tabs/Refund/hooks.ts` | 신규 | ~40 | `useRefunds(page: number /* 1-base */)`. 0-base 변환 → `getRefunds({ page: page-1, size: 20 })`. **`ApiResponse<T>` 래퍼 없음** (`src/api/refunds.api.ts`) → `unwrapApiData` 미사용, `res.data.content` 직접 접근 |
+| `src/pages-v2/MyPage/tabs/Refund/components/RefundTableHeader.tsx` | 신규 | ~15 | `<thead>` — `REFUND_COLUMNS` 매핑 |
+| `src/pages-v2/MyPage/tabs/Refund/components/RefundRow.tsx` | 신규 | ~30 | `<tr>` 1개. 5 `<td>` 명시적. mono 셀 2개(refundId/orderId, hover tooltip 으로 풀 ID), 금액 bold, 상태 셀 `<StatusChip/>`, 날짜 text-3 |
+| `src/pages-v2/MyPage/tabs/Refund/components/RefundList.tsx` | 신규 | ~25 | `<Card variant='flat'>` + `<table>` + `<RefundTableHeader/>` + `<tbody>` |
+| `src/pages-v2/MyPage/tabs/Refund/components/RefundsPager.tsx` | 신규 | ~30 | prev/next + `3 / 12` 표기. props 동형 |
+| `src/pages-v2/MyPage/tabs/Refund/components/EmptyRefunds.tsx` | 신규 | ~15 | `<EmptyState emoji='💳' title='환불 내역이 없습니다' message=<>환불은 <strong>내 티켓</strong> 탭에서 각 티켓의 환불 요청 버튼으로 시작할 수 있습니다.</>/>` (§ 8.1.5). CTA 없음 — Tickets-Refund 후속 PR 도착 후 `<strong>` 을 `<Link to="/mypage/tickets">` 으로 교체 |
+| `src/pages-v2/MyPage/tabs/Refund/components/RefundsSkeleton.tsx` | 신규 | ~28 | `<RefundTableHeader/>` 그대로 + 빈 `<tr>` × 6 (§ 8.1.8 — 환불 활동량 적다는 가정. Orders 의 8행 보다 적음) |
+| `src/pages-v2/MyPage/tabs/Refund/RefundTab.tsx` | **수정** (placeholder → 실구현) | ~40 | `useSearchParams` 로 `?page=N` 1-base 동기화 → `useRefunds(page)` → `<TabFetchState>` 분기. ready 시 `<RefundList/>` + `<RefundsPager/>` (`totalPages > 1` 일 때만) |
+| `src/styles-v2/mypage-refund.css` (또는 globals 추가) | 신규 | ~70 | `.refunds-card` `.refunds-table` `.refund-row` `.refund-cell-id` (mono syn-fn 색) `.refunds-pager` 등 |
+
+**총 신규 11 파일 + 수정 1 파일. 추정 LOC ≈ 360** — Orders PR (~355) 와 거의 동형. shared 신규 도입 0 (PR 2 자산 + Phase 0 import).
+
+#### 파일 생성 순서 (의존성 ↑)
+
+```
+[Step 1] 데이터 계층 — Phase 0 + PR 2 의 shared 의존
+  ├─ tabs/Refund/types.ts             (RefundRowVM, RefundStatus)
+  ├─ tabs/Refund/columns.ts           (REFUND_COLUMNS — 5 cols)
+  ├─ tabs/Refund/adapters.ts          (toRefundRowVM + REFUND_STATUS_MAP + shortenId)
+  └─ tabs/Refund/hooks.ts             (useRefunds — getRefunds + adapters. 래퍼 없음)
+
+[Step 2] 시각 단위 컴포넌트 — Step 1 의존
+  ├─ components/RefundTableHeader.tsx (REFUND_COLUMNS 매핑)
+  ├─ components/RefundRow.tsx         (StatusChip 사용)
+  └─ components/RefundsPager.tsx      (Phase 0 Button)
+
+[Step 3] 합성 컴포넌트 — Step 2 의존
+  ├─ components/RefundList.tsx        (Header + Row 반복)
+  ├─ components/RefundsSkeleton.tsx   (Header + 빈 Row × 6)
+  └─ components/EmptyRefunds.tsx      (EmptyState wrapper)
+
+[Step 4] 탭 본체 + CSS — Step 3 의존
+  ├─ RefundTab.tsx                    (placeholder 교체. useSearchParams + useRefunds + TabFetchState)
+  └─ src/styles-v2/mypage-refund.css
+```
+
+CSS 는 Step 4 에 함께 머지.
+
+#### 커밋 메시지
+
+PR 5 안에서 3개 commit 분할 (PR 3 와 동일 패턴):
+
+| # | 커밋 메시지 | 포함 |
+|---|---|---|
+| 1 | `feat(mypage-v2/refund): add data layer (types, columns, adapter, hook)` | `tabs/Refund/types.ts` + `columns.ts` + `adapters.ts` + `hooks.ts` (Step 1) |
+| 2 | `feat(mypage-v2/refund): add table components (header, row, list, pager, empty, skeleton)` | `components/*.tsx` 6개 (Step 2, 3) |
+| 3 | `feat(mypage-v2/refund): wire RefundTab with paging + state branching` | `RefundTab.tsx` 수정 + `mypage-refund.css` (Step 4) |
+
+#### 검증 방법
+
+`npm run dev` 후 `?v=2` 로 진입, 9케이스 수동 확인:
+
+| # | 동작 | 기대 결과 | 확인 항목 |
+|---|---|---|---|
+| 1 | (로그인 + 환불 보유) `/mypage/refund?v=2` | shell + flat-card 표 + thead 5컬럼 ("환불번호 / 주문번호 / 환불 금액 / 상태 / 요청일") | 정상 ready 분기 |
+| 2 | 행 1개 시각 확인 | refundId / orderId 셀 mono 폰트 + syn-fn 색 + short ID + hover tooltip / 금액 bold / 상태 `<StatusChip>` / 요청일 text-3 | shortenId / fmtPrice / fmtDate / StatusChip |
+| 3 | StatusChip 매핑 | REQUESTED → end "처리 중" / APPROVED → end "처리 중" / COMPLETED → ok "완료" / REJECTED → sold "거절됨" / FAILED → sold "취소됨" | REFUND_STATUS_MAP (v1 차용) |
+| 4 | (환불 0개 — 기본 케이스) `/mypage/refund` | `<EmptyRefunds>` — 💳 + "환불 내역이 없습니다" + 안내 메시지 (`<strong>내 티켓</strong>`). CTA 없음. 페이저 미렌더 | empty 분기 + 프로토타입 카피 (§ 8.1.5) |
+| 5 | 5xx 강제 | `<TabErrorBox>` — ⚠️ + "다시 시도" 버튼 | error 분기 |
+| 6 | (환불 ≥ 21개 계정) `/mypage/refund?page=2` | API 에 `{ page:1, size:20 }` 호출. 21~40번째 행 | URL 1-base ↔ API 0-base |
+| 7 | RefundsPager prev/next | next 클릭 → URL `?page=2` 변경 + history push | 페이저 push history |
+| 8 | 첫 진입 직후 (loading) | `<RefundTableHeader/>` 그대로 + 빈 `<tr>` × 6개 placeholder. Orders(8행) 보다 적음 | RefundsSkeleton (§ 8.1.8) |
+| 9 | `?v=1` `/mypage?tab=refunds` (v1 의 키는 `refunds` 복수형) | v1 `<MyPage>` 그대로 — v1 환불 시각 (테이블) | v1 회귀 0. **주의**: v1 의 탭 키는 `refunds` (복수), v2 는 `refund` (단수, § 1). v1 의 외부 링크 `?tab=refunds` 는 v2 가 무시 — § 11 R2 cutover 안건 |
+
+특히 확인:
+- 풀 refundId / orderId 가 UUID 형태 → `shortenId` 변환 정확.
+- API `RefundListResponse` 가 `ApiResponse<T>` 래퍼 없이 직접 반환되는 점 — 어댑터에서 `unwrapApiData` 호출하지 않는지 코드 리뷰.
+- 환불 요청 동선이 본 PR 에 없으므로 EmptyRefunds 의 `<strong>내 티켓</strong>` 안내 텍스트는 정적 강조만 (Tickets-Refund 후속 PR 가 `<Link>` 로 교체).
+
+#### 의존성 / 주의
+
+- **PR 1 + PR 2 의존**: `shared/TabFetchState.tsx` / `TabErrorBox.tsx` (PR 2 도입) + 라우터 골격(PR 1).
+- **Phase 0 자산 의존**: `Card`, `StatusChip`, `Button`, `EmptyState`.
+- **`shortenId` 코드 중복**: Orders 의 `shortenOrderId` 와 형태 동일. § 11 F3 의 DataTable 승격 후속 PR 에서 통합 (`MyPage/shared/shortenId.ts` 또는 `src/lib/`).
+- **Tickets-Refund 후속 PR 와의 cross-cutting**: 환불 요청 성공 후 `navigate('/mypage/refund')` + `useRefunds().refetch()` 트리거 (§ 11 F4). 본 PR 은 `refetch` API 만 노출 — 호출은 후속 PR.
+- **CSS prefix**: `.refunds-*` `.refund-*` 통일.
+- **v1 탭 키 차이**: v1 = `refunds`, v2 = `refund`. v1 외부 링크 호환은 § 11 R2.
+
+#### 분할 옵션
+
+| 옵션 | 분할 단위 | 평가 |
+|---|---|---|
+| 1. 그대로 단일 PR (~360 LOC) | 데이터 + 컴포넌트 + 본체 + CSS | 검증 단위 명확. PR 3 와 동형. **추천** |
+| 2. PR 5a (조회) + PR 5b (페이징) | § 11 P1 위반 | **거부** |
+| 3. PR 5 시나리오 B 로 후퇴 | EmptyRefunds 만 (~50 LOC) | § 11 F1 결정(시나리오 A) 위반. 후퇴 경로는 § 8.3.8 의 표 |
+| 4. shared/DataTable 추출과 함께 | Orders + Refund 두 PR 의 표를 동시 추상화 | § 11 F3 별도 후속 PR. **거부** — 본 PR 범위 외 |
+
+**결정: 옵션 1 — 단일 PR**. PR 3 와 동형이라 reviewer 부담 낮음.
+
 ### 12.6 PR 간 의존성
