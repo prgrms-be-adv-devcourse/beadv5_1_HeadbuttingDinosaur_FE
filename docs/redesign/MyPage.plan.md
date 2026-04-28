@@ -2313,7 +2313,114 @@ PR 2 안에서 4개 commit 분할:
 | 4. 컴포넌트 분리 PR | 시각 컴포넌트만 먼저 머지 (Storybook 스타일) | Storybook 미도입 환경에서 단독 검증 불가 |
 
 **결정: 옵션 1 — 단일 PR**. 460 LOC 가 가이드 상회하지만 핵심 로직만 보면 가이드 내. 검증 가능한 단위 우선.
-### 12.3 PR 3: orders
+### 12.3 PR 3: orders (조회)
+
+**Base**: PR 1 (Shell) 머지 후 base. **PR 2 와 병렬 가능** — 의존성 분석은 § 12.6. PR 1 의 placeholder `<div>Orders — 준비 중</div>` 을 실제 구현으로 교체.
+
+**범위**: Orders 탭 **조회** + 페이징 + 빈/로딩/에러 상태. 4컬럼 표(§ 11 O1 — `eventTitle` API 부재로 1차 4컬럼).
+
+**범위 외** (후속 PR):
+- 영수증 / 상세 보기 (§ 11 O2) — 별도 후속 PR (`Orders-Detail`). `getOrderDetail` 호출 + 모달. **O1 의 `eventTitle` 갭이 자연 해결** (`OrderDetailResponse.items[].eventTitle`).
+- 주문 취소 mutation (§ 11 O3) — Orders-Detail PR 안에 합류 가능.
+
+본 PR 만 머지하면 `/mypage/orders` 에 4컬럼 표 + 페이징 동작.
+
+#### 포함 파일
+
+| 경로 | 신/수 | 추정 LOC | 핵심 내용 |
+|---|---|---|---|
+| `src/pages-v2/MyPage/tabs/Orders/types.ts` | 신규 | ~15 | `OrderRowVM`, `OrderStatus = 'CREATED' \| 'PAYMENT_PENDING' \| 'PAID' \| 'CANCELLED' \| 'REFUNDED' \| 'UNKNOWN'` (§ 6.2.7) |
+| `src/pages-v2/MyPage/tabs/Orders/columns.ts` | 신규 | ~10 | `ORDER_COLUMNS` 4개 (§ 6.1.4 `eventTitle` 제외 — § 11 O1): `displayId / amountLabel / statusLabel / dateLabel` |
+| `src/pages-v2/MyPage/tabs/Orders/adapters.ts` | 신규 | ~35 | `toOrderRowVM(api: OrderItem): OrderRowVM` + `ORDER_STATUS_MAP` (§ 6.2.6) + `shortenOrderId(raw)` (§ 6.2.5). `unwrapApiData(res)` 사용 (응답 래퍼 — § 6.2.1) |
+| `src/pages-v2/MyPage/tabs/Orders/hooks.ts` | 신규 | ~40 | `useOrders(page: number /* 1-base */)` (§ 6.3.1). 0-base 변환 → `getOrders({ page: page-1, size: 20 })`. `unwrapApiData` 후 `content.map(toOrderRowVM)` |
+| `src/pages-v2/MyPage/tabs/Orders/components/OrdersTableHeader.tsx` | 신규 | ~15 | `<thead>` 한 줄. `ORDER_COLUMNS` 매핑 — uppercase mono-ish 11.5px text-3 letter-spacing 0.04em |
+| `src/pages-v2/MyPage/tabs/Orders/components/OrderRow.tsx` | 신규 | ~30 | `<tr>` 1개. 4 `<td>` 명시적 작성(§ 6.1.8). 상태 셀은 `<StatusChip variant=.../>`, mono 셀(displayId) 은 `<td title={raw}>` hover tooltip |
+| `src/pages-v2/MyPage/tabs/Orders/components/OrdersTable.tsx` | 신규 | ~25 | `<Card variant='flat'>` + `<table>` + `<OrdersTableHeader/>` + `<tbody>{rows.map(...)}</tbody>` (§ 6.1.3) |
+| `src/pages-v2/MyPage/tabs/Orders/components/OrdersPager.tsx` | 신규 | ~30 | prev/next + `3 / 12` 표기 (§ 6.2.8 / § 11 P1). props: `{ page, totalPages, onPageChange }` |
+| `src/pages-v2/MyPage/tabs/Orders/components/EmptyOrders.tsx` | 신규 | ~15 | `<EmptyState emoji='📄' title='주문 내역이 없습니다' message=... action={<Button>이벤트 둘러보기</Button>}/>` (§ 6.3.3). CTA → `useNavigate()` `/` |
+| `src/pages-v2/MyPage/tabs/Orders/components/OrdersSkeleton.tsx` | 신규 | ~30 | `<Card variant='flat'>` + `<table>` + `<OrdersTableHeader/>` 그대로 + 빈 `<tr>` × 8행 placeholder (§ 6.3.2) |
+| `src/pages-v2/MyPage/tabs/Orders/OrdersTab.tsx` | **수정** (placeholder → 실구현) | ~40 | `useSearchParams` 로 `?page=N` 1-base 동기화 → `useOrders(page)` → `<TabFetchState>` 분기. ready 시 `<OrdersTable/>` + `<OrdersPager/>` (`totalPages > 1` 일 때만) |
+| `src/styles-v2/mypage-orders.css` (또는 globals 추가) | 신규 | ~70 | `.orders-card` `.orders-table` `.orders-table-header` `.order-row` `.order-cell-id` (mono syn-fn 색) `.order-cell-amount` (bold) `.orders-pager` `.orders-skeleton-bar` 등 |
+
+**총 신규 11 파일 + 수정 1 파일. 추정 LOC ≈ 355** — 가이드 200~300 살짝 상회. PR 2 와 달리 shared 헬퍼 신규 도입 없음(`TabFetchState` / `TabErrorBox` / `accent` 모두 PR 2 에서 머지된 자산 import). 핵심 로직 LOC 만 보면 가이드 내.
+
+#### 파일 생성 순서 (의존성 ↑)
+
+```
+[Step 1] 데이터 계층 — Phase 0 + PR 2 의 shared 의존
+  ├─ tabs/Orders/types.ts             (OrderRowVM, OrderStatus)
+  ├─ tabs/Orders/columns.ts           (ORDER_COLUMNS — 4 cols)
+  ├─ tabs/Orders/adapters.ts          (toOrderRowVM + ORDER_STATUS_MAP + shortenOrderId)
+  └─ tabs/Orders/hooks.ts             (useOrders — getOrders + unwrapApiData + adapters)
+
+[Step 2] 시각 단위 컴포넌트 — Step 1 의존
+  ├─ components/OrdersTableHeader.tsx (ORDER_COLUMNS 매핑)
+  ├─ components/OrderRow.tsx          (StatusChip 사용)
+  └─ components/OrdersPager.tsx       (Phase 0 Button 사용)
+
+[Step 3] 합성 컴포넌트 — Step 2 의존
+  ├─ components/OrdersTable.tsx       (Header + Row 반복)
+  ├─ components/OrdersSkeleton.tsx    (Header + 빈 Row × 8)
+  └─ components/EmptyOrders.tsx       (EmptyState wrapper)
+
+[Step 4] 탭 본체 + CSS — Step 3 의존
+  ├─ OrdersTab.tsx                    (placeholder 교체. useSearchParams + useOrders + TabFetchState)
+  └─ src/styles-v2/mypage-orders.css  (시각 토큰)
+```
+
+CSS 는 본체와 함께 머지 — Step 4 단일 커밋.
+
+#### 커밋 메시지
+
+PR 3 안에서 3개 commit 분할:
+
+| # | 커밋 메시지 | 포함 |
+|---|---|---|
+| 1 | `feat(mypage-v2/orders): add data layer (types, columns, adapter, hook)` | `tabs/Orders/types.ts` + `columns.ts` + `adapters.ts` + `hooks.ts` (Step 1) |
+| 2 | `feat(mypage-v2/orders): add table components (header, row, table, pager, empty, skeleton)` | `components/*.tsx` 6개 (Step 2, 3) |
+| 3 | `feat(mypage-v2/orders): wire OrdersTab with paging + state branching` | `OrdersTab.tsx` 수정 + `mypage-orders.css` (Step 4) |
+
+PR 2 와 commit 패턴 동형(데이터 → 컴포넌트 → 본체+CSS). PR 2 의 1번 commit(shared 헬퍼)에 해당하는 PR 3 의 commit 은 없음 — 모두 import.
+
+#### 검증 방법
+
+`npm run dev` 후 `?v=2` 로 진입, 9케이스 수동 확인:
+
+| # | 동작 | 기대 결과 | 확인 항목 |
+|---|---|---|---|
+| 1 | (로그인 + 주문 보유) `/mypage/orders?v=2` | shell + flat-card 표 + thead 5컬럼 라벨("주문번호 / 이벤트 / 금액 / 상태 / 주문일시") **이 아님** — 4컬럼("주문번호 / 금액 / 상태 / 주문일시"). API `eventTitle` 부재로 (§ 11 O1) | 정상 ready 분기 + § 11 O1 4컬럼 |
+| 2 | 행 1개 시각 확인 | 주문번호 셀 mono 폰트 + syn-fn 색 + `'a3f8…7b91'` 형태 short ID + hover tooltip 으로 풀 ID. 금액 셀 bold + `'49,000원'`. 상태 셀 `<StatusChip>`. 일시 셀 text-3 + `'2026.04.14 10:23'` (시각까지 — § 6.2.3) | shortenOrderId / fmtPrice / fmtDate / StatusChip |
+| 3 | StatusChip 매핑 | PAID → ok "결제 완료" / PAYMENT_PENDING → end "결제 대기" / CANCELLED → sold "취소됨" / REFUNDED → sold "환불 완료" / CREATED → end "주문 생성" | ORDER_STATUS_MAP (§ 6.2.6) |
+| 4 | (주문 0개 계정) `/mypage/orders` | `<EmptyOrders>` — 📄 + "주문 내역이 없습니다" + "이벤트 둘러보기" CTA. 페이저 미렌더 | empty 분기 |
+| 5 | 5xx 강제 | `<TabErrorBox>` — ⚠️ + "다시 시도" 버튼. 페이저 미렌더 | error 분기 + TabErrorBox(PR 2 자산) |
+| 6 | (주문 ≥ 21개 계정) `/mypage/orders?page=2` | API 에 `{ page:1, size:20 }` 호출. 21~40번째 행 표시 | URL 1-base ↔ API 0-base 변환 (§ 6.2.8 / § 11 P1) |
+| 7 | OrdersPager prev/next | next 클릭 → URL `?page=2` 변경 + history push (뒤로가기로 page=1 복원) | 페이저 push history (§ 6.3.5) |
+| 8 | 첫 진입 직후 (loading) | `<OrdersTableHeader/>` 그대로 + 빈 `<tr>` × 8개 placeholder. 헤더는 깜빡임 없이 즉시 노출 | OrdersSkeleton (§ 6.3.2) |
+| 9 | `?v=1` `/mypage?tab=orders` | v1 `<MyPage>` 그대로 — 카드 형태 주문 (v1 시각) | v1 회귀 0 (§ 10.5) |
+
+특히 확인:
+- 풀 orderId 가 UUID 형태 → `shortenOrderId('a3f8c102-…-7b91')` → `'a3f8c102…7b91'` 변환 정확.
+- 4컬럼이라 가로폭이 줄어 visual balance 가 어색하면 § 11 시각 결정 (별도 처리).
+- `?page > totalPages` 진입 시 빈 결과 → empty 분기 (§ 11 O9 추천안 그대로).
+- `cancelOrder` / "주문 취소" 버튼은 본 PR 에 **없음** — 후속 Orders-Detail PR 합류.
+
+#### 의존성 / 주의
+
+- **PR 2 의 shared 자산 의존**: `shared/TabFetchState.tsx` / `TabErrorBox.tsx`. PR 2 머지 전에는 본 PR 작업 가능하나 PR 3 이 독립 머지될 수 없음. PR 2 와 병렬 진행 시 conflict 위험은 § 12.6 (PR 간 의존성).
+- **Phase 0 자산 의존**: `Card`(`variant='flat'`), `StatusChip`, `Button`, `EmptyState`. Phase 0 PR 머지 완료 전제.
+- **`unwrapApiData` 사용**: Tickets 와 달리 `getOrders` 는 `ApiResponse<T>` 래퍼 있음 (§ 6.2.1). adapter 가 명시적으로 unwrap.
+- **CSS prefix**: `.orders-*` `.order-*` 통일.
+
+#### 분할 옵션
+
+| 옵션 | 분할 단위 | 평가 |
+|---|---|---|
+| 1. 그대로 단일 PR (~355 LOC) | 데이터 + 컴포넌트 + 본체 + CSS | 검증 단위 명확. **추천** |
+| 2. PR 3a (조회) + PR 3b (페이징) | § 11 P1 (페이징 모든 탭) 결정 위반 | **거부** |
+| 3. PR 3a (Orders 조회) + 후속 (Orders-Detail) | 본 plan 의 default — 상세 모달은 별도 PR | § 11 O2 결정의 PR 분할 방식. **추천 — 본 PR 은 조회만** |
+| 4. shared/Pager.tsx 추출 | PR 2 의 `TicketsPager` 도 같은 패턴이라 공통화 가능 | PR 2 가 이미 page-local pager 로 머지됨 → 본 PR 에서 추출하면 PR 2 코드 수정 필요(coupling). **거부** — § 11 F3 (DataTable 승격) 후속 PR 에서 Pager 도 함께 승격 검토 |
+
+**결정: 옵션 1 + 옵션 3 — 단일 PR + Orders-Detail 별도 후속**. 355 LOC 가 가이드 살짝 상회하지만 핵심 로직 LOC 가이드 내. PR 2 와 commit 패턴 동형으로 reviewer 부담 낮음.
 ### 12.4 PR 4: wallet
 ### 12.5 PR 5: refund
 ### 12.6 PR 간 의존성
