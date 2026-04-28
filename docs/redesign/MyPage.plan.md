@@ -2194,7 +2194,125 @@ PR 1 안에서 4개 commit 으로 분할 권장:
 | 3. PR 1a (shared/types/tabs) + PR 1b (나머지) | 추가 분할 시 의존성 정렬 비용 ↑ | 비용 대비 이득 없음 |
 
 **결정: 옵션 1 — 단일 PR**. 380 LOC 는 가이드 상회하지만 `walletBalance.tsx` (~70 LOC) + CSS (~50 LOC) 가 큰 비중을 차지, 핵심 로직 LOC 는 가이드 내. 분할 시 중간 머지 상태가 검증 불가 — 가이드의 **"한 PR = 검증 가능한 단위"** 원칙을 우선.
-### 12.2 PR 2: tickets
+### 12.2 PR 2: tickets (조회)
+
+**Base**: PR 1 (Shell) 머지 후 base. PR 1 의 placeholder `<div>Tickets — 준비 중</div>` 을 실제 구현으로 교체.
+
+**범위**: Tickets 탭 **조회** + 페이징 + 빈/로딩/에러 상태. 모든 탭이 공유하는 분기 헬퍼(`TabFetchState` / `TabErrorBox`) + accent 헬퍼도 본 PR 에서 함께 신규.
+
+**범위 외** (후속 PR):
+- 환불 요청 버튼 / 환불 모달 (§ 11 T3) — 별도 후속 PR (`Tickets-Refund`)
+- 티켓 상세 / QR (§ 11 T4) — 별도 후속 PR (`Tickets-Detail`)
+
+본 PR 만 머지하면 `/mypage/tickets` 에 카드 그리드 + 페이징 동작.
+
+#### 포함 파일
+
+| 경로 | 신/수 | 추정 LOC | 핵심 내용 |
+|---|---|---|---|
+| `src/pages-v2/MyPage/shared/accent.ts` | 신규 | ~25 | `accent(eventId): string` 매핑 (§ 5.2.6 / § 11 T2). 임시 위치 — cutover 후 `src/lib/accent.ts` 승격 |
+| `src/pages-v2/MyPage/shared/TabFetchState.tsx` | 신규 | ~30 | render-prop 헬퍼 (§ 4.2.2). loading/error/empty/ready 분기 — Tickets 가 첫 사용자, Orders/Wallet/Refund 도 의존 |
+| `src/pages-v2/MyPage/shared/TabErrorBox.tsx` | 신규 | ~20 | `EmptyState` 변형 (`emoji='⚠️'` + 제목 + 메시지 + "다시 시도" `Button`). props: `{ onRetry: () => void; title?: string; message?: string }` |
+| `src/pages-v2/MyPage/tabs/Tickets/types.ts` | 신규 | ~15 | `TicketVM`, `TicketStatus = 'VALID' \| 'USED' \| 'CANCELLED' \| 'EXPIRED' \| 'UNKNOWN'` (§ 5.2.7) |
+| `src/pages-v2/MyPage/tabs/Tickets/adapters.ts` | 신규 | ~35 | `toTicketVM(api: TicketItem): TicketVM` + `TICKET_STATUS_MAP` 상수(§ 5.2.4). `String(api.ticketId)`, `fmtDate(api.eventDate)`, `accent(api.eventId)` |
+| `src/pages-v2/MyPage/tabs/Tickets/hooks.ts` | 신규 | ~45 | `useTickets(page: number /* 1-base */)` (§ 5.3.1). 내부 0-base 변환 → `getTickets({ page: page-1, size: 20 })`. `FetchState<TicketsData>` + `refetch`. 응답 `tickets.map(toTicketVM)` + `validCount`/`usedCount` 계산 |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketsHeader.tsx` | 신규 | ~20 | `{ total, validCount, usedCount }` — 좌측 "티켓 N개" + 우측 "사용 가능 X · 사용 완료 Y" |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketGrid.tsx` | 신규 | ~15 | `display:grid` `auto-fill minmax(340px,1fr)` 래퍼. `tickets.map(t => <TicketCard key={t.ticketId}/>)` |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketCard.tsx` | 신규 | ~25 | `<Card variant='flat'>` + `<TicketStripe accent/>` + `<TicketInfo .../>` 합성 (§ 5.1.3) |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketStripe.tsx` | 신규 | ~25 | 페이지 전용 thin wrapper (§ 5.1.5). `<AccentMediaBox variant='stripe' size='sm' glyph=""/>` + `<Icon name='ticket' size=20/>` 절대배치 + dashed 우측 border |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketInfo.tsx` | 신규 | ~30 | `<StatusChip variant=... />` + 제목 + 메타 라인(`📅 dateLabel` 만 — § 5.2.5 seat 미노출) |
+| `src/pages-v2/MyPage/tabs/Tickets/components/EmptyTickets.tsx` | 신규 | ~15 | `<EmptyState emoji='🎫' title='보유한 티켓이 없습니다' message=... action={<Button>이벤트 둘러보기</Button>}/>` (§ 5.3.3). CTA → `useNavigate()` `/` |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketsSkeleton.tsx` | 신규 | ~30 | 같은 grid + `<Card variant='flat'/>` placeholder × 6. 56px stripe 자리 + 본문 3줄 막대 |
+| `src/pages-v2/MyPage/tabs/Tickets/components/TicketsPager.tsx` | 신규 | ~30 | prev/next + `3 / 12` 표기 (§ 6.2.8 / § 11 P1). props: `{ page, totalPages, onPageChange }` |
+| `src/pages-v2/MyPage/tabs/Tickets/TicketsTab.tsx` | **수정** (placeholder → 실구현) | ~40 | `useSearchParams` 로 `?page=N` 1-base 동기화 → `useTickets(page)` → `<TabFetchState>` 분기. ready 시 `<TicketsHeader/>` + `<TicketGrid/>` + `<TicketsPager/>` |
+| `src/styles-v2/mypage-tickets.css` (또는 globals 추가) | 신규 | ~80 | `.ticket-card` `.ticket-stripe` `.ticket-stripe-icon` `.ticket-info` `.ticket-grid` `.tickets-header` `.tickets-pager` `.tickets-skeleton-bar` 등 |
+
+**총 신규 15 파일 + 수정 1 파일. 추정 LOC ≈ 460** — 200~300 가이드 상회. 가이드 초과는 ① shared 헬퍼 3개(accent / TabFetchState / TabErrorBox = ~75 LOC) 가 본 PR 에서 처음 도입되어 다른 탭 PR 이 이 자산을 import 하는 구조 ② CSS ~80 LOC ③ 페이징(§ 11 P1) 으로 `TicketsPager` 추가. 핵심 로직 LOC 만 보면 가이드 내. 분할 검토는 마지막 "분할 옵션" 참조.
+
+#### 파일 생성 순서 (의존성 ↑)
+
+```
+[Step 1] shared 헬퍼 — 의존 0 (또는 Phase 0 만)
+  ├─ shared/accent.ts                 (eventId → hex 매핑)
+  ├─ shared/TabFetchState.tsx         (render-prop FetchState 분기)
+  └─ shared/TabErrorBox.tsx           (EmptyState 변형 — 'Phase 0 EmptyState' 의존)
+
+[Step 2] 데이터 계층 — Step 1 의존
+  ├─ tabs/Tickets/types.ts            (TicketVM, TicketStatus)
+  ├─ tabs/Tickets/adapters.ts         (toTicketVM + TICKET_STATUS_MAP — fmtDate, accent 의존)
+  └─ tabs/Tickets/hooks.ts            (useTickets — getTickets + adapters)
+
+[Step 3] 시각 단위 컴포넌트 — Step 2 의존
+  ├─ components/TicketStripe.tsx
+  ├─ components/TicketInfo.tsx
+  ├─ components/TicketsHeader.tsx
+  └─ components/TicketsPager.tsx      (Phase 0 Button 사용)
+
+[Step 4] 합성 컴포넌트 — Step 3 의존
+  ├─ components/TicketCard.tsx        (Stripe + Info)
+  ├─ components/TicketGrid.tsx        (Card 반복)
+  ├─ components/TicketsSkeleton.tsx   (Card placeholder 반복)
+  └─ components/EmptyTickets.tsx      (EmptyState wrapper)
+
+[Step 5] 탭 본체 + CSS — Step 4 의존
+  ├─ TicketsTab.tsx                   (placeholder 교체. useSearchParams + useTickets + TabFetchState)
+  └─ src/styles-v2/mypage-tickets.css (시각 토큰)
+```
+
+CSS 는 본체와 함께 머지 — Step 5 단일 커밋.
+
+#### 커밋 메시지
+
+PR 2 안에서 4개 commit 분할:
+
+| # | 커밋 메시지 | 포함 |
+|---|---|---|
+| 1 | `feat(mypage-v2): add shared tab state helpers (FetchState, ErrorBox, accent)` | `shared/TabFetchState.tsx` + `shared/TabErrorBox.tsx` + `shared/accent.ts` (Step 1) |
+| 2 | `feat(mypage-v2/tickets): add data layer (types, adapter, hook)` | `tabs/Tickets/types.ts` + `adapters.ts` + `hooks.ts` (Step 2) |
+| 3 | `feat(mypage-v2/tickets): add card components (stripe, info, card, grid, header, pager, empty, skeleton)` | `components/*.tsx` 8개 (Step 3, 4) |
+| 4 | `feat(mypage-v2/tickets): wire TicketsTab with paging + state branching` | `TicketsTab.tsx` 수정 + `mypage-tickets.css` (Step 5) |
+
+분할 이유: 1번이 PR 3/4/5 의 base 가 되는 shared 자산 — 가장 격리. bisect 시 회귀 위치 빠르게 좁힘.
+
+#### 검증 방법
+
+`npm run dev` 후 `?v=2` 로 진입, 9케이스 수동 확인:
+
+| # | 동작 | 기대 결과 | 확인 항목 |
+|---|---|---|---|
+| 1 | (로그인 + 티켓 보유) `/mypage/tickets?v=2` | shell + TicketsHeader("티켓 N개" + "사용 가능 X · 사용 완료 Y") + 카드 그리드(auto-fill 340px) + URL `?page` 미존재 | 정상 ready 분기. PR 1 의 shell 위에 본문 채워짐 |
+| 2 | 카드 1개 시각 확인 | 좌측 56px stripe(accent 색 + ticket 아이콘 + dashed 우측 border) + 우측 본문(상태칩 + 제목 + `📅 일시` 라인. 좌석 라인 없음 — § 5.2.5) | TicketStripe / TicketInfo 시각 + § 11 T1 (seat 미노출) |
+| 3 | StatusChip 매핑 | VALID → 녹색 ok 칩 "사용 가능" / USED → 회색 end 칩 "사용 완료" / CANCELLED 보유 시 sold "취소됨" | TICKET_STATUS_MAP (§ 5.2.4) |
+| 4 | (티켓 0개 계정) `/mypage/tickets` | `<EmptyTickets>` — 🎫 + "보유한 티켓이 없습니다" + "이벤트 둘러보기" CTA. CTA 클릭 → `/` 이동 | empty 분기 |
+| 5 | 5xx 강제 (DevTools 네트워크 throttle Offline 또는 BE staging 다운) | `<TabErrorBox>` — ⚠️ + "불러오지 못했습니다" + "다시 시도" 버튼. 버튼 클릭 시 refetch (재시도 성공 시 ready 진입) | error 분기 + retry |
+| 6 | (티켓 ≥ 21개 계정) `/mypage/tickets?page=2` | API 에 `{page:1, size:20}` 호출 (DevTools Network 확인). 21~40번째 티켓 카드 표시 | URL 1-base ↔ API 0-base 변환 (§ 5.3.1 / § 11 T5) |
+| 7 | TicketsPager prev/next | next 클릭 → URL `?page=2` 로 변경 + history push (뒤로가기로 page=1 복원) | 페이저 push history (§ 6.3.5 patterns) |
+| 8 | 첫 진입 직후 (loading) | 카드 6개 placeholder 그리드 깜빡임 | TicketsSkeleton |
+| 9 | `?v=1` `/mypage?tab=tickets` | v1 `<MyPage>` 그대로 — 카드 그리드 시각이 v1 형태 | v1 회귀 0 (§ 10.5) |
+
+특히 확인:
+- accent 색이 `eventId` 별로 다름 (같은 eventId 의 다른 ticketId 도 같은 색).
+- 페이지 전환 시 grid 가 비어있다가 새 카드가 들어옴 (keep-previous-data 미적용 — § 11 O6).
+- ProfileHeader 의 잔액 라인이 본 PR 변경 후에도 정상 — Tickets 탭이 `useWalletBalance` 안 쓰니 영향 없음.
+
+#### 의존성 / 주의
+
+- **Phase 0 자산 의존**: `Avatar`(shell), `Card`, `StatusChip`, `Icon`, `EmptyState`, `Button`, `AccentMediaBox`(stripe variant + sm size 가 MP 56px 기준 — § 5.1.5). Phase 0 PR 머지 완료 전제.
+- **shared 자산이 다른 탭 PR base**: `shared/TabFetchState.tsx` / `TabErrorBox.tsx` / `accent.ts` — PR 3(Orders), PR 4(Wallet 조회), PR 5(Refund) 의 의존. PR 2 머지 후 다른 탭 PR 이 base 로 사용.
+- **`AccentMediaBox` 본체 미수정**: § 5.1.5 의 글리프 ReactNode 확장 + dashed border prop 도입은 후속 PR. 본 PR 의 `TicketStripe` 가 page-local CSS + 절대배치로 우회.
+- **environment**: BE staging 의 `/refunds` `/orders` 등 다른 엔드포인트는 본 PR 영향 0.
+- **CSS prefix**: `.tickets-*` `.ticket-*` 로 통일. v1 의 globals (`.card`, `.flat-card`) 와 분리.
+
+#### 분할 옵션
+
+| 옵션 | 분할 단위 | 평가 |
+|---|---|---|
+| 1. 그대로 단일 PR (~460 LOC) | shared 헬퍼 3개 + 데이터 계층 + 컴포넌트 + 본체 + CSS | 검증 단위 명확 (`/mypage/tickets` 진입으로 끝까지 확인). **추천** |
+| 2. PR 2a (shared 헬퍼) + PR 2b (Tickets) | 2a: `shared/TabFetchState/TabErrorBox/accent`. 2b: 나머지 | 2a 단독은 사용처가 없어 검증 불가 — bisect 단위로만 의미. 합쳐도 ~75 LOC 추가일 뿐 |
+| 3. PR 2a (조회 + 빈/에러) + PR 2b (페이징) | § 11 P1 (페이징 모든 탭) 결정과 충돌. 2a 가 단일 호출 size=50 형태로 머지되면 2b 에서 시그니처 변경 회귀 위험 | **거부** — 페이징 결정 약속 위반 |
+| 4. 컴포넌트 분리 PR | 시각 컴포넌트만 먼저 머지 (Storybook 스타일) | Storybook 미도입 환경에서 단독 검증 불가 |
+
+**결정: 옵션 1 — 단일 PR**. 460 LOC 가 가이드 상회하지만 핵심 로직만 보면 가이드 내. 검증 가능한 단위 우선.
 ### 12.3 PR 3: orders
 ### 12.4 PR 4: wallet
 ### 12.5 PR 5: refund
