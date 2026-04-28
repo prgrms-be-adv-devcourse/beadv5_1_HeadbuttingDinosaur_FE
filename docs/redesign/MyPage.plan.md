@@ -2664,4 +2664,180 @@ PR 5 안에서 3개 commit 분할 (PR 3 와 동일 패턴):
 
 **결정: 옵션 1 — 단일 PR**. PR 3 와 동형이라 reviewer 부담 낮음.
 
-### 12.6 PR 간 의존성
+### 12.6 PR 간 의존성 / 머지 순서
+
+#### 12.6.1 의존성 그래프
+
+```
+[Phase 0]                                        ← Phase 0 PR 머지 완료 전제
+  ├─ src/components-v2/* (Avatar, Card, Button, EmptyState, Icon, StatusChip, AccentMediaBox, …)
+  └─ src/styles-v2/tokens.css
+
+[PR 1 — Shell]                                   ← § 12.1
+  ├─ src/router-v2/RequireAuthV2.tsx
+  ├─ src/pages-v2/MyPage/index.tsx (MyPageRouterV2)
+  ├─ src/pages-v2/MyPage/MyPage.tsx (shell + Outlet)
+  ├─ src/pages-v2/MyPage/shell/* (ProfileHeader, TabNav)
+  ├─ src/pages-v2/MyPage/shared/{tabs,types,useMyProfile,walletBalance,currency}
+  ├─ src/pages-v2/MyPage/tabs/*/[Tab]Tab.tsx (4 placeholder)
+  └─ src/App.tsx (1줄 교체)
+       │
+       ▼
+[PR 2 — Tickets]                                 ← § 12.2 — shared 헬퍼 도입자
+  ├─ src/pages-v2/MyPage/shared/{accent,TabFetchState,TabErrorBox}   ← ★ 다른 PR 의 base
+  └─ src/pages-v2/MyPage/tabs/Tickets/*
+       │
+       ├──────────────────┬──────────────────┐
+       ▼                  ▼                  ▼
+[PR 3 — Orders]    [PR 4 — Wallet]    [PR 5 — Refund]
+  § 12.3              § 12.4              § 12.5
+  tabs/Orders/*       tabs/Wallet/*       tabs/Refund/*
+  (PR 2 의 shared      (PR 2 의 shared      (PR 2 의 shared
+   3개 자산 import)     3개 자산 import)     3개 자산 import)
+```
+
+**핵심 의존**: PR 3/4/5 는 PR 2 가 도입한 `shared/{TabFetchState, TabErrorBox, accent}` 를 import. **즉 "PR 1 → PR 2~5 병렬"이 아니라 "PR 1 → PR 2 → PR 3/4/5 병렬"이 정확한 그래프**.
+
+#### 12.6.2 "PR 1 → PR 2~5 병렬" 이상안 vs 현재 그래프
+
+| 모델 | 의미 | 평가 |
+|---|---|---|
+| 이상안 — PR 1 머지 후 PR 2~5 모두 base 로 출발 | shared 헬퍼가 PR 1 에 이미 있어야 가능 | § 12.1 의 LOC 가이드(380) 가 더 늘어남(~75 LOC). PR 1 에 shell 이 안 쓰는 자산이 들어감 — "검증 가능한 단위" 원칙 약화 |
+| 현재 그래프 — PR 1 → PR 2 → PR 3/4/5 병렬 | shared 헬퍼는 첫 사용자 PR(=Tickets) 에서 도입 | PR 1 격리도 ↑. 단 PR 3/4/5 의 시작 시점이 PR 2 머지 이후로 미뤄짐 |
+| 절충안 — `shared/` 헬퍼만 별도 PR (PR 1.5) | PR 1 (Shell) → PR 1.5 (shared 헬퍼 only) → PR 2~5 병렬 | PR 1.5 가 단독 검증 불가 (사용처 0). bisect 단위로만 의미. PR 수만 늘림 |
+
+**결정: 현재 그래프 유지**. 사용자 의도("PR 2~5 병렬")는 머지 순서 강제(§ 12.6.3)가 아니라 **드래프트 작성 병렬성**으로 해석 — PR 2~5 의 *작업* 은 PR 1 머지 후 동시 시작 가능, *머지* 만 PR 2 → 3/4/5 순.
+
+#### 12.6.3 추천 머지 순서
+
+```
+PR 1 (Shell) → PR 2 (Tickets) → PR 3 (Orders) → PR 4 (Wallet) → PR 5 (Refund)
+            │                ├──────────────┴──────────────┐
+            │                │  (PR 3/4/5 는 PR 2 머지 후    │
+            │                │   임의 순서. 권장 3 → 4 → 5)  │
+```
+
+**순차 머지 권장 이유** (사용자 지적과 일치):
+
+| 이유 | 설명 |
+|---|---|
+| 회귀 검출 단위 | 한 PR 머지 = 한 탭 활성화. 회귀 발생 시 어느 PR 가 원인인지 명확 |
+| reviewer 부하 분산 | 동시에 4개 PR(2/3/4/5) 가 리뷰 큐에 쌓이면 깊이 있는 리뷰 어려움 |
+| `?v=2` 검증 누적 | PR n 머지 후 `?v=2` 로 들어가면 1~n 탭이 동작. 이전 탭의 회귀를 매 머지에서 자연스럽게 catch |
+| shared 자산 안정화 | PR 2 의 `TabFetchState` / `TabErrorBox` 시그니처가 PR 3/4/5 동시 진행 중 변경되면 모든 분기 PR 가 영향. PR 2 머지 후 shared 가 frozen 되면 PR 3/4/5 가 안전 |
+
+#### 12.6.4 병렬 작업 시 충돌 가능 영역
+
+PR 2~5 를 시점만 병렬로 작성할 경우(머지는 순차) 충돌 위험 영역:
+
+| 파일 / 디렉토리 | 충돌 가능성 | 비고 |
+|---|---|---|
+| `src/App.tsx` | 0 | PR 1 만 수정. 이후 변경 없음 |
+| `src/router-v2/*` | 0 | PR 1 만 수정 |
+| `src/pages-v2/MyPage/index.tsx` (MyPageRouterV2) | 0 | PR 1 만 수정. Routes 트리는 PR 1 에서 5탭(index + 4 + catch-all) 모두 정의 |
+| `src/pages-v2/MyPage/MyPage.tsx` (shell) | 0 | PR 1 만 수정 |
+| `src/pages-v2/MyPage/shell/*` | 0 | PR 1 만 수정 |
+| `src/pages-v2/MyPage/shared/{tabs,types,useMyProfile,walletBalance,currency}` | 0 | PR 1 만 수정 |
+| `src/pages-v2/MyPage/shared/{accent,TabFetchState,TabErrorBox}` | **High** (PR 2 도입) | PR 3/4/5 는 PR 2 머지 후 base. PR 3/4/5 가 이 파일을 수정해야 한다면 PR 2 의 시그니처 변경 — 모든 분기 PR 영향. **추천**: 시그니처 변경 시 PR 2 에서 보강 또는 별도 PR 로 분리 |
+| `src/pages-v2/MyPage/tabs/Tickets/*` | 0 (다른 PR 와) | PR 2 만. 후속 Tickets-Refund / Tickets-Detail PR 가 같은 폴더 — 단일 작업자 가정하면 충돌 X, 병렬 시 § 12.6.6 |
+| `src/pages-v2/MyPage/tabs/Orders/*` | 0 (다른 PR 와) | PR 3 만 |
+| `src/pages-v2/MyPage/tabs/Wallet/*` | 0 (다른 PR 와) | PR 4 만 |
+| `src/pages-v2/MyPage/tabs/Refund/*` | 0 (다른 PR 와) | PR 5 만 |
+| `src/styles-v2/mypage-{tab}.css` | 0 | 각 PR 가 자기 .css 파일 1개씩. Orders / Wallet / Refund / Tickets 가 분리 |
+
+**TabNav 항목 추가 같은 충돌은 발생하지 않는다** — `TABS` 상수(`shared/tabs.ts`)는 PR 1 에서 4개 모두 확정. 이후 PR 가 탭을 추가/제거할 일 없음. 사용자 지적의 가능성은 다음 케이스에 한정:
+
+| 케이스 | 발생 조건 | 대처 |
+|---|---|---|
+| 탭 라벨/아이콘 변경 | 디자인 회의 후 결정 변경 | PR 1 패치 또는 별도 PR (`feat(mypage-v2): tweak tab labels`) |
+| 탭 5번째 추가 (예: settings — § 11 S3 결정 후) | 프로필 수정이 별도 탭으로 결정됐을 경우 | § 11 S3 결정 = "모달" 이라 추가 안 함. 결정 변경 시 별도 PR |
+| 탭 키 변경 (단수/복수 등) | v1 호환 우려 | § 11 R2 cutover 안건 |
+
+#### 12.6.5 각 PR 머지 시 검증 시나리오 매트릭스
+
+각 PR 머지 후 `?v=2` 로 진입하여 표의 모든 행을 통과해야 한다 (회귀 0 + 신규 동작 OK).
+
+| 머지 시점 | 1: shell 시각 | 2: Tickets 탭 | 3: Orders 탭 | 4: Wallet 탭 | 5: Refund 탭 | 6: TabNav 4개 클릭 | 7: 잘못된 `:tab` redirect | 8: 비로그인 returnTo | 9: `?v=1` 회귀 |
+|---|---|---|---|---|---|---|---|---|---|
+| **PR 1 머지** | ✅ 프로필 헤더 + 탭 네비 | placeholder "Tickets — 준비 중" | placeholder | placeholder | placeholder | ✅ URL `/mypage/{tab}` 변경 | ✅ `/mypage/foo` → `/mypage/tickets` | ✅ `/login?returnTo=...` | ✅ v1 MyPage 그대로 |
+| **PR 2 머지** | ✅ (PR 1 회귀 0) | ✅ 카드 그리드 + 페이징 + 빈/에러 | placeholder | placeholder | placeholder | ✅ | ✅ | ✅ | ✅ |
+| **PR 3 머지** | ✅ | ✅ (PR 2 회귀 0) | ✅ 4컬럼 표 + 페이징 + 빈/에러 | placeholder | placeholder | ✅ | ✅ | ✅ | ✅ |
+| **PR 4 머지** | ✅ | ✅ | ✅ (PR 3 회귀 0) | ✅ 잔액 카드 + 거래내역 + 페이징 | placeholder | ✅ | ✅ | ✅ | ✅ |
+| **PR 5 머지** | ✅ | ✅ | ✅ | ✅ (PR 4 회귀 0) | ✅ 5컬럼 표 + 페이징 + 빈/에러 | ✅ | ✅ | ✅ | ✅ |
+
+#### 회귀 체크 핵심 항목
+
+각 PR 머지 후 **이전 PR 들이 제공한 동작이 그대로 유지** 되는지 확인. 자주 놓치는 항목:
+
+- shell 의 `ProfileHeader` 잔액 라인 — PR 1 머지 후엔 `getWalletBalance` 정상 fetch, PR 4 머지 후엔 `BalanceCard` 잔액과 동일 인스턴스(§ 3.3).
+- TabNav active 시각 — `useMatch('/mypage/:tab')` 매칭이 PR 마다 깨지지 않음.
+- 비로그인 `returnTo` 캡처 — `/mypage/orders?page=3` 진입 시 정확히 인코딩된 URL 이 `/login?returnTo=...` 에 포함.
+- `?v=1` v1 호환 — 매 PR 머지 후 v1 `<MyPage>` 가 토큰/시각/탭 동작 모두 v1 그대로.
+
+#### 12.6.6 후속 PR 와의 의존성
+
+본 plan 의 § 12.1~12.5 (PR 1~5) 는 조회 + 페이징까지. § 11 결정으로 발생한 후속 PR (§ 11.8 영향 표) 의 의존:
+
+```
+PR 1 (Shell)  ───────────────────────────── ┐
+   │                                        │
+   ├─ PR 2 (Tickets 조회)  ──┐               │
+   │                         ├─ Tickets-Detail PR (T4) ── 같은 tabs/Tickets/ 디렉토리
+   │                         └─ Tickets-Refund PR (T3) ── 같은 tabs/Tickets/ + cross-cutting Refund
+   │                                                      └─ navigate('/mypage/refund') + refetch
+   │                                                         └─ PR 5 (Refund 조회) 의존
+   │
+   ├─ PR 3 (Orders 조회) ───┐
+   │                        └─ Orders-Detail PR (O2 + O3 cancelOrder) ── 같은 tabs/Orders/
+   │
+   ├─ PR 4 (Wallet 조회 + 거래내역) ──┐
+   │                                  ├─ Wallet-Charge PR (W1) ── 같은 tabs/Wallet/ + WalletChargeSuccess cross-cutting
+   │                                  │                              └─ /pages/WalletChargeSuccess 가 navigate('/mypage/wallet') + refresh()
+   │                                  │
+   │                                  └─ Wallet-Withdraw PR (W1, W5 미적용) ── 같은 tabs/Wallet/
+   │
+   ├─ PR 5 (Refund 조회) ────── (cross-cutting) Tickets-Refund PR 가 navigate + refetch
+   │
+   └─ Shell-ProfileEdit PR (S3) ── 같은 shell/ 디렉토리 + 전체 4탭 머지 후 진행 권장
+```
+
+#### 후속 PR 머지 순서 권장
+
+```
+1. PR 1 (Shell)
+2. PR 2 (Tickets 조회)
+3. PR 3 (Orders 조회)
+4. PR 4 (Wallet 조회 + 거래내역)
+5. PR 5 (Refund 조회)
+   ───────────────────────── 본 plan 의 5 PR
+6. Wallet-Charge (W1)
+7. Wallet-Withdraw (W1, W5 미적용)
+8. Orders-Detail (O2 + O3)
+9. Tickets-Detail (T4)
+10. Tickets-Refund (T3) — Refund 탭 cross-cutting
+11. Shell-ProfileEdit (S3)
+```
+
+= 총 **11 PR**. § 11.8 의 8~10 PR 추정과 정합 (Shell-ProfileEdit 를 포함하면 11).
+
+#### 후속 PR 시점에 발생 가능한 충돌
+
+| 후속 PR | 충돌 가능 영역 | 대처 |
+|---|---|---|
+| Tickets-Detail (T4) | `tabs/Tickets/components/` 안에 `TicketDetailModal.tsx` 추가, `TicketCard.tsx` 에 클릭 핸들러 추가 | PR 2 의 `TicketCard` props 가 onClick 콜백 미리 마련 — § 12.7 에서 "확장 hook" 패턴 적용 권장 |
+| Tickets-Refund (T3) | 같은 `TicketCard` 에 환불 버튼 추가 | T4 와 동시 진행 시 `TicketCard.tsx` 충돌 — 둘 중 하나 머지 후 다른 PR 리베이스 |
+| Orders-Detail (O2) | `OrderRow` 에 클릭 핸들러 + `OrderDetailModal.tsx` 추가 | O3(`cancelOrder`) 가 같은 PR 안 흡수 권장 |
+| Wallet-Charge | `WalletTab` 의 `onCharge` 콜백 placeholder 교체 | Wallet-Withdraw 와 동시 진행 시 `WalletTab.tsx` 충돌 — 한 쪽 머지 후 리베이스 |
+| Wallet-Withdraw | `WalletTab` 의 `onWithdraw` 콜백 placeholder 교체 | 위와 동일. 별도 작업자라면 분담 권장 |
+| Shell-ProfileEdit (S3) | `shell/ProfileHeader.tsx` 의 "프로필 수정" 버튼 콜백 placeholder 교체 + `shell/ProfileEditModal.tsx` 신규 | 다른 후속 PR 와 영역 분리 — 충돌 없음 |
+
+#### 12.6.7 정합성 체크리스트 (PR 머지 전 self-review)
+
+PR 작성자가 머지 전 확인:
+
+- [ ] base branch 가 직전 PR(또는 PR 1) 머지된 상태인가
+- [ ] § 12.6.5 매트릭스의 해당 행 모두 ✅ 인가 (`?v=2` 로 본인이 직접 검증)
+- [ ] 이전 PR 의 회귀 (다른 탭 / shell / v1) 가 0 인가
+- [ ] 본 PR 이 shared 자산을 수정했다면 다른 분기 PR(들)에 영향 분석을 PR 본문에 명시했는가
+- [ ] 후속 PR 와의 충돌 가능 영역을 § 12.6.6 표에서 확인했는가
+- [ ] PR 본문에 § 12.6.5 매트릭스 결과 + § 12.x 의 검증 케이스 결과 첨부했는가
