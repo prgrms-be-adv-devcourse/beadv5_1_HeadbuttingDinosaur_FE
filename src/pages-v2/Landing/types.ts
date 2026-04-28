@@ -3,10 +3,12 @@
  * PR 1 (TypedTerminal) 에서 `TerminalLine` 정의.
  * PR 2 (Hero + Stats) 에서 `StatVM`, `LandingFirstPageQuery` 추가
  * (Landing.plan.md §12.2).
- * CategoryTileVM / FeaturedItemVM 등은 PR 3 진입 시 추가.
+ * PR 3 (Categories + Featured) 에서 `CategoryTileVM`, `FeaturedItemVM`,
+ * `LandingCategoriesQuery`, `LandingFeaturedQuery` 추가
+ * (Landing.plan.md §12.3).
  */
 
-import type { EventListPage } from '@/pages-v2/EventList/types';
+import type { EventVM, EventListPage } from '@/pages-v2/EventList/types';
 
 export interface TerminalLine {
   /** 프롬프트 표시용 ('~' 등) */
@@ -45,3 +47,74 @@ export type LandingFirstPageQuery =
   | { status: 'loading'; previous?: EventListPage }
   | { status: 'success'; data: EventListPage; fetchedAt: number }
   | { status: 'error'; error: unknown; previous?: EventListPage };
+
+/**
+ * Categories 6 타일 view model (§2 Categories, §6.3).
+ * - `cat`: 한국어 카테고리명 (URL/필터 키, EventList plan §4 라인 165–166).
+ * - `count`: 6 병렬 `filterEvents` 의 totalElements. 부분 실패 시 `null`
+ *   → 타일에 `—` 표시 (카운트 0 (`0개 이벤트`) 과 구분, §12.3 D / 머지조건).
+ * - `icon`: 약자 글리프 ('CF' 등). 장식용 — `aria-hidden="true"` (§9.6).
+ * - `accent`: 카테고리 고정 accent 토큰 키 ('indigo'/'sky'/...).
+ *   CSS 변수로 주입해 hover borderColor 결선 (§2 Categories).
+ */
+export interface CategoryTileVM {
+  cat: string;
+  count: number | null;
+  icon: string;
+  accent: AccentToken;
+}
+
+/**
+ * SPEC §0 accent 팔레트 키 (회전/카테고리 매핑 공용).
+ * `red` 는 카테고리 매핑에서 사용하지 않지만 Featured accent 회전에서 쓰임.
+ */
+export type AccentToken =
+  | 'indigo'
+  | 'sky'
+  | 'emerald'
+  | 'amber'
+  | 'violet'
+  | 'pink'
+  | 'red';
+
+/**
+ * Featured 5 rows view model (§2 Featured).
+ * `EventVM` 에서 행 렌더에 필요한 필드만 좁힌 형태 +
+ * 순번(rank, 1-based) + accent (eventId 회전).
+ */
+export type FeaturedItemVM = Pick<
+  EventVM,
+  | 'eventId'
+  | 'title'
+  | 'category'
+  | 'price'
+  | 'remainingQuantity'
+  | 'status'
+  | 'eventDateTime'
+  | 'techStacks'
+  | 'isFree'
+  | 'dateLabel'
+> & {
+  rank: number;
+  accent: AccentToken;
+};
+
+/**
+ * Categories 섹션 query state (§6.3).
+ * 6 병렬 호출의 부분 실패는 `data[i].count === null` 로 표현하므로
+ * 전체 차원에서는 success / loading / error 만 노출.
+ */
+export type LandingCategoriesQuery =
+  | { status: 'loading'; previous?: CategoryTileVM[] }
+  | { status: 'success'; data: CategoryTileVM[]; fetchedAt: number }
+  | { status: 'error'; error: unknown; previous?: CategoryTileVM[] };
+
+/**
+ * Featured 섹션 query state (§6.4).
+ * 1차 `/events/recommendations` 실패/빈 → `getEvents` 폴백 → 5개 슬라이스.
+ * 폴백 단계에서도 hooks 내부에서 합성하므로 query 표면은 단순 3-state.
+ */
+export type LandingFeaturedQuery =
+  | { status: 'loading'; previous?: FeaturedItemVM[] }
+  | { status: 'success'; data: FeaturedItemVM[]; fetchedAt: number }
+  | { status: 'error'; error: unknown; previous?: FeaturedItemVM[] };

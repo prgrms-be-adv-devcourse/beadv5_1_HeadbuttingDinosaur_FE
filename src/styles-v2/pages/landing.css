@@ -295,3 +295,377 @@
   cursor: pointer;
 }
 .stats-section__retry:hover { background: var(--surface-3); }
+
+/* ===== Categories ===== (PR 3, Landing.plan.md §12.3 / §6.3 / §8) ----------
+   `--tile-accent` 는 CategoryTile 이 인라인 변수로 주입 (token → var(--accent-*)).
+   --------------------------------------------------------------------------*/
+
+.categories-section {
+  margin-bottom: 44px;
+}
+
+.categories-section__grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .categories-section__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.category-tile {
+  text-align: left;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: inherit;
+  color: inherit;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.category-tile:hover {
+  border-color: var(--tile-accent, var(--brand));
+  transform: translateY(-2px);
+}
+.category-tile:focus-visible {
+  outline: 2px solid var(--tile-accent, var(--brand));
+  outline-offset: 2px;
+}
+
+.category-tile__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tile-accent, var(--brand));
+  background: color-mix(in srgb, var(--tile-accent, var(--brand)) 12%, transparent);
+}
+
+.category-tile__name {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.category-tile__count {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+
+/* skeleton variant — same outer box height (CLS 0). */
+.category-tile--skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.category-tile-skeleton__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--surface-3);
+}
+
+.category-tile-skeleton__name {
+  width: 60%;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+
+.category-tile-skeleton__count {
+  width: 40%;
+  height: 11.5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+
+.category-tile-skeleton__icon,
+.category-tile-skeleton__name,
+.category-tile-skeleton__count {
+  animation: stat-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.categories-section__error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.categories-section__error-text   { color: var(--text-2); }
+.categories-section__error-prefix { color: var(--text-4); }
+
+.categories-section__retry {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.categories-section__retry:hover { background: var(--surface-3); }
+
+/* ===== Featured ===== (PR 3, Landing.plan.md §12.3 / §6.4 / §9.6) ----------
+   `--row-accent` 는 FeaturedRow 가 인라인 변수로 주입.
+   `<button>` 요소라 user-agent 의 굵은 보더/배경 리셋 필요.
+   --------------------------------------------------------------------------*/
+
+.featured-section {
+  margin-bottom: 44px;
+}
+
+.featured-section__see-all {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+}
+.featured-section__see-all:hover { text-decoration: underline; }
+.featured-section__see-all:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.featured-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.featured-row {
+  display: grid;
+  grid-template-columns: 36px 56px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+}
+.featured-row:hover {
+  border-color: var(--row-accent, var(--brand));
+  background: var(--editor-line);
+}
+.featured-row:focus-visible {
+  outline: 2px solid var(--row-accent, var(--brand));
+  outline-offset: 2px;
+}
+
+.featured-row__rank {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-4);
+}
+
+.featured-row__media {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--row-accent, var(--brand)) 20%, transparent),
+    color-mix(in srgb, var(--row-accent, var(--brand)) 45%, transparent)
+  );
+  color: var(--row-accent, var(--brand));
+}
+
+.featured-row__media-glyph {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.featured-row__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* grid + ellipsis 안전망 */
+}
+
+.featured-row__meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.featured-row__category {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--row-accent, var(--brand));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.featured-row__title {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.featured-row__meta {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-4);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.featured-row__price {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.featured-row__price--free { color: var(--term-green-dim); }
+
+/* skeleton variant — same grid columns / row height. */
+.featured-row--skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.featured-row-skeleton__rank {
+  width: 22px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+.featured-row-skeleton__media {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--surface-3);
+}
+.featured-row-skeleton__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.featured-row-skeleton__line { background: var(--surface-3); border-radius: 4px; }
+.featured-row-skeleton__line--meta  { width: 30%; height: 11px; }
+.featured-row-skeleton__line--title { width: 75%; height: 14px; }
+.featured-row-skeleton__line--sub   { width: 50%; height: 11px; }
+.featured-row-skeleton__price {
+  width: 60px;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+
+.featured-row-skeleton__rank,
+.featured-row-skeleton__media,
+.featured-row-skeleton__line,
+.featured-row-skeleton__price {
+  animation: stat-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.featured-section__empty {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 28px 20px;
+}
+
+.featured-section__empty-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+}
+.featured-section__empty-action:hover { text-decoration: underline; }
+
+.featured-section__error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.featured-section__error-text   { color: var(--text-2); }
+.featured-section__error-prefix { color: var(--text-4); }
+
+.featured-section__retry {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.featured-section__retry:hover { background: var(--surface-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .category-tile,
+  .featured-row {
+    transition: none;
+  }
+  .category-tile:hover,
+  .featured-row:hover {
+    transform: none;
+  }
+  .category-tile-skeleton__icon,
+  .category-tile-skeleton__name,
+  .category-tile-skeleton__count,
+  .featured-row-skeleton__rank,
+  .featured-row-skeleton__media,
+  .featured-row-skeleton__line,
+  .featured-row-skeleton__price {
+    animation: none;
+  }
+}
