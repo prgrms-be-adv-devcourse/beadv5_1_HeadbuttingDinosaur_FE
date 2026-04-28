@@ -1,0 +1,93 @@
+/* DevTicket v2 — Refund tab styles
+   Source: docs/redesign/MyPage.plan.md §8 + §12.5.
+   Scope: classes used in pages-v2/MyPage/tabs/Refund/.
+   5컬럼 표 (환불번호 / 주문번호 / 환불 금액 / 상태 / 요청일). */
+
+/* ── Card shell ────────────────────────────────────────────────── */
+.refunds-card {
+  overflow: hidden;
+}
+
+/* ── Table ─────────────────────────────────────────────────────── */
+.refunds-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* ── Header (thead surface-2 uppercase mono 11.5px) ────────────── */
+.refunds-table-header {
+  background: var(--surface-2);
+}
+.refunds-th {
+  padding: 10px 14px;
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Rows (tbody border-top) ───────────────────────────────────── */
+.refund-row + .refund-row > .refund-cell {
+  border-top: 1px solid var(--border);
+}
+.refund-cell {
+  padding: 12px 14px;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+/* ── Cell variants (§8.1.3 mono syn-fn 색) ─────────────────────── */
+.refund-cell-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--syn-fn);
+  white-space: nowrap;
+}
+.refund-cell-amount {
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.refund-cell-status {
+  white-space: nowrap;
+}
+.refund-cell-date {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ── Pager ─────────────────────────────────────────────────────── */
+.refunds-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.refunds-pager-info {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* ── Skeleton (§8.1.8 RefundsSkeleton — 빈 tr × 6) ─────────────── */
+.refunds-skeleton .refund-row-skeleton .refund-cell {
+  height: 44px;
+}
+.refunds-skeleton-bar {
+  display: inline-block;
+  height: 12px;
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  vertical-align: middle;
+}
+.refunds-skeleton-bar-sm   { width: 80px; }
+.refunds-skeleton-bar-md   { width: 60%; }
+.refunds-skeleton-bar-chip { width: 64px; height: 18px; border-radius: var(--r-full); }
