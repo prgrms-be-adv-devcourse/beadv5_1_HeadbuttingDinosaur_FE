@@ -76,7 +76,64 @@ INVENTORY.md § 6, § 7 기준 v2 범위 밖 페이지(admin, signup 등)가 새
     - 초과 시 의사결정 필요 → § 9 에 기록
 
 ## 2. 영향 범위 매핑
-(작성 예정)
+
+Cutover 가 영향 미치는 모든 영역. 영향 정도는 **대 / 중 / 소** 로 표기.
+- 대: 다수 파일 변경 + 사용자 동작 직접 영향 + 롤백 어려움
+- 중: 다수 파일 변경 또는 동작 영향 중 하나
+- 소: 변경 범위 좁고 회귀 위험 낮음
+
+### 2.1 라우트 — 영향: 대
+
+`?v=2` 쿼리 분기를 제거하고 v2 라우트를 기본으로 승격.
+
+- **변경 (v1 → v2 로 전환)**: INVENTORY § 1 매칭 표 기준 v2 가 존재하는 모든 라우트
+  - `/` (Landing), `/events`, `/events/:id`, `/cart`, `/login`, `/mypage` (전 탭), 결제 플로우
+- **변경 없음**: INVENTORY § 7 "기존에만 있는 것" — admin, signup 등
+  - 이 라우트는 cutover 후에도 v1 컴포넌트가 그대로 매핑됨
+
+### 2.2 디렉토리 — 영향: 대
+
+- **삭제**: `src/pages/`, `src/components/` 중 v2 로 대체된 파일
+  - § 7 "기존에만 있는 것" 에 해당하는 파일은 보존 (admin/signup 등)
+- **이동 (rename)**: `src/pages-v2/` → `src/pages/`, `src/components-v2/` → `src/components/`
+  - 기존 보존 파일과 충돌 시 § 4 / § 9 에서 결정
+- **통합**: `src/styles-v2/` → `src/styles/`
+  - 기존 `src/styles/` 잔존 파일과 토큰 충돌 가능 → § 5 에서 처리
+
+### 2.3 라우터 — 영향: 중
+
+- Phase 0 의 router-toggle 헬퍼 (`?v=2` 분기 로직) 제거
+- v1 / v2 분기 라우트 정의 → 단일 정의로 단순화
+- 영향: `src/router/` (또는 동등 위치) 일부 파일 + 헬퍼를 import 하던 모든 호출처
+
+### 2.4 의존성 — 영향: 중
+
+- **제거 후보**: v1 만 사용하던 라이브러리 (예: 구 UI 라이브러리, 구 form lib 등)
+  - 실제 후보는 § 3 작성 시 코드 grep 으로 확정
+- **영구화**: v2 도입 시 추가된 의존성은 cutover 후에도 유지
+  - `package.json` / lockfile 정리 필요
+- 주의: 의존성 제거는 lockfile diff 가 커지므로 별도 PR 권장 (§ 10)
+
+### 2.5 CLAUDE.md — 영향: 소
+
+`docs/CLAUDE.md` 의 "프론트엔드 v2 재구축 (진행 중)" 섹션 갱신.
+
+- 제거: "src/pages-v2/, src/components-v2/, src/styles-v2/ 만 사용" 절대 규칙
+- 제거: "기존 src/pages/, src/components/는 cutover PR 전까지 절대 수정 금지"
+- 갱신: 진행 중 → 완료 상태로 표기, 또는 섹션 자체 삭제
+
+### 2.6 테스트 — 영향: 중
+
+- 삭제: v1 페이지 단위 / 통합 테스트 (해당 페이지가 v2 로 대체된 경우)
+- 이동: `src/pages-v2/**/*.test.*` → 메인 위치로 함께 rename
+- 보존: § 7 "기존에만 있는 것" 페이지의 테스트는 그대로 유지
+- snapshot 테스트가 있다면 토큰 변경으로 대량 갱신 필요 가능 — § 9
+
+### 2.7 CI / CD — 영향: 소
+
+- 빌드 스크립트(`package.json` scripts), lint / tsconfig path alias 영향 점검
+- `pages-v2`, `components-v2` 등을 path alias 또는 lint 규칙에서 명시적으로 참조하는 부분 제거
+- GitHub Actions 워크플로우 / Vercel·Netlify 등 배포 설정에서 v2 관련 분기가 있다면 제거
 
 ## 3. 삭제 대상 (기존 코드)
 (작성 예정)
