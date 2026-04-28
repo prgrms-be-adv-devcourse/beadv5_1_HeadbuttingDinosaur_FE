@@ -698,6 +698,51 @@
   flex-shrink: 0;
 }
 
+/* ===== IDE chrome ===== (PR 4, Landing.plan.md §12.4 / §9.5) --------------
+   Page shell — `editor-scroll` 컬럼 그리드 (gutter + body), `gutter` 라인
+   넘버, `editor-body` 본문 프레임. 프로토타입 ide-theme.css L322-347 1:1.
+   `landing-page` modifier 는 본문 max-width 1100 + 가운데 정렬.
+
+   ⚠️ Cart / EventList / EventDetail v2 에서도 같은 클래스명을 쓰지만 현재
+      styles-v2 어디에도 정의가 없음. 본 파일에서 처음 정의 — cutover PR
+      시 components/ide-chrome.css 로 이동 검토 (§12.4 결정).
+   chrome 자체에 모션 없음 → reduced-motion 가드 추가 불필요.
+   --------------------------------------------------------------------------*/
+
+.editor-scroll {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  min-height: 100%;
+}
+
+.gutter {
+  background: var(--gutter);
+  color: var(--gutter-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+  padding: 14px 10px 40px 0;
+  user-select: none;
+  border-right: 1px solid transparent;
+  line-height: 1.6;
+}
+
+.gutter .ln { display: block; }
+.gutter .ln.active { color: var(--text-2); }
+
+.editor-body {
+  padding: 14px 24px 40px;
+  line-height: 1.6;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.editor-body.landing-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .category-tile,
   .featured-row {
