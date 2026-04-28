@@ -1,0 +1,168 @@
+/* DevTicket v2 — Wallet tab styles
+   Source: docs/redesign/MyPage.plan.md §7 + §12.4.
+   Scope: classes used in pages-v2/MyPage/tabs/Wallet/. */
+
+/* ── Balance card (§7.1.1) ─────────────────────────────────────── */
+.balance-card {
+  margin-bottom: 24px;
+}
+.balance-label {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+.balance-amount {
+  font-family: var(--font);
+  font-size: 38px;
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.balance-unit {
+  font-size: 18px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  margin-left: 6px;
+}
+.balance-last-updated {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin-top: 8px;
+}
+.balance-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* ── Balance skeleton (§7.3.2) ─────────────────────────────────── */
+.balance-card-skeleton .balance-skeleton-label {
+  width: 80px;
+  height: 13px;
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  margin-bottom: 6px;
+}
+.balance-card-skeleton .balance-skeleton-amount {
+  width: 180px;
+  height: 38px;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  margin-bottom: 4px;
+}
+.balance-card-skeleton .balance-skeleton-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.balance-skeleton-button {
+  width: 92px;
+  height: 36px;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+}
+
+/* ── Transaction list shell (§12.4 row 7) ──────────────────────── */
+.tx-list-card {
+  overflow: hidden;
+}
+.tx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Transaction row (§12.4 row 6 — 4 slot flex) ───────────────── */
+.tx-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.tx-row + .tx-row {
+  border-top: 1px solid var(--border);
+}
+
+.tx-type-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 4px 10px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tx-type-charge   { background: var(--success-bg); color: var(--success-text); }
+.tx-type-use      { background: var(--danger-bg);  color: var(--danger-text); }
+.tx-type-refund   { background: var(--info-bg);    color: var(--info-text); }
+.tx-type-withdraw { background: var(--surface-2);  color: var(--text-3); }
+
+.tx-related {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-amount {
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* Per-row exact color comes from TX_TYPE_MAP via inline style.
+   These classes carry sign-based fallback weight only. */
+.tx-amount-positive {}
+.tx-amount-negative {}
+
+.tx-date {
+  min-width: 116px;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Transaction skeleton (§12.4 row 8) ────────────────────────── */
+.tx-list-skeleton .tx-row-skeleton {
+  height: 56px;
+}
+.tx-skeleton-bar {
+  display: inline-block;
+  height: 12px;
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+}
+.tx-skeleton-bar-chip    { width: 56px; height: 22px; border-radius: var(--r-full); flex-shrink: 0; }
+.tx-skeleton-bar-related { flex: 1; max-width: 40%; }
+.tx-skeleton-bar-amount  { width: 80px; flex-shrink: 0; }
+.tx-skeleton-bar-date    { width: 116px; flex-shrink: 0; }
+
+/* ── Pager (§12.4 row 10) ──────────────────────────────────────── */
+.wallet-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.wallet-pager-info {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  min-width: 60px;
+  text-align: center;
+}
