@@ -136,7 +136,75 @@ Cutover 가 영향 미치는 모든 영역. 영향 정도는 **대 / 중 / 소**
 - GitHub Actions 워크플로우 / Vercel·Netlify 등 배포 설정에서 v2 관련 분기가 있다면 제거
 
 ## 3. 삭제 대상 (기존 코드)
-(작성 예정)
+
+INVENTORY § 1 (페이지 매핑) 기준으로 v2 가 대체한 기존 페이지 / 컴포넌트 / 스타일 / 기타.
+경로는 cutover 시점에 실제 코드로 재확인 필요 (현재 표는 INVENTORY 기준 잠정안).
+
+### 3.1 페이지
+
+| 경로 | 대체된 v2 위치 | 처리 | 비고 |
+| --- | --- | --- | --- |
+| `src/pages/Home` (Landing) | `src/pages-v2/Landing` | 삭제 | INVENTORY § 1 |
+| `src/pages/Events/List` | `src/pages-v2/EventList` | 삭제 | |
+| `src/pages/Events/Detail` | `src/pages-v2/EventDetail` | 삭제 | |
+| `src/pages/Cart` | `src/pages-v2/Cart` | 삭제 | |
+| `src/pages/Login` | `src/pages-v2/Login` | 삭제 | |
+| `src/pages/MyPage` | `src/pages-v2/MyPage` | 삭제 | 모든 탭 포함 |
+| `src/pages/Admin` | (대체 없음) | **유지** | INVENTORY § 7, 범위 밖 |
+| `src/pages/Signup` | (미정) | **결정 필요** | § 9, INVENTORY § 7 |
+
+### 3.2 컴포넌트
+
+`src/components/` 중 v2 로 대체된 것들 삭제. v1 페이지(admin / signup 등)에서만 사용되는 컴포넌트는 유지.
+
+- 삭제 후보 식별 절차:
+  1. `src/components/` 하위 모든 파일 나열
+  2. 각 파일에 대해 `git grep "from .*components/<Name>"` 로 import 추적
+  3. import 처가 모두 `src/pages/` 중 § 3.1 의 "삭제" 페이지 → 함께 삭제
+  4. import 처에 § 3.1 의 "유지 / 결정 필요" 페이지가 하나라도 포함 → 유지
+  5. v2 코드(`pages-v2`, `components-v2`)에서만 import 됨 → § 4 의 v2 컴포넌트가 대체했을 것이므로 검토 후 삭제
+- 공통 컴포넌트 (Button / Input 등): v2 가 자체 버전을 가지면 v1 버전 삭제, 아니면 § 9 에서 통합 정책 결정
+
+### 3.3 스타일
+
+`src/styles/` 중 v1 만 사용하던 파일 삭제. v2 는 `src/styles-v2/` 로 분리되어 있으므로 충돌 없이 식별 가능.
+
+- 삭제 후보:
+  - v1 토큰 / variables 파일
+  - v1 페이지 전용 스타일시트 (페이지가 삭제되면 같이 삭제)
+- 보존:
+  - v1 잔존 페이지(admin / signup 등)에서 import 하는 스타일
+  - reset / normalize 등 글로벌 스타일은 § 4 의 styles-v2 통합 시점에서 일원화
+
+### 3.4 hooks / utils / contexts
+
+`src/hooks/`, `src/utils/`, `src/contexts/` (또는 동등 위치) 중 v1 페이지에서만 쓰이던 것.
+
+- 식별 절차:
+  1. 각 모듈에 대해 `git grep "from .*<modulePath>"` 로 import 추적
+  2. v2 코드에서만 import → 보존 (v2 가 재사용 중)
+  3. v1 페이지(§ 3.1 삭제 대상)에서만 import → 함께 삭제
+  4. 양쪽에서 import → 보존, § 5 에서 v2 가 계속 쓰는 형태로 정리
+
+### 3.5 삭제 안전성 확인 (공통 절차)
+
+각 삭제 항목에 대해 머지 직전 다음 단계로 import 잔존 여부 확인.
+
+```sh
+# 1) 파일 단위 import 추적
+git grep -n "from ['\"].*<파일경로 또는 심볼>['\"]"
+
+# 2) dynamic import / require 형태도 확인
+git grep -nE "import\(.*<파일경로>.*\)|require\(.*<파일경로>.*\)"
+
+# 3) 문자열 경로 참조 (라우터 path 등)
+git grep -n "<라우트 경로 또는 컴포넌트 이름>"
+```
+
+- 통과 기준:
+  - 1) ~ 3) 결과가 모두 비어 있거나, 남은 참조가 § 3.1 의 "유지" 항목에서만 발생
+  - tsc / eslint / 빌드 통과 (§ 1.5 와 동일)
+- 위 grep 만으로 잡히지 않는 케이스: lazy / 문자열 조립 import, 테스트 fixture, public/ 정적 자산 → § 9 에 위험 항목으로 기록
 
 ## 4. 이동 / rename 대상 (v2 → 메인)
 (작성 예정)
