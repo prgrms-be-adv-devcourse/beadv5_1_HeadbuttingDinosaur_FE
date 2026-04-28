@@ -12,17 +12,49 @@
  * AbortController 로 fetch 자체를 끊으면 다른 컨슈머가 죽는다.
  * 따라서 unmount 처리는 cancelled 플래그로 결과 무시 방식 (§5.5).
  *
- * (PR 3 진입 시 useLandingCategories / useFeaturedEvents 추가 — §5.3 참조.
- *  키가 4종으로 늘면 LRU 도 함께 도입 — 현재는 1종이라 생략, §12.2 트리밍 힌트.)
+ * PR 3 (Categories + Featured) — Landing.plan.md §12.3 / §5.
+ *
+ * - useLandingCategories: 6 카테고리 마스터 × `filterEvents({ size:1 })`
+ *   `Promise.allSettled` (부분 실패 시 해당 타일만 `count: null`).
+ *   캐시 키 `landing:categories:counts`, stale 10분.
+ * - useFeaturedEvents: 1차 `getEventRecommendations` → 실패/빈 시
+ *   `getEvents({ size:10 })` 폴백 → ON_SALE 필터 + `eventDateTime` asc + 5개.
+ *   캐시 키 `landing:featured`, stale 5분.
+ * - 두 훅 모두 PR 2 의 `getFirstPage` 를 재사용하지 않음 (§12.3 — PR 2/3
+ *   병렬 빌드 보장). API 래퍼(`filterEvents`/`getEventRecommendations`/
+ *   `getEvents`) 가 signal 을 받지 않아 unmount 처리는 cancelled 플래그로
+ *   통일 (PR 2 와 같은 방식).
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient, unwrapApiData, type ApiResponse } from '@/api/client';
-import type { EventListResponse } from '@/api/types';
+import {
+  filterEvents,
+  getEvents,
+} from '@/api/events.api';
+import { getEventRecommendations } from '@/api/ai.api';
+import type {
+  EventFilterResponse,
+  EventListResponse,
+  RecommendationResponse,
+} from '@/api/types';
 import { toEventListPage } from '@/pages-v2/EventList/adapters';
-import type { EventListPage } from '@/pages-v2/EventList/types';
-import { toStatsVM } from './adapters';
-import type { LandingFirstPageQuery, StatVM } from './types';
+import type { EventListPage, EventVM } from '@/pages-v2/EventList/types';
+import {
+  CATEGORY_DEFINITIONS,
+  sortByDateAsc,
+  toCategoryTileVM,
+  toFeaturedItemVM,
+  toStatsVM,
+} from './adapters';
+import type {
+  CategoryTileVM,
+  FeaturedItemVM,
+  LandingCategoriesQuery,
+  LandingFeaturedQuery,
+  LandingFirstPageQuery,
+  StatVM,
+} from './types';
 
 const FIRST_PAGE_SIZE = 10;
 const FIRST_PAGE_KEY = `landing:events:firstpage:size=${FIRST_PAGE_SIZE}`;
@@ -149,4 +181,230 @@ export function useLandingStats(): UseLandingStatsReturn {
     previous,
     refetch: q.refetch,
   };
+}
+
+/* ===== PR 3: Categories + Featured ===== */
+
+const CATEGORIES_KEY = 'landing:categories:counts';
+const CATEGORIES_STALE_MS = 10 * 60_000;
+const categoriesCache = new Map<
+  string,
+  { data: CategoryTileVM[]; fetchedAt: number }
+>();
+let categoriesInFlight: Promise<CategoryTileVM[]> | null = null;
+
+const fetchCategoryCounts = async (): Promise<CategoryTileVM[]> => {
+  // 6 병렬 + Promise.allSettled — 한 카테고리 실패해도 나머지는 살림 (§6.3).
+  const results = await Promise.allSettled(
+    CATEGORY_DEFINITIONS.map((def) =>
+      filterEvents({ category: def.cat, page: 0, size: 1 }),
+    ),
+  );
+  return CATEGORY_DEFINITIONS.map((def, i) => {
+    const r = results[i];
+    if (r.status === 'fulfilled') {
+      const data = unwrapApiData<EventFilterResponse>(r.value.data);
+      return toCategoryTileVM(def, data.totalElements);
+    }
+    return toCategoryTileVM(def, null);
+  });
+};
+
+export const getCategoryCounts = (): Promise<CategoryTileVM[]> => {
+  const hit = categoriesCache.get(CATEGORIES_KEY);
+  if (hit && Date.now() - hit.fetchedAt < CATEGORIES_STALE_MS) {
+    return Promise.resolve(hit.data);
+  }
+  if (categoriesInFlight) return categoriesInFlight;
+  categoriesInFlight = fetchCategoryCounts()
+    .then((data) => {
+      categoriesCache.set(CATEGORIES_KEY, { data, fetchedAt: Date.now() });
+      return data;
+    })
+    .finally(() => {
+      categoriesInFlight = null;
+    });
+  return categoriesInFlight;
+};
+
+export const invalidateCategoryCounts = (): void => {
+  categoriesCache.delete(CATEGORIES_KEY);
+};
+
+export type UseLandingCategoriesReturn = LandingCategoriesQuery & {
+  refetch: () => void;
+};
+
+export function useLandingCategories(): UseLandingCategoriesReturn {
+  const [state, setState] = useState<LandingCategoriesQuery>(() => {
+    const hit = categoriesCache.get(CATEGORIES_KEY);
+    return hit
+      ? { status: 'success', data: hit.data, fetchedAt: hit.fetchedAt }
+      : { status: 'loading' };
+  });
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const hit = categoriesCache.get(CATEGORIES_KEY);
+    if (hit && Date.now() - hit.fetchedAt < CATEGORIES_STALE_MS) {
+      setState({ status: 'success', data: hit.data, fetchedAt: hit.fetchedAt });
+      return;
+    }
+    setState((prev) => ({
+      status: 'loading',
+      previous: 'data' in prev ? prev.data : prev.previous,
+    }));
+
+    let cancelled = false;
+    getCategoryCounts()
+      .then((data) => {
+        if (cancelled) return;
+        setState({ status: 'success', data, fetchedAt: Date.now() });
+      })
+      .catch((error) => {
+        // Promise.allSettled 라 정상 흐름에선 reject 가 없지만,
+        // 캐시 / fetcher 외 단계에서 throw 발생 시 안전망.
+        if (cancelled) return;
+        setState((prev) => ({
+          status: 'error',
+          error,
+          previous: 'data' in prev ? prev.data : prev.previous,
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tick]);
+
+  const refetch = useCallback(() => {
+    invalidateCategoryCounts();
+    setTick((n) => n + 1);
+  }, []);
+
+  return { ...state, refetch };
+}
+
+const FEATURED_KEY = 'landing:featured';
+const FEATURED_STALE_MS = 5 * 60_000;
+const FEATURED_FALLBACK_PAGE_SIZE = 10;
+const FEATURED_LIMIT = 5;
+const featuredCache = new Map<
+  string,
+  { data: FeaturedItemVM[]; fetchedAt: number }
+>();
+let featuredInFlight: Promise<FeaturedItemVM[]> | null = null;
+
+/**
+ * 폴백 + 추천 hydration 양쪽에서 쓰는 1차 페이지. PR 2 의 `getFirstPage`
+ * 와 별 캐시 키 — Featured 단독 빌드 보장 (§12.3).
+ */
+const fetchFeaturedFallbackEvents = async (): Promise<EventVM[]> => {
+  const res = await getEvents({ page: 0, size: FEATURED_FALLBACK_PAGE_SIZE });
+  const page = toEventListPage(unwrapApiData<EventListResponse>(res.data));
+  return sortByDateAsc(page.items.filter((e) => e.status === 'ON_SALE'));
+};
+
+const fetchFeatured = async (): Promise<FeaturedItemVM[]> => {
+  // 1차: /events/recommendations (비-auth, ai.api.ts:4).
+  let recIds: string[] = [];
+  try {
+    const res = await getEventRecommendations();
+    const data = unwrapApiData<RecommendationResponse>(
+      res.data as ApiResponse<RecommendationResponse> | RecommendationResponse,
+    );
+    recIds = data?.eventIdList ?? [];
+  } catch {
+    // 실패는 폴백으로 흡수 (§12.3 §11 #4).
+  }
+  if (recIds.length > 0) {
+    // RecommendationResponse 는 ID 만 — 행 렌더에 필요한 필드는 1차 페이지로 hydration.
+    const events = await fetchFeaturedFallbackEvents();
+    const byId = new Map(events.map((e) => [e.eventId, e] as const));
+    const hydrated = recIds
+      .map((id) => byId.get(id))
+      .filter((e): e is EventVM => Boolean(e))
+      .slice(0, FEATURED_LIMIT);
+    if (hydrated.length > 0) {
+      return hydrated.map((e, i) => toFeaturedItemVM(e, i + 1));
+    }
+  }
+  // 폴백: ON_SALE + date asc + 앞 5개.
+  const events = await fetchFeaturedFallbackEvents();
+  return events
+    .slice(0, FEATURED_LIMIT)
+    .map((e, i) => toFeaturedItemVM(e, i + 1));
+};
+
+export const getFeatured = (): Promise<FeaturedItemVM[]> => {
+  const hit = featuredCache.get(FEATURED_KEY);
+  if (hit && Date.now() - hit.fetchedAt < FEATURED_STALE_MS) {
+    return Promise.resolve(hit.data);
+  }
+  if (featuredInFlight) return featuredInFlight;
+  featuredInFlight = fetchFeatured()
+    .then((data) => {
+      featuredCache.set(FEATURED_KEY, { data, fetchedAt: Date.now() });
+      return data;
+    })
+    .finally(() => {
+      featuredInFlight = null;
+    });
+  return featuredInFlight;
+};
+
+export const invalidateFeatured = (): void => {
+  featuredCache.delete(FEATURED_KEY);
+};
+
+export type UseFeaturedEventsReturn = LandingFeaturedQuery & {
+  refetch: () => void;
+};
+
+export function useFeaturedEvents(): UseFeaturedEventsReturn {
+  const [state, setState] = useState<LandingFeaturedQuery>(() => {
+    const hit = featuredCache.get(FEATURED_KEY);
+    return hit
+      ? { status: 'success', data: hit.data, fetchedAt: hit.fetchedAt }
+      : { status: 'loading' };
+  });
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const hit = featuredCache.get(FEATURED_KEY);
+    if (hit && Date.now() - hit.fetchedAt < FEATURED_STALE_MS) {
+      setState({ status: 'success', data: hit.data, fetchedAt: hit.fetchedAt });
+      return;
+    }
+    setState((prev) => ({
+      status: 'loading',
+      previous: 'data' in prev ? prev.data : prev.previous,
+    }));
+
+    let cancelled = false;
+    getFeatured()
+      .then((data) => {
+        if (cancelled) return;
+        setState({ status: 'success', data, fetchedAt: Date.now() });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setState((prev) => ({
+          status: 'error',
+          error,
+          previous: 'data' in prev ? prev.data : prev.previous,
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tick]);
+
+  const refetch = useCallback(() => {
+    invalidateFeatured();
+    setTick((n) => n + 1);
+  }, []);
+
+  return { ...state, refetch };
 }
