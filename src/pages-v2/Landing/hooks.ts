@@ -17,9 +17,10 @@
  * - useLandingCategories: 6 카테고리 마스터 × `filterEvents({ size:1 })`
  *   `Promise.allSettled` (부분 실패 시 해당 타일만 `count: null`).
  *   캐시 키 `landing:categories:counts`, stale 10분.
- * - useFeaturedEvents: 1차 `getEventRecommendations` → 실패/빈 시
- *   `getEvents({ size:10 })` 폴백 → ON_SALE 필터 + `eventDateTime` asc + 5개.
- *   캐시 키 `landing:featured`, stale 5분.
+ * - useFeaturedEvents: 1차 `getEventRecommendations` (anon) 또는
+ *   `recommendEvents` (authed, §11 #8) → 실패/빈 시 `getEvents({ size:10 })`
+ *   폴백 → ON_SALE 필터 + `eventDateTime` asc + 5개. 캐시 키는 인증 상태별
+ *   (`landing:featured:anon` / `landing:featured:auth`), stale 5분.
  * - 두 훅 모두 PR 2 의 `getFirstPage` 를 재사용하지 않음 (§12.3 — PR 2/3
  *   병렬 빌드 보장). API 래퍼(`filterEvents`/`getEventRecommendations`/
  *   `getEvents`) 가 signal 을 받지 않아 unmount 처리는 cancelled 플래그로
@@ -31,8 +32,10 @@ import { apiClient, unwrapApiData, type ApiResponse } from '@/api/client';
 import {
   filterEvents,
   getEvents,
+  recommendEvents,
 } from '@/api/events.api';
 import { getEventRecommendations } from '@/api/ai.api';
+import { useAuth } from '@/contexts/AuthContext';
 import type {
   EventFilterResponse,
   EventListResponse,
@@ -285,7 +288,11 @@ export function useLandingCategories(): UseLandingCategoriesReturn {
   return { ...state, refetch };
 }
 
-const FEATURED_KEY = 'landing:featured';
+/* Featured 캐시는 인증 상태별로 키를 분리. 비로그인 → /events/recommendations
+ * (anon), 로그인 → /events/user/recommendations (authed). 같은 캐시에 섞이면
+ * 로그인 / 로그아웃 transition 시 잘못된 데이터 노출 가능 (§11 #8). */
+const FEATURED_KEY_ANON = 'landing:featured:anon';
+const FEATURED_KEY_AUTH = 'landing:featured:auth';
 const FEATURED_STALE_MS = 5 * 60_000;
 const FEATURED_FALLBACK_PAGE_SIZE = 10;
 const FEATURED_LIMIT = 5;
@@ -293,7 +300,7 @@ const featuredCache = new Map<
   string,
   { data: FeaturedItemVM[]; fetchedAt: number }
 >();
-let featuredInFlight: Promise<FeaturedItemVM[]> | null = null;
+const featuredInFlight = new Map<string, Promise<FeaturedItemVM[]>>();
 
 /**
  * 폴백 + 추천 hydration 양쪽에서 쓰는 1차 페이지. PR 2 의 `getFirstPage`
@@ -305,17 +312,22 @@ const fetchFeaturedFallbackEvents = async (): Promise<EventVM[]> => {
   return sortByDateAsc(page.items.filter((e) => e.status === 'ON_SALE'));
 };
 
-const fetchFeatured = async (): Promise<FeaturedItemVM[]> => {
-  // 1차: /events/recommendations (비-auth, ai.api.ts:4).
+const fetchFeatured = async (authed: boolean): Promise<FeaturedItemVM[]> => {
+  // 1차: 인증 상태에 따라 엔드포인트 분기 (§11 #8).
+  // - authed:  /events/user/recommendations (개인화, Authorization 필요)
+  // - anon:    /events/recommendations (글로벌)
+  // 둘 다 RecommendationResponse 셰이프 (eventIdList) 동일.
   let recIds: string[] = [];
   try {
-    const res = await getEventRecommendations();
+    const res = authed
+      ? await recommendEvents()
+      : await getEventRecommendations();
     const data = unwrapApiData<RecommendationResponse>(
       res.data as ApiResponse<RecommendationResponse> | RecommendationResponse,
     );
     recIds = data?.eventIdList ?? [];
   } catch {
-    // 실패는 폴백으로 흡수 (§12.3 §11 #4).
+    // 실패는 폴백으로 흡수 (§12.3 §11 #4). authed 401/403 도 동일하게 폴백.
   }
   if (recIds.length > 0) {
     // RecommendationResponse 는 ID 만 — 행 렌더에 필요한 필드는 1차 페이지로 hydration.
@@ -336,25 +348,30 @@ const fetchFeatured = async (): Promise<FeaturedItemVM[]> => {
     .map((e, i) => toFeaturedItemVM(e, i + 1));
 };
 
-export const getFeatured = (): Promise<FeaturedItemVM[]> => {
-  const hit = featuredCache.get(FEATURED_KEY);
+export const getFeatured = (authed: boolean): Promise<FeaturedItemVM[]> => {
+  const key = authed ? FEATURED_KEY_AUTH : FEATURED_KEY_ANON;
+  const hit = featuredCache.get(key);
   if (hit && Date.now() - hit.fetchedAt < FEATURED_STALE_MS) {
     return Promise.resolve(hit.data);
   }
-  if (featuredInFlight) return featuredInFlight;
-  featuredInFlight = fetchFeatured()
+  const inflight = featuredInFlight.get(key);
+  if (inflight) return inflight;
+  const promise = fetchFeatured(authed)
     .then((data) => {
-      featuredCache.set(FEATURED_KEY, { data, fetchedAt: Date.now() });
+      featuredCache.set(key, { data, fetchedAt: Date.now() });
       return data;
     })
     .finally(() => {
-      featuredInFlight = null;
+      featuredInFlight.delete(key);
     });
-  return featuredInFlight;
+  featuredInFlight.set(key, promise);
+  return promise;
 };
 
+/* 두 캐시 모두 비움 — 사용자가 "다시 시도" 를 누른 시점에 인증 상태가
+ * 어느 쪽이든 다음 fetch 가 강제되도록. */
 export const invalidateFeatured = (): void => {
-  featuredCache.delete(FEATURED_KEY);
+  featuredCache.clear();
 };
 
 export type UseFeaturedEventsReturn = LandingFeaturedQuery & {
@@ -362,8 +379,11 @@ export type UseFeaturedEventsReturn = LandingFeaturedQuery & {
 };
 
 export function useFeaturedEvents(): UseFeaturedEventsReturn {
+  const { isLoggedIn } = useAuth();
+  const cacheKey = isLoggedIn ? FEATURED_KEY_AUTH : FEATURED_KEY_ANON;
+
   const [state, setState] = useState<LandingFeaturedQuery>(() => {
-    const hit = featuredCache.get(FEATURED_KEY);
+    const hit = featuredCache.get(cacheKey);
     return hit
       ? { status: 'success', data: hit.data, fetchedAt: hit.fetchedAt }
       : { status: 'loading' };
@@ -371,7 +391,7 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const hit = featuredCache.get(FEATURED_KEY);
+    const hit = featuredCache.get(cacheKey);
     if (hit && Date.now() - hit.fetchedAt < FEATURED_STALE_MS) {
       setState({ status: 'success', data: hit.data, fetchedAt: hit.fetchedAt });
       return;
@@ -382,7 +402,7 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
     }));
 
     let cancelled = false;
-    getFeatured()
+    getFeatured(isLoggedIn)
       .then((data) => {
         if (cancelled) return;
         setState({ status: 'success', data, fetchedAt: Date.now() });
@@ -399,7 +419,8 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
     return () => {
       cancelled = true;
     };
-  }, [tick]);
+    // isLoggedIn 변동 (로그인 / 로그아웃) 시 다른 캐시 키로 재진입.
+  }, [tick, isLoggedIn, cacheKey]);
 
   const refetch = useCallback(() => {
     invalidateFeatured();
