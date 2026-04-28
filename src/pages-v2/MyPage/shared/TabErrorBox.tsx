@@ -17,7 +17,7 @@ export function TabErrorBox({
       title={title}
       message={message}
       action={
-        <Button variant="ghost" size="sm" onClick={onRetry}>
+        <Button variant="primary" size="sm" onClick={onRetry}>
           다시 시도
         </Button>
       }
