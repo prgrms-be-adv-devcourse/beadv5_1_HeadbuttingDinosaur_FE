@@ -70,6 +70,7 @@ jobs:
             -f "${DIR_NAME}/Dockerfile" \
             -t "$IMAGE_SHA" \
             -t "$IMAGE_LATEST" \
+            --build-arg VITE_KAKAO_MAP_KEY=${{ secrets.VITE_KAKAO_MAP_KEY }} \
             "${DIR_NAME}"
 
           docker push "$IMAGE_SHA"
@@ -78,7 +79,7 @@ jobs:
   deploy:
     name: Deploy Frontend to AWS k3s
     needs: build
-    runs-on: [self-hosted, aws, k3s, infra, frontend]
+    runs-on: [self-hosted, aws, k3s, infra]
 
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
