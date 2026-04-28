@@ -2,10 +2,11 @@
    Landing page — v2
    Tokens: src/styles-v2/tokens.css
    Spec:   docs/redesign/Spec.md § 6
-   Plan:   docs/redesign/Landing.plan.md § 3 (TypedTerminal), § 12.1 (PR 1)
+   Plan:   docs/redesign/Landing.plan.md § 3 (TypedTerminal), § 12.1 (PR 1),
+                                          § 12.2 (Hero + Stats, PR 2)
 
-   PR 1 scope: TypedTerminal classes only.
-   Hero / Stats / Categories / Featured / CTA classes append in PR 2~4.
+   Sections appear top-to-bottom: TypedTerminal → Hero → Stats.
+   Categories / Featured / CTA classes append in PR 3~4.
    ========================================================================== */
 
 /* ----- TypedTerminal -------------------------------------------------------
@@ -87,3 +88,210 @@
     animation: none;
   }
 }
+
+/* ----- Hero section --------------------------------------------------------
+   2-col grid (carry-over from prototype/Landing.jsx L182). Right column 은
+   TypedTerminal slot 만 가지므로 추가 스타일 불필요.
+   --------------------------------------------------------------------------*/
+
+.hero-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+  padding: 28px 0 44px;
+}
+
+.hero-section__left { min-width: 0; }
+.hero-section__right { min-width: 0; }
+
+.hero-section__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--term-green-soft);
+  color: var(--term-green-dim);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+.hero-section__eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--term-green);
+}
+
+.hero-section__h1 {
+  font-family: var(--font);
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.hero-section__h1-accent { color: var(--brand); }
+
+.hero-section__subcopy {
+  font-family: var(--font);
+  font-size: 16px;
+  color: var(--text-3);
+  line-height: 1.65;
+  margin: 0 0 24px;
+  max-width: 480px;
+}
+
+.hero-section__cta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero-section__cta-palette {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-section__kbd {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.2;
+}
+
+.hero-section__meta {
+  margin-top: 20px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+
+/* ----- Stats section -------------------------------------------------------
+   4-col fixed grid. .stat-card 와 .stat-card--skeleton 의 외곽 박스가
+   동일 height 이라 로딩 ↔ 정상 전환 시 CLS = 0 (§ 6.2).
+   --------------------------------------------------------------------------*/
+
+.stats-section {
+  margin-bottom: 44px;
+}
+
+.stats-section__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  min-height: 98px;
+}
+
+.stat-card__hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-4);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.stat-card__num-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.stat-card__num {
+  font-family: var(--font);
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.stat-card__unit {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.stat-card__label {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* skeleton variant — placeholder blocks of text-equivalent heights. */
+.stat-card--skeleton { background: var(--surface); }
+
+.stat-skeleton__hint,
+.stat-skeleton__num,
+.stat-skeleton__label {
+  background: var(--surface-3);
+  border-radius: 4px;
+  animation: stat-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.stat-skeleton__hint  { width:  80px; height: 11px; margin-bottom: 6px; }
+.stat-skeleton__num   { width:  64px; height: 30px; margin-bottom: 4px; }
+.stat-skeleton__label { width: 120px; height: 13px; }
+
+@keyframes stat-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-skeleton__hint,
+  .stat-skeleton__num,
+  .stat-skeleton__label {
+    animation: none;
+  }
+}
+
+/* error inline row (§ 6.2). Hero / 다른 섹션은 영향 받지 않음. */
+.stats-section__error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.stats-section__error-text { color: var(--text-2); }
+.stats-section__error-prefix { color: var(--text-4); }
+
+.stats-section__retry {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.stats-section__retry:hover { background: var(--surface-3); }

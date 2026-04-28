@@ -30,6 +30,8 @@ const MyPageV2            = lazy(() => import('./pages-v2/MyPage'))
 
 // lazy – v2 dev showcase (Landing.plan §12.1 PR 1; cutover/PR 4 cleanup 시 제거)
 const TypedTerminalShowcase = lazy(() => import('./pages-v2/_dev/TypedTerminalShowcase'))
+// lazy – v2 dev showcase (Landing.plan §12.2 PR 2; cutover/PR 4 cleanup 시 제거)
+const HeroStatsShowcase     = lazy(() => import('./pages-v2/_dev/HeroStatsShowcase'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
@@ -95,7 +97,8 @@ export default function App() {
         <Route path="/social/profile-setup" element={<SocialProfileSetup />} />
 
         {/* v2 dev showcase (cutover/PR 4 cleanup 시 제거) */}
-        <Route path="/_dev/typed-terminal" element={<TypedTerminalShowcase />} />
+        <Route path="/_dev/typed-terminal"    element={<TypedTerminalShowcase />} />
+        <Route path="/_dev/landing-hero-stats" element={<HeroStatsShowcase />} />
 
         {/* 일반 사용자 */}
         <Route element={<Layout />}>
