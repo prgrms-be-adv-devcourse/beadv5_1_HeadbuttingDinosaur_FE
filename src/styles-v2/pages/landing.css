@@ -1,0 +1,89 @@
+/* ==========================================================================
+   Landing page — v2
+   Tokens: src/styles-v2/tokens.css
+   Spec:   docs/redesign/Spec.md § 6
+   Plan:   docs/redesign/Landing.plan.md § 3 (TypedTerminal), § 12.1 (PR 1)
+
+   PR 1 scope: TypedTerminal classes only.
+   Hero / Stats / Categories / Featured / CTA classes append in PR 2~4.
+   ========================================================================== */
+
+/* ----- TypedTerminal -------------------------------------------------------
+   Mirrors prototype/Landing.jsx L38-L73 (inline styles → class).
+   Uses tokens only: --editor-bg, --border, --chrome, --text*, --term-green,
+   --font-mono. Layout-stable: .typed-terminal-body has fixed min-height so
+   line count change does not jump.
+   --------------------------------------------------------------------------*/
+
+.typed-terminal {
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+}
+
+.typed-terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--border);
+}
+
+.typed-terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.typed-terminal-dot-close { background: #FF5F56; }
+.typed-terminal-dot-min   { background: #FFBD2E; }
+.typed-terminal-dot-max   { background: #27C93F; }
+
+.typed-terminal-title {
+  margin-left: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.typed-terminal-body {
+  padding: 16px 18px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.9;
+  min-height: 150px;
+}
+
+.typed-terminal-line + .typed-terminal-line { margin-top: 0; }
+
+.typed-terminal-prompt-mark { color: var(--term-green); }
+.typed-terminal-prompt      { color: var(--text-4); }
+.typed-terminal-cmd         { color: var(--text); }
+.typed-terminal-out {
+  color: var(--text-3);
+  padding-left: 14px;
+}
+
+.typed-terminal-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--term-green);
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: typed-terminal-blink 1s steps(2, end) infinite;
+}
+
+@keyframes typed-terminal-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typed-terminal-cursor {
+    animation: none;
+  }
+}
