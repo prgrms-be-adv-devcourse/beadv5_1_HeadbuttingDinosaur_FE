@@ -650,6 +650,54 @@
 }
 .featured-section__retry:hover { background: var(--surface-3); }
 
+/* ===== CTA ===== (PR 4, Landing.plan.md §12.4 / §2 / §6.5) -----------------
+   dashed border + brand-light 그라디언트 카드. 좌(카피) / 우(버튼) flex.
+   카드 내부 모션 없음 — reduced-motion 가드 추가 불필요.
+   --------------------------------------------------------------------------*/
+
+.cta-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 28px 32px;
+  margin-bottom: 40px;
+  border: 1px dashed var(--border-2);
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--brand-light) 0%, transparent 70%);
+}
+
+.cta-section__copy {
+  min-width: 0;
+}
+
+.cta-section__eyebrow {
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-4);
+  letter-spacing: 0.04em;
+}
+
+.cta-section__headline {
+  margin-bottom: 4px;
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cta-section__subcopy {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+.cta-section__button {
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .category-tile,
   .featured-row {
