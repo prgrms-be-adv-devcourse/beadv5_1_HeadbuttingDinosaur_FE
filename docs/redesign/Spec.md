@@ -359,6 +359,7 @@ src/pages-v2/{Page}/
 | 장바구니 서버 저장 여부 | **서버 저장 확정**: `src/pages/Cart.tsx`가 `getCart/addCartItem/clearCart` 사용 |
 | CSS 솔루션 | **기존 방식 유지 확정**: 전역 CSS(`src/styles/globals.css`) + 컴포넌트 `className` + 필요한 인라인 스타일 (Tailwind/CSS Modules/styled-components 미사용) |
 | 데이터 페칭 라이브러리 | **추가 라이브러리 미도입 확정**: axios + `useEffect/useState` 기반 현행 패턴 유지 (React Query/SWR 미사용) |
+| 애니메이션 라이브러리 (Landing TypedTerminal 한정) | **예외 도입 확정**: `react-type-animation` 도입 (gzip ~3KB). Landing.plan.md §11 #10 결정. 사용 범위는 `src/pages-v2/Landing/components/TypedTerminal.tsx` 단일 컴포넌트로 한정하며, 다른 위치에서 재사용 요청 발생 시 별도 검토 |
 | TypeScript 강제 적용 여부 | **강제 적용 확정**: 현행 페이지/컴포넌트가 `.tsx` 기반이므로 v2도 TSX로 통일 |
 | API/DTO 변경 허용 여부 | **변경 최소화 확정**: 기존 `src/api/*.ts` 계약을 유지하고 UI 계층에서만 변환 |
 
