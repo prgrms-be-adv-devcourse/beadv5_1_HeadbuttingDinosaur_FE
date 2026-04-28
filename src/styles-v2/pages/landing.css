@@ -650,6 +650,99 @@
 }
 .featured-section__retry:hover { background: var(--surface-3); }
 
+/* ===== CTA ===== (PR 4, Landing.plan.md §12.4 / §2 / §6.5) -----------------
+   dashed border + brand-light 그라디언트 카드. 좌(카피) / 우(버튼) flex.
+   카드 내부 모션 없음 — reduced-motion 가드 추가 불필요.
+   --------------------------------------------------------------------------*/
+
+.cta-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 28px 32px;
+  margin-bottom: 40px;
+  border: 1px dashed var(--border-2);
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--brand-light) 0%, transparent 70%);
+}
+
+.cta-section__copy {
+  min-width: 0;
+}
+
+.cta-section__eyebrow {
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-4);
+  letter-spacing: 0.04em;
+}
+
+.cta-section__headline {
+  margin-bottom: 4px;
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cta-section__subcopy {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+.cta-section__button {
+  flex-shrink: 0;
+}
+
+/* ===== IDE chrome ===== (PR 4, Landing.plan.md §12.4 / §9.5) --------------
+   Page shell — `editor-scroll` 컬럼 그리드 (gutter + body), `gutter` 라인
+   넘버, `editor-body` 본문 프레임. 프로토타입 ide-theme.css L322-347 1:1.
+   `landing-page` modifier 는 본문 max-width 1100 + 가운데 정렬.
+
+   ⚠️ Cart / EventList / EventDetail v2 에서도 같은 클래스명을 쓰지만 현재
+      styles-v2 어디에도 정의가 없음. 본 파일에서 처음 정의 — cutover PR
+      시 components/ide-chrome.css 로 이동 검토 (§12.4 결정).
+   chrome 자체에 모션 없음 → reduced-motion 가드 추가 불필요.
+   --------------------------------------------------------------------------*/
+
+.editor-scroll {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  min-height: 100%;
+}
+
+.gutter {
+  background: var(--gutter);
+  color: var(--gutter-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+  padding: 14px 10px 40px 0;
+  user-select: none;
+  border-right: 1px solid transparent;
+  line-height: 1.6;
+}
+
+.gutter .ln { display: block; }
+.gutter .ln.active { color: var(--text-2); }
+
+.editor-body {
+  padding: 14px 24px 40px;
+  line-height: 1.6;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.editor-body.landing-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .category-tile,
   .featured-row {
