@@ -1756,7 +1756,207 @@ if (err.response?.status === 403 && err.response.data.code === 'PROFILE_NOT_COMP
 | 페이지 컴포넌트 내부 인증 체크 | 금지 (`useAuth().user` 는 표시용으로만 — § 4.1) |
 
 ## 10. 라우터 등록
-(작성 예정)
+
+§ 2 결정(`/mypage/:tab`) + § 9 결정(`RequireAuthV2`) + Phase 0 `router-toggle.plan.md` 의 `VersionedRoute` 헬퍼 합성. `App.tsx` 한 줄 변경 + v2 내부 자체 라우트 트리.
+
+### 10.1 `src/App.tsx` 변경 — 1줄
+
+#### 현재 (`src/App.tsx:100`)
+
+```tsx
+<Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />
+```
+
+#### v2 도입 후
+
+```tsx
+<Route path="/mypage/*" element={
+  <VersionedRoute
+    v1={<RequireAuth><MyPage /></RequireAuth>}
+    v2={<RequireAuthV2><MyPageRouterV2 /></RequireAuthV2>}
+  />
+} />
+```
+
+#### 변경 포인트 3가지
+
+| 변경 | 이유 |
+|---|---|
+| `path="/mypage"` → `path="/mypage/*"` | RR v6 nested Routes 는 부모 path 가 `/*` 로 끝나야 자식 라우트 매칭 가능. v2 의 `/mypage/tickets` 등을 자식 Routes 에서 처리하기 위함. v1 의 `<MyPage>` 도 catch-all 안에서 정상 동작 (path 후미 segment 를 무시하고 `?tab=` 만 사용 — § 10.5 호환성) |
+| 가드를 **element 안**으로 이동 (`<VersionedRoute v1={<RequireAuth>...</RequireAuth>} v2={<RequireAuthV2>...</RequireAuthV2>}/>`) | router-toggle plan § 3 의 표준 패턴은 가드 외부 wrapping (`<RequireAuth><VersionedRoute/></RequireAuth>`)이지만, v1/v2 의 **가드 자체가 다름**(`RequireAuth` vs `RequireAuthV2` — § 9.2). 외부에 두면 한 가지만 선택해야 함. element 안에 두는 것이 v1/v2 분기의 본질에 맞음 |
+| v2 element 가 `<MyPageRouterV2 />` (`<MyPage />` 가 아님) | shell 컴포넌트 직접 마운트가 아니라 **자체 nested `<Routes>` 를 가진 라우터 컴포넌트** 마운트. shell 은 라우터 안에서 마운트됨 (§ 10.2) |
+
+#### v1 라우트는 변하지 않음
+
+- v1 `<MyPage>` (`src/pages/MyPage.tsx`)는 `?tab=` 쿼리스트링으로 탭 결정. path 후미 segment 무시.
+- `/mypage` 직접 입력 → `/mypage/*` 매칭 → v1 element → `<MyPage>` 렌더 → `?tab` 미존재 → 기본 탭(`tickets`). v1 동작 동일.
+- `/mypage?tab=orders` → 같은 매칭 → v1 `<MyPage>` 가 `?tab=orders` 파싱 → orders 탭. v1 동작 동일.
+
+### 10.2 v2 내부 라우트 트리 — `MyPageRouterV2`
+
+```tsx
+// src/pages-v2/MyPage/index.tsx
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { MyPage as MyPageShell } from './MyPage';
+import { TicketsTab } from './tabs/Tickets/TicketsTab';
+import { OrdersTab }  from './tabs/Orders/OrdersTab';
+import { WalletTab }  from './tabs/Wallet/WalletTab';
+import { RefundTab }  from './tabs/Refund/RefundTab';
+
+export function MyPageRouterV2() {
+  return (
+    <Routes>
+      <Route element={<MyPageShell />}>
+        <Route index            element={<Navigate to="tickets" replace />} />
+        <Route path="tickets"   element={<TicketsTab />} />
+        <Route path="orders"    element={<OrdersTab />} />
+        <Route path="wallet"    element={<WalletTab />} />
+        <Route path="refund"    element={<RefundTab />} />
+        <Route path="*"         element={<Navigate to="tickets" replace />} />
+      </Route>
+    </Routes>
+  );
+}
+```
+
+#### 라우트별 동작
+
+| URL | 결과 |
+|---|---|
+| `/mypage` | shell + index `<Navigate to="tickets" replace/>` → `/mypage/tickets` |
+| `/mypage/tickets` | shell + `<TicketsTab/>` |
+| `/mypage/orders` | shell + `<OrdersTab/>` |
+| `/mypage/orders?page=3` | shell + `<OrdersTab/>` (쿼리는 `OrdersTab` 가 § 6.3 대로 소비) |
+| `/mypage/wallet` | shell + `<WalletTab/>` |
+| `/mypage/refund` | shell + `<RefundTab/>` |
+| `/mypage/foo` (잘못된 `:tab`) | shell + catch-all `<Navigate to="tickets" replace/>` → `/mypage/tickets` |
+| `/mypage/orders/extra/segments` | shell + catch-all → `/mypage/tickets` (RR v6: `path="orders"` 는 정확 매칭, 후미 segment 가 있으면 `*` 로 떨어짐) |
+
+`replace` 사용 — 잘못된 URL 또는 index redirect 가 history entry 로 남지 않게.
+
+### 10.3 활성 탭 결정 — Outlet 패턴
+
+§ 3.1 의 punt 결정(*"Outlet 을 쓸지 useParams narrow 로 분기할지 § 10 에서"*) 을 여기서 확정.
+
+**채택 — Outlet 패턴**. shell `<MyPage>` 는 자식 prop 안 받고 자체 `<Outlet/>` 으로 활성 탭 마운트. activeTab 은 `useMatch` 로 결정:
+
+```tsx
+// src/pages-v2/MyPage/MyPage.tsx (shell)
+import { Outlet, useMatch } from 'react-router-dom';
+import { ProfileHeader } from './shell/ProfileHeader';
+import { TabNav } from './shell/TabNav';
+import { TABS } from './shared/tabs';
+import type { TabKey } from './shared/types';
+
+export function MyPage() {
+  const match = useMatch('/mypage/:tab');
+  const raw = match?.params.tab;
+  const activeTab: TabKey = isTabKey(raw) ? raw : 'tickets';
+  return (
+    <div className="mypage-shell">
+      <ProfileHeader /* ... — § 3 */ />
+      <TabNav active={activeTab} tabs={TABS} />
+      <Outlet />
+    </div>
+  );
+}
+
+function isTabKey(s: string | undefined): s is TabKey {
+  return s === 'tickets' || s === 'orders' || s === 'wallet' || s === 'refund';
+}
+```
+
+이유 (§ 3.1 의 두 옵션 비교):
+
+| 옵션 | 평가 |
+|---|---|
+| **Outlet** | RR v6 nested route 의 표준. 자식 라우트 추가/제거 시 shell 본체 변경 0. 잘못된 `:tab` 처리도 catch-all `<Navigate/>` 로 라우터 단계에서 끝남. **추천** |
+| useParams + 분기 | shell 안에 `if (tab === 'tickets') return <TicketsTab/>; ...` 사다리. 라우트와 컴포넌트 매핑이 한 곳 더 생겨 § 10.2 의 `<Routes>` 와 이중 정의 |
+
+`isTabKey` narrow 함수는 `shared/tabs.ts` 또는 `shared/types.ts` 에 두고 shell 과 `MyPageRouterV2` 가 공유 — § 4.5 의 `shared/` 디렉토리 항목.
+
+### 10.4 RR v6 nested Routes — 주의사항
+
+| 항목 | 규칙 |
+|---|---|
+| 부모 path | `/mypage/*` 로 반드시 `/*` 종료. `/mypage` (별표 없음) 로 두면 자식 Routes 매칭 안 됨 |
+| 자식 path | **상대 경로** (`path="tickets"` ✓, `path="/mypage/tickets"` ✗). 절대 경로 쓰면 부모 매칭 결과를 무시하고 root 부터 다시 매칭 |
+| `<Navigate to="tickets" replace/>` | 상대 경로. 현재 라우트 기준으로 한 칸 들어감 → `/mypage/tickets`. 절대 `to="/mypage/tickets"` 도 동작하지만 부모 path 가 바뀔 때 따라가지 않음 — **상대 경로 권장** |
+| `useMatch('/mypage/:tab')` | shell 이 `<Routes>` 안에서 마운트됐어도 **절대 경로** 로 매칭. shell 입장에선 자식 path 의 동적 segment 를 직접 잡고 싶음 |
+| `<Outlet/>` 안 가짐 | 부모 element (`<MyPage/>`) 는 반드시 `<Outlet/>` 호출. 안 하면 자식 element 가 렌더 안 됨 |
+| 부모 → 자식 데이터 전달 | RR v6 의 `<Outlet context={...}/>` 또는 React Context. § 3.3 의 `WalletBalanceProvider` 가 후자. shell 의 데이터(예: 활성 탭) 가 자식에 필요하면 그때 결정 |
+
+### 10.5 v1/v2 호환성 매트릭스
+
+`?v=` 토글 × 진입 URL 의 4가지 조합:
+
+| 토글 | 진입 URL | 매칭 | 결과 | 비고 |
+|---|---|---|---|---|
+| v1 | `/mypage` | path `/mypage/*` | v1 `<MyPage>` 렌더 | 기존 동작 그대로 |
+| v1 | `/mypage?tab=orders` | path `/mypage/*` | v1 `<MyPage>` 렌더 + `?tab=orders` 파싱 | 기존 v1 동작 |
+| v1 | `/mypage/orders` | path `/mypage/*` | v1 `<MyPage>` 렌더 (path 후미 무시) | sub-path 가 v1 에서 의미 없음 → 기본 탭(`tickets`) 표시. **degrade** (cutover 후 v2 가 처리) |
+| v1 | `/mypage/orders?page=3` | 위와 동일 | v1 `<MyPage>` 기본 탭 | 동일 degrade |
+| v2 | `/mypage` | path `/mypage/*` → `<Routes>` index | `<Navigate to="tickets" replace/>` → `/mypage/tickets` | shell + Tickets 탭 |
+| v2 | `/mypage?tab=orders` | 위와 동일 | `?tab=orders` **무시** + `/mypage/tickets` redirect | v2 는 path 기반이라 `?tab=` 미인식. **§ 11 안건**: v1 외부 링크의 `?tab=` 호환을 위한 임시 redirect 컴포넌트 |
+| v2 | `/mypage/orders` | path `/mypage/*` → `<Routes path="orders">` | shell + Orders 탭 | 정상 |
+| v2 | `/mypage/orders?page=3` | 위와 동일 | shell + Orders 탭 + 3페이지 | § 6.3 페이저 |
+| v2 | `/mypage/foo` | path `/mypage/*` → `<Routes path="*">` | `<Navigate to="tickets" replace/>` → `/mypage/tickets` | catch-all |
+
+#### v1 의 `?tab=` → v2 path 호환 — § 11 안건
+
+- v1 시기에 외부에 공유된 `/mypage?tab=orders` 링크가 있음 (이메일/카톡/북마크 등).
+- v2 cutover 후 그 링크 진입 시 `/mypage/tickets` 로 redirect (위 표) — 사용자 의도와 다름.
+- 옵션:
+  1. v2 router 의 index element 에서 `useSearchParams().get('tab')` 검사 → 있으면 `/mypage/${tab}` 으로 redirect.
+  2. v2 진입 시 1회 한정 호환 redirect 컴포넌트.
+  3. 호환 무시 (cutover 시점에 외부 링크가 거의 없다고 판단하면).
+- 결정은 cutover 시점 외부 링크 조사 후 — § 11 등록.
+
+### 10.6 검증 — `?v=2` 토글 수동 테스트
+
+`router-toggle.plan.md § 5 Step 3` 패턴 차용. 1차 PR 머지 후 로컬 검증.
+
+| # | 동작 | 기대 결과 | 검증 항목 |
+|---|---|---|---|
+| 1 | `/mypage` 접속 (토글 OFF, v1 default) | v1 `<MyPage>` 렌더 + 기본 탭 | v1 호환 — § 10.5 row 1 |
+| 2 | `/mypage?v=2` 접속 | shell + `<Navigate to="tickets" replace/>` → URL 이 `/mypage/tickets?v=2` 로 정착(또는 `?v=2` 가 sticky 후 query 미보존) + Tickets 탭 렌더 + `localStorage['ui.version'] === '2'` | router-toggle § 2-5 sticky |
+| 3 | (#2 직후) `/mypage/orders` 클릭 | shell + Orders 탭 렌더. Tickets fetch 한 번 + Orders fetch 한 번 (탭 전환 시 fetch — § 5.3.1, § 6.3.1) | sticky 토글 + nested route 매칭 |
+| 4 | `/mypage/orders?page=3` 직접 입력 | shell + Orders 탭 + 3페이지 (URL `?page=3` 이 페이저에 동기화) | § 6.3.4 페이저 |
+| 5 | `/mypage/foo?v=2` 접속 | shell + catch-all `<Navigate to="tickets" replace/>` → `/mypage/tickets` | § 10.2 catch-all |
+| 6 | 로그아웃 상태에서 `/mypage/orders?v=2` 접속 | `<RequireAuthV2>` 가 `/login?returnTo=%2Fmypage%2Forders` 로 redirect | § 9.6 deep-link |
+| 7 | (#6) Login v2 가 returnTo 처리 미구현이라면 | 로그인 성공 후 `/` 로 이동 (degrade) | § 9.4 단계별 호환 |
+| 8 | `/mypage?v=1` 접속 | v1 `<MyPage>` 렌더 + `localStorage` 키 제거 | router-toggle § 2-5 명시적 끄기 |
+| 9 | `/mypage/orders?v=1` 접속 | v1 `<MyPage>` 기본 탭 (path 후미 무시) | v1 degrade — § 10.5 row 3 |
+
+8케이스(인증 변형 9 포함) 통과 후 PR 본문에 결과 첨부.
+
+### 10.7 영향 파일
+
+| 경로 | 신/수 | LOC | 핵심 변경 |
+|---|---|---|---|
+| `src/App.tsx` | 수정 | 1줄(논리), 4줄(가독성 줄바꿈) | `/mypage` 라인 1개를 `/mypage/*` + `VersionedRoute` 로 교체 (§ 10.1) |
+| `src/router-v2/RequireAuthV2.tsx` | 신규 | ~25 | § 9.2 시그니처 그대로. router-toggle plan § 4 의 `src/router-v2/` 디렉토리에 합류 |
+| `src/router-v2/index.ts` | 수정 | +1 | `RequireAuthV2` re-export 추가 |
+| `src/pages-v2/MyPage/index.tsx` | 신규 | ~30 | `MyPageRouterV2` 컴포넌트 (§ 10.2 의 `<Routes>` 트리). 1차 PR shell 단계에서 작성 — 자식 탭 컴포넌트는 후속 PR 합류 (§ 12) |
+| `src/pages-v2/MyPage/MyPage.tsx` | 신규 | ~40 | shell 본체 (§ 10.3 + § 3.1). `useMatch` + `<Outlet/>` |
+| `src/pages-v2/MyPage/shared/tabs.ts` | 신규 | ~15 | TabKey 단일 정의 + `isTabKey` narrow + `TABS` 메타 (§ 4.5) |
+| `src/pages-v2/MyPage/shared/types.ts` | 신규 | ~5 | `TabKey` 타입 export (§ 4.5) |
+
+자식 탭 (`tabs/Tickets/TicketsTab.tsx` 등)은 본 plan 의 § 12 PR 분할에 따라 별도 PR 에서 합류. 1차 PR(Shell)에는 placeholder 자식 (예: `<div>Tickets — 준비 중</div>`)으로 시작 — § 12 에서 결정.
+
+### 10.8 라우터 등록 정합성 체크리스트
+
+PR 작성 전 self-review:
+
+- [ ] `App.tsx` 의 `/mypage` 라인 path 가 `/mypage/*` 로 변경됐는가
+- [ ] `VersionedRoute` 의 `v1` element 가 기존 `<RequireAuth><MyPage/></RequireAuth>` 그대로인가 (v1 회귀 0)
+- [ ] `MyPageRouterV2` 의 `<Routes>` 가 부모 path 에 종속되지 않은 자체 트리인가
+- [ ] index `<Navigate to="tickets" replace/>` + catch-all `<Navigate to="tickets" replace/>` 가 둘 다 있는가
+- [ ] shell 의 `<Outlet/>` 호출 위치가 `<TabNav/>` 아래인가 (시각 순서)
+- [ ] `useMatch('/mypage/:tab')` 가 절대 경로인가
+- [ ] `isTabKey` narrow 함수가 `shared/tabs.ts` 단일 소스에서 export 되는가
+- [ ] `RequireAuthV2` 가 `useLocation().pathname + search` 로 returnTo 캡처하는가 (§ 9.2)
+- [ ] § 10.6 검증 9케이스 모두 로컬 통과인가
 
 ## 11. 의사결정 필요 지점
 (작성 예정)
