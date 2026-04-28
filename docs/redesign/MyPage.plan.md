@@ -1959,7 +1959,115 @@ PR 작성 전 self-review:
 - [ ] § 10.6 검증 9케이스 모두 로컬 통과인가
 
 ## 11. 의사결정 필요 지점
-(작성 예정)
+
+§ 1~§ 10 작성 중 등록된 안건 + 사용자 명시 결정. **결정** 컬럼이 채워진 행은 § 12 작성 시 그대로 반영. **TBD** 행은 § 12 에서 추천안 따르되 추후 갱신 가능.
+
+### 11.1 라우팅 / 가드
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| R1 | 탭 라우팅 방식 (§ 2) | A. `/mypage/:tab` | **A — 채택** | Shell PR 의 라우터 트리. 옵션 A 전제 그대로 |
+| R2 | v1 `?tab=foo` 외부 링크 호환 (§ 10.5) | cutover 시점 외부 링크 조사 후 결정 | TBD (cutover PR) | 본 plan 외 — cutover PR 에 위임 |
+| R3 | 401 강제 로그아웃 후 `returnTo` 보존 (§ 9.5) | `src/api/client.ts` 인터셉터 수정 별도 PR (SPEC § 0 위배 검토 필요) | TBD | 본 plan 외 |
+| R4 | Login v2 의 `returnTo` 파싱·검증 (§ 9.3 / § 9.4) | Login v2 plan 측에서 처리 | TBD | 본 plan 외 — degrade gracefully |
+
+### 11.2 Shell / Profile
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| S1 | 가입일 (`createdAt` 부재 — § 3.2) | 1차: 라인 미노출. BE 에 `createdAt` 추가 요청 별도 | **1차 미노출** (추천안 채택) | Shell PR — `ProfileHeader` 가 라인 자체 미렌더 |
+| S2 | ONLINE 배지 — 실제 의미 vs 장식 (§ 3.2) | `GetProfileResponse.status` 활용 (`status === 'ACTIVE' && isLoggedIn`) | **실제 의미 — `status === 'ACTIVE'`** | Shell PR — `ProfileVM.isOnline` 어댑터 로직. `status` 미지의 값(`SUSPENDED` 등)에서 배지 숨김 분기 |
+| S3 | 프로필 수정 도착지 (§ 1.4 / § 3.6 / § 4.1.3) | 별도 라우트(`/mypage/settings`) | **모달** | Shell PR 또는 별도 모달 PR. `tabs/Settings/` 디렉토리 미생성, `shell/ProfileEditModal.tsx` 신규. § 12 의 PR 분할에 직접 영향 |
+| S4 | 잔액 표기 loading/error 라인 형태 (§ 3.3) | `loading` 시 "예치금 -" / `error` 시 라인 생략 | TBD (추천안 채택) | Shell PR — UI 정책 |
+
+### 11.3 Tickets
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| T1 | `seat` 필드 부재 (§ 5.2.5) | 표기 제거 (location 으로 대체 X) | **1차 미노출** (추천안) | Tickets PR — 메타 라인이 `📅 dateLabel` 단독 |
+| T2 | `accent()` 헬퍼 위치 (§ 5.2.6) | `MyPage/shared/accent.ts` 임시 → cutover 후 `src/lib/` 승격 | **임시 위치** (추천안 채택) | Shell PR 또는 Tickets PR — 임시 위치라 향후 이동 시 import 1곳만 변경 |
+| T3 | 환불 요청 버튼 (§ 5.3.6 / § 8.3.7) | 별도 후속 PR | **이번 PR 범위** | **§ 12 영향 큼** — Tickets 카드에 환불 버튼 + 환불 모달 신규. `getRefundInfo` / `refundTicketByPg` 호출. 별도 PR 또는 Tickets PR 확장 |
+| T4 | QR / 상세 보기 (신규 안건) | 별도 후속 PR | **이번 PR 범위** | **§ 12 영향 큼** — Ticket 카드 클릭 시 상세 (모달 또는 별도 라우트). `getTicketDetail` → `TicketDetailResponse.qrCode` 노출. 모달 추천 (S3 와 톤 일치) |
+| T5 | `totalElements > size` 케이스 (§ 5.2.8) | 단일 호출 `?size=50` (1차) | **페이징** (사용자 결정 P1 따름) | Tickets PR — `useTickets(page)` 페이징 시그니처. § 5.2.8 / § 5.3.1 갱신 필요. URL `/mypage/tickets?page=N` 추가 |
+| T6 | HTTP 상태별 에러 카피 분기 (§ 5.3.4) | 단일 카피 1차 | **1차 단일 카피** (추천안) | 모든 탭 PR — 작은 영향 |
+
+### 11.4 Orders
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| O1 | `eventTitle` 필드 부재 (§ 6.2.4) | 1차 4컬럼. BE 에 `summaryTitle` 추가 요청 별도 | **1차 4컬럼** (추천안). BE 변경은 별도 | Orders PR — `REFUND_COLUMNS` 4개 |
+| O2 | 영수증 / 상세 보기 (신규 안건) | 별도 후속 PR | **이번 PR 범위** | **§ 12 영향 큼** — Order 행 클릭 시 상세 (모달). `getOrderDetail` → `OrderDetailResponse.items` 로 이벤트별 라인 표시. **O1 의 `eventTitle` 부재 갭이 자연 해결** (상세에는 `items[].eventTitle` 있음). 모달 추천 |
+| O3 | `cancelOrder` mutation (§ 6.3.6) | 별도 PR | TBD (Order Detail 모달 안에 합류 가능) | OrderDetail 모달과 함께 검토 |
+| O4 | 모바일 카드 폴백 (§ 6.1.8 / § 8.1.8) | 별도 PR | TBD (1차 데스크톱 한정) | 모든 표 탭 — 별도 PR |
+| O5 | "첫 페이지로" 보조 CTA (§ 6.3.4 / § 8.3.3) | 1차 미포함 | TBD (추천안) | 작은 영향 |
+| O6 | keep-previous-data (§ 6.3.1 / § 8.3.5) | 1차 미포함 | TBD (추천안) | 작은 영향 |
+| O7 | axios cancel 토큰 (§ 6.3.6 / § 8.3.7) | 1차 미포함 | TBD (추천안) | 작은 영향 |
+| O8 | 페이지 변경 후 `scrollTo({top:0})` (§ 6.3.5 / § 8.3.6) | 1차 미포함 | TBD (추천안) | 작은 영향 |
+| O9 | `?page > totalPages` redirect (§ 6.2.9) | 1차 미포함 (빈 상태로 처리) | TBD (추천안) | 작은 영향 |
+
+### 11.5 Wallet
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| W1 | 충전/출금 모달 (§ 7.1.7) | 별도 후속 PR | **이번 PR 범위** | **§ 12 영향 매우 큼** — `ChargeModal` (Toss PG 위젯 진입 + `startWalletCharge` + `WalletChargeSuccess` 콜백 라우트와 연동) + `WithdrawModal` (`withdrawWallet` + 비밀번호/본인 확인 — W5). Wallet 1차 PR 가 조회만에서 충전/출금까지 확장 → Wallet 단일 PR 이 너무 커지면 분할 (Charge / Withdraw 별도) |
+| W2 | 거래내역 리스트 (§ 7.1.7) | 별도 후속 PR | **이번 PR 범위** | Wallet PR — `TransactionList` / `TransactionRow` / `TransactionsSkeleton` 추가. `getWalletTransactions` 호출. 페이징 P1 적용 (Wallet 거래내역도 `?txPage=N` 또는 별도 path) |
+| W3 | "최종 업데이트" 라인 (§ 7.1.5) | 1차 미노출. 옵션 2 (`timeAgo`) 또는 옵션 3 (BE 변경) 후속 | **1차 미노출** (추천안 채택). 옵션 2 도입 여부는 W4 와 함께 | Shell/Wallet PR |
+| W4 | `timeAgo` 헬퍼 v2 도입 (§ 4.3.3) | `src/lib/format.ts` 에 추가 | TBD (W3 와 함께 결정. 1차 미도입 추천) | Shell/Wallet PR |
+| W5 | 출금 비밀번호/본인 확인 정책 (§ 7.1.7) | SPEC 미명시 → BE 협의 후 결정 | TBD — **W1 진행 전 BE 협의 필수** | Wallet-Withdraw PR — 모달 동작 정의에 직접 영향 |
+| W6 | charge confirm 후 잔액 자동 갱신 (§ 7.2.6) | `WalletChargeSuccess` 페이지가 `/mypage/wallet` 으로 redirect 시 `refresh()` 트리거 또는 `useWalletBalance` 가 mount 시 항상 최신 fetch | 추천안 채택 | Wallet PR — `useWalletBalance` 동작 + `WalletChargeSuccess` cross-cutting |
+
+### 11.6 Refund
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| F1 | 환불 탭 시나리오 (§ 8) | A — 정상 구현 | **A — 채택** | Refund PR 정상 (조회 + 빈 상태 + 페이징) |
+| F2 | `refundRate` / `completedAt` 노출 (§ 8.1.8) | 1차 미노출 | TBD (추천안) | Refund PR |
+| F3 | `MyPage/shared/DataTable` 승격 (§ 8.1.4) | Orders + Refund 머지 후 별도 PR | **1차 페이지 전용 유지** (추천안 채택) | 별도 후속 PR |
+| F4 | 환불 요청 후 deep-link 자동 refetch (§ 8.3.7) | T3(환불 모달) 성공 → `navigate('/mypage/refund')` + `refetch` | 추천안 채택 (T3 와 함께) | T3 모달과 Refund 탭 cross-cutting |
+
+### 11.7 공통 / 페이징 / Skeleton
+
+| # | 안건 | 추천안 | 결정 | § 12 영향 |
+|---|---|---|---|---|
+| P1 | 페이징 vs 무한스크롤 (§ 6.1.5 / 모든 탭) | 페이지네이션 통일 | **페이징 (모든 탭)** | Tickets 탭의 § 5.2.8 결정(단일 호출 size=50)을 **페이징으로 변경** — T5 와 동일 항목. URL `/mypage/tickets?page=N` 추가, `useTickets(page)` 시그니처 변경 |
+| P2 | Skeleton 토큰 (§ 5.3.2 / § 6.3.2 / § 7.3.2 / § 8.3.2) | Phase 0 토큰 미정 시 정적 placeholder | TBD (추천안 채택. Phase 0 토큰 작업 진행 상황에 따름) | 모든 탭 PR — 작은 영향 |
+
+### 11.8 사용자 결정이 § 12 에 미치는 영향 — 요약
+
+§ 11 의 결정 결과로 1차 PR 범위가 **상당히 확장**됨. 원래 plan(§ 12 골격) 대비 추가/변경:
+
+| 항목 | 영향 |
+|---|---|
+| **R1 (옵션 A)** | Shell PR 의 라우터 등록 형태 확정. § 10 그대로 |
+| **S2 (ONLINE 실제 의미)** | Shell PR — `ProfileVM.isOnline` 어댑터 한 줄 |
+| **S3 (프로필 수정 모달)** | Shell PR + 별도 모달 컴포넌트 1개 또는 별도 PR — § 12 분할 결정 |
+| **T3 (티켓 환불 요청 버튼)** | Tickets 탭이 mutation 포함 → **+1 PR 분할** (Tickets-Refund 또는 Tickets PR 확장). `getRefundInfo` + `refundTicketByPg` 합류 |
+| **T4 (티켓 QR/상세)** | Tickets 탭에 상세 모달 추가 → **+1 PR 또는 Tickets PR 확장**. `getTicketDetail` 합류 |
+| **T5/P1 (Tickets 페이징)** | § 5.2.8 / § 5.3.1 의 "단일 호출" 결정을 페이징으로 갱신. `useTickets(page)` 시그니처 변경 |
+| **O2 (주문 영수증/상세)** | Orders 탭에 상세 모달 추가 → **+1 PR 또는 Orders PR 확장**. `getOrderDetail` 합류. **O1(eventTitle 부재) 갭이 자연 해결** |
+| **W1 (충전/출금 모달)** | Wallet 탭이 mutation 포함 → **+2 PR 분할** (Wallet-Charge / Wallet-Withdraw). Toss PG / `startWalletCharge` / `confirmWalletCharge` / `withdrawWallet` / `idempotencyConfig()` / W5(BE 협의) 합류 |
+| **W2 (거래내역)** | Wallet 탭이 단일 카드에서 카드 + 리스트로 확장 → Wallet 조회 PR 안에 `TransactionList` 추가 |
+| **F1 (Refund A)** | Refund PR 정상 진행 |
+
+#### 결정의 결과 PR 수 (§ 12 작성 전 추정)
+
+| 기본 plan (§ 12 골격) | 결정 반영 후 |
+|---|---|
+| 5 PR (Shell + 4탭 조회) | **8~10 PR** (Shell + 4탭 조회 + 프로필 수정 모달 + Tickets 환불/상세 + Orders 상세 + Wallet 충전 + Wallet 출금) |
+
+§ 12 에서 PR 분할 단위·머지 순서·의존성 그래프를 위 영향 표 기준으로 작성.
+
+#### 사전 합의가 더 필요한 항목 (미진행)
+
+§ 12 작성 전 다음 항목이 미해결 시 일부 PR 범위가 추정으로 작성됨:
+
+| # | 미해결 항목 | 차단 PR |
+|---|---|---|
+| W5 | 출금 비밀번호/본인 확인 정책 — BE 협의 필요 | Wallet-Withdraw PR (모달 동작 정의 차단) |
+| R4 | Login v2 의 returnTo 파싱·검증 — Login v2 plan 협의 | 본 plan 의 deep-link 동선 (degrade gracefully 동작이라 차단은 아님) |
+| S3 | 프로필 수정 모달 — UpdateProfile + ChangePassword + WithdrawUser 4개 폼 모두 1차에 포함? 일부만? | Shell-ProfileEdit PR 또는 분할 |
+
+W5 는 § 12 작성 전 BE 협의 권장. S3 는 § 12 에서 모달의 폼 범위를 명시적으로 좁힐지 검토 필요.
 
 ## 12. PR 분할 (골격만)
 ### 12.1 PR 1: Shell
