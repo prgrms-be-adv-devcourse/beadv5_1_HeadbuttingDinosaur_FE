@@ -1,0 +1,119 @@
+/* DevTicket v2 — Tickets tab styles
+   Source: docs/redesign/MyPage.plan.md §5 + prototype/MyPage.jsx tickets tab.
+   Scope: classes used in pages-v2/MyPage/tabs/Tickets/.
+   AccentMediaBox(stripe/sm) 자체가 56px width 와 그라디언트를 담당; 본 파일은
+   dashed right border, 절대배치 아이콘, 우측 본문 레이아웃, 페이저, 스켈레톤만. */
+
+/* ── Tab header (§5.1.2 TicketsHeader) ──────────────────────────── */
+.tickets-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+.tickets-header-title {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin: 0;
+}
+.tickets-header-counts {
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  margin: 0;
+}
+
+/* ── Grid (§5.1.2 TicketGrid) ───────────────────────────────────── */
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+/* ── Card (§5.1.2 TicketCard, §5.1.4 padding=0/overflow hidden) ─── */
+.ticket-card {
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Stripe (§5.1.5 TicketStripe) ───────────────────────────────── */
+.ticket-stripe {
+  position: relative;
+  flex-shrink: 0;
+  border-right: 1px dashed var(--border-2);
+}
+.ticket-stripe-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ── Info (§5.1.2 TicketInfo) ───────────────────────────────────── */
+.ticket-info {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+}
+.ticket-info-title {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+  color: var(--text);
+  margin: 6px 0;
+}
+.ticket-info-meta {
+  display: flex;
+  gap: 14px;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* ── Pager (§6.2.8 TicketsPager) ────────────────────────────────── */
+.tickets-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.tickets-pager-info {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* ── Skeleton (§5.3.2 TicketsSkeleton) ──────────────────────────── */
+.tickets-skeleton-card {
+  display: flex;
+  overflow: hidden;
+}
+.tickets-skeleton-stripe {
+  width: 56px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border-right: 1px dashed var(--border-2);
+}
+.tickets-skeleton-body {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tickets-skeleton-bar {
+  height: 12px;
+  background: var(--surface-3);
+  border-radius: 6px;
+}
+.tickets-skeleton-bar-sm { width: 60px; height: 18px; }
+.tickets-skeleton-bar-lg { width: 80%; }
+.tickets-skeleton-bar-md { width: 50%; }
