@@ -1,0 +1,121 @@
+/* DevTicket v2 — MyPage shell styles
+   Source: docs/redesign/prototype/MyPage.jsx + docs/redesign/MyPage.plan.md §3
+   Scope: classes prefixed with `mypage-` are local to /mypage/* (v2). */
+
+/* ── Shell container (§3.1 MyPage) ────────────────────────────────── */
+.mypage-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 0 40px;
+}
+
+/* ── Profile header (§3.1 ProfileHeader) ──────────────────────────── */
+.mypage-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.mypage-profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.mypage-profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font);
+}
+.mypage-profile-name {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.mypage-profile-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  color: var(--success-text);
+  background: var(--success-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.mypage-profile-meta {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+/* ── Skeleton (§3.1 ProfileHeaderSkeleton) ────────────────────────── */
+.mypage-profile-header.is-skeleton {
+  align-items: center;
+}
+.mypage-profile-avatar-skeleton {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: var(--surface-3);
+}
+.mypage-skeleton-bar {
+  height: 12px;
+  background: var(--surface-3);
+  border-radius: 6px;
+}
+.mypage-skeleton-bar-title { width: 140px; height: 16px; }
+.mypage-skeleton-bar-meta  { width: 90px; }
+
+/* ── Tab nav (§3.4 TabNav) ────────────────────────────────────────── */
+.mypage-tab-track {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.mypage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+  padding: 8px 12px;
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.mypage-tab:hover {
+  color: var(--text-2);
+}
+.mypage-tab.is-active {
+  background: var(--editor-bg);
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Tab panel + placeholder (§3.1 / §12.1) ───────────────────────── */
+.mypage-tab-panel {
+  min-height: 200px;
+}
+.mypage-tab-placeholder {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  color: var(--text-3);
+  padding: 48px 0;
+  text-align: center;
+}

@@ -5,7 +5,7 @@ import Layout from './components/Layout'
 import SellerLayout from './components/SellerLayout'
 import AdminLayout from './components/AdminLayout'
 import Loading from './components/Loading'
-import { VersionedRoute } from './router-v2'
+import { VersionedRoute, RequireAuthV2 } from './router-v2'
 
 // 즉시 로드 (비로그인 첫 화면)
 import EventList         from './pages/EventList'
@@ -26,6 +26,7 @@ const CartV2              = lazy(() => import('./pages-v2/Cart'))
 const PaymentSuccessV2    = lazy(() => import('./pages-v2/PaymentCallback/PaymentSuccessPage'))
 const PaymentFailV2       = lazy(() => import('./pages-v2/PaymentCallback/PaymentFailPage'))
 const PaymentCompleteV2   = lazy(() => import('./pages-v2/PaymentCallback/PaymentCompletePage'))
+const MyPageV2            = lazy(() => import('./pages-v2/MyPage'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
@@ -97,7 +98,12 @@ export default function App() {
           <Route path="/cart"                   element={<RequireAuth><VersionedRoute v1={<Cart />} v2={<CartV2 />} /></RequireAuth>} />
           <Route path="/payment"                element={<RequireAuth><Payment /></RequireAuth>} />
           <Route path="/payment/complete"       element={<RequireAuth><VersionedRoute v1={<PaymentComplete />} v2={<PaymentCompleteV2 />} /></RequireAuth>} />
-          <Route path="/mypage"                 element={<RequireAuth><MyPage /></RequireAuth>} />
+          <Route path="/mypage/*"               element={
+            <VersionedRoute
+              v1={<RequireAuth><MyPage /></RequireAuth>}
+              v2={<RequireAuthV2><MyPageV2 /></RequireAuthV2>}
+            />
+          } />
           <Route path="/seller-apply"           element={<RequireAuth><SellerApply /></RequireAuth>} />
           <Route path="/payment/success"        element={<RequireAuth><VersionedRoute v1={<PaymentSuccess />} v2={<PaymentSuccessV2 />} /></RequireAuth>} />
           <Route path="/payment/fail"           element={<RequireAuth><VersionedRoute v1={<PaymentFail />} v2={<PaymentFailV2 />} /></RequireAuth>} />
