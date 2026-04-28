@@ -18,7 +18,7 @@ import NotFound          from './pages/NotFound'
 const OAuthCallback       = lazy(() => import('./pages/OAuthCallback'))
 const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
 
-// lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1, Cart.plan §10.1 / §10.3 PR 5)
+// lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1, Cart.plan §10.1 / §10.3 PR 5, Landing.plan §12.4 PR 4)
 const LoginV2             = lazy(() => import('./pages-v2/Login'))
 const EventListV2         = lazy(() => import('./pages-v2/EventList'))
 const EventDetailV2       = lazy(() => import('./pages-v2/EventDetail'))
@@ -27,6 +27,7 @@ const PaymentSuccessV2    = lazy(() => import('./pages-v2/PaymentCallback/Paymen
 const PaymentFailV2       = lazy(() => import('./pages-v2/PaymentCallback/PaymentFailPage'))
 const PaymentCompleteV2   = lazy(() => import('./pages-v2/PaymentCallback/PaymentCompletePage'))
 const MyPageV2            = lazy(() => import('./pages-v2/MyPage'))
+const LandingV2           = lazy(() => import('./pages-v2/Landing'))
 
 // lazy – v2 dev showcase (Landing.plan §12.1 PR 1; cutover/PR 4 cleanup 시 제거)
 const TypedTerminalShowcase = lazy(() => import('./pages-v2/_dev/TypedTerminalShowcase'))
@@ -105,7 +106,8 @@ export default function App() {
 
         {/* 일반 사용자 */}
         <Route element={<Layout />}>
-          <Route path="/"                       element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />
+          <Route path="/"                       element={<VersionedRoute v1={<EventList />} v2={<LandingV2 />} />} />
+          <Route path="/events"                 element={<VersionedRoute v1={<EventList />} v2={<EventListV2 />} />} />
           <Route path="/events/:id"             element={<VersionedRoute v1={<EventDetail />} v2={<EventDetailV2 />} />} />
           <Route path="/cart"                   element={<RequireAuth><VersionedRoute v1={<Cart />} v2={<CartV2 />} /></RequireAuth>} />
           <Route path="/payment"                element={<RequireAuth><Payment /></RequireAuth>} />
