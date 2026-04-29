@@ -139,6 +139,9 @@ export interface EventItem {
   remainingQuantity: number;
   status: string;
   thumbnailUrl?: string;
+  // 백엔드가 내려주는 경우 한정 (옵셔널). 프론트에서 판매 예정 이벤트를 숨기는 데 사용.
+  saleStartAt?: string;
+  saleEndAt?: string;
 }
 export interface EventListResponse {
   content: EventItem[];
@@ -397,9 +400,7 @@ export interface OrderItem {
   createdAt: string;
 }
 export interface OrderListResponse {
-  content: OrderItem[];
-  page: number;
-  size: number;
+  orders: OrderItem[];
   totalElements: number;
   totalPages: number;
 }
@@ -432,11 +433,12 @@ export interface TicketListRequest {
   size?: number;
 }
 export interface TicketItem {
-  ticketId: number;
+  ticketId: string;
   eventId: string;
   eventTitle: string;
-  eventDate: string;
+  eventDateTime: string;
   status: string;
+  issuedAt: string;
 }
 export interface TicketListResponse {
   tickets: TicketItem[];

@@ -1,0 +1,41 @@
+/* section-head.css
+   Source: docs/archive/v2-cutover/prototype/Landing.jsx SectionHead helper
+   (lines 273-284). Layout/typography per shared-components.plan.md
+   §4.9 — single variant, h2 fixed (level prop deferred). // prefix
+   on hint is added by the component, callers pass plain label. */
+
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-head-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-4);
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.section-head-title {
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.section-head-caption {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.section-head-action {
+  flex: none;
+}

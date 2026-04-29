@@ -1,0 +1,98 @@
+/* DevTicket v2 — Orders tab styles
+   Source: docs/archive/v2-cutover/MyPage.plan.md §6 + prototype/MyPage.jsx orders tab.
+   Scope: classes used in pages/MyPage/tabs/Orders/.
+   1차 PR: 4컬럼 표 (eventTitle 제외 — §6.2.4 옵션 1). */
+
+/* ── Card shell (§6.1.3 flat-card overlay) ─────────────────────── */
+.orders-card {
+  overflow: hidden;
+}
+
+/* ── Table (§6.1.1) ────────────────────────────────────────────── */
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* ── Header (§6.1.1 thead surface-2 uppercase mono 11.5px) ─────── */
+.orders-table-header {
+  background: var(--surface-2);
+}
+.orders-th {
+  padding: 10px 14px;
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Rows (§6.1.1 tbody border-top) ────────────────────────────── */
+.order-row + .order-row > .order-cell {
+  border-top: 1px solid var(--border);
+}
+.order-cell {
+  padding: 12px 14px;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+/* ── Cell variants (§6.1.1 / §6.2.5) ───────────────────────────── */
+.order-cell-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--syn-fn);
+  white-space: nowrap;
+}
+.order-cell-amount {
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.order-cell-status {
+  white-space: nowrap;
+}
+.order-cell-date {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.order-cell-action {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+
+/* ── Pager (§6.3.5) ────────────────────────────────────────────── */
+.orders-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.orders-pager-info {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* ── Skeleton (§6.3.2 OrdersSkeleton — 빈 tr × 8) ──────────────── */
+.orders-skeleton .order-row-skeleton .order-cell {
+  height: 44px;
+}
+.orders-skeleton-bar {
+  display: inline-block;
+  height: 12px;
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  vertical-align: middle;
+}
+.orders-skeleton-bar-sm   { width: 80px; }
+.orders-skeleton-bar-md   { width: 60%; }
+.orders-skeleton-bar-chip { width: 64px; height: 18px; border-radius: var(--r-full); }

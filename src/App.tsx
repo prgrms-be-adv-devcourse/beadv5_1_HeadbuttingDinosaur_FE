@@ -5,11 +5,9 @@ import Layout from './components/Layout'
 import SellerLayout from './components/SellerLayout'
 import AdminLayout from './components/AdminLayout'
 import Loading from './components/Loading'
+import { RequireAuth } from './router'
 
 // 즉시 로드 (비로그인 첫 화면)
-import EventList         from './pages/EventList'
-import EventDetail       from './pages/EventDetail'
-import Login             from './pages/Login'
 import Signup            from './pages/Signup'
 import NotFound          from './pages/NotFound'
 
@@ -17,15 +15,21 @@ import NotFound          from './pages/NotFound'
 const OAuthCallback       = lazy(() => import('./pages/OAuthCallback'))
 const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
 
+// lazy – 메인 페이지
+const Login             = lazy(() => import('./pages/Login'))
+const EventList         = lazy(() => import('./pages/EventList'))
+const EventDetail       = lazy(() => import('./pages/EventDetail'))
+const Cart              = lazy(() => import('./pages/Cart'))
+const PaymentSuccess    = lazy(() => import('./pages/PaymentCallback/PaymentSuccessPage'))
+const PaymentFail       = lazy(() => import('./pages/PaymentCallback/PaymentFailPage'))
+const PaymentComplete   = lazy(() => import('./pages/PaymentCallback/PaymentCompletePage'))
+const MyPage            = lazy(() => import('./pages/MyPage'))
+const Landing           = lazy(() => import('./pages/Landing'))
+
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
-const Cart                = lazy(() => import('./pages/Cart'))
 const Payment             = lazy(() => import('./pages/Payment'))
-const PaymentComplete     = lazy(() => import('./pages/PaymentComplete'))
-const MyPage              = lazy(() => import('./pages/MyPage'))
 const SellerApply         = lazy(() => import('./pages/SellerApply'))
-const PaymentSuccess      = lazy(() => import('./pages/PaymentSuccess'))
-const PaymentFail         = lazy(() => import('./pages/PaymentFail'))
 const WalletChargeSuccess = lazy(() => import('./pages/WalletChargeSuccess'))
 const WalletChargeFail    = lazy(() => import('./pages/WalletChargeFail'))
 
@@ -46,13 +50,6 @@ const AdminSettlementDetail  = lazy(() => import('./pages/admin/AdminSettlementD
 const AdminTechStacks        = lazy(() => import('./pages/admin/AdminTechStacks'))
 
 // ── 가드 ──────────────────────────────────────────────────────────
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, isLoading } = useAuth()
-  if (isLoading) return <Loading fullscreen />
-  if (!isLoggedIn) return <Navigate to="/login" replace />
-  return <>{children}</>
-}
-
 function RequireSeller({ children }: { children: React.ReactNode }) {
   const { role, isLoading } = useAuth()
   if (isLoading) return <Loading fullscreen />
@@ -83,12 +80,13 @@ export default function App() {
 
         {/* 일반 사용자 */}
         <Route element={<Layout />}>
-          <Route path="/"                       element={<EventList />} />
+          <Route path="/"                       element={<Landing />} />
+          <Route path="/events"                 element={<EventList />} />
           <Route path="/events/:id"             element={<EventDetail />} />
           <Route path="/cart"                   element={<RequireAuth><Cart /></RequireAuth>} />
           <Route path="/payment"                element={<RequireAuth><Payment /></RequireAuth>} />
           <Route path="/payment/complete"       element={<RequireAuth><PaymentComplete /></RequireAuth>} />
-          <Route path="/mypage"                 element={<RequireAuth><MyPage /></RequireAuth>} />
+          <Route path="/mypage/*"               element={<RequireAuth><MyPage /></RequireAuth>} />
           <Route path="/seller-apply"           element={<RequireAuth><SellerApply /></RequireAuth>} />
           <Route path="/payment/success"        element={<RequireAuth><PaymentSuccess /></RequireAuth>} />
           <Route path="/payment/fail"           element={<RequireAuth><PaymentFail /></RequireAuth>} />

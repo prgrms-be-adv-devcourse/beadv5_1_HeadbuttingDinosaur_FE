@@ -1,0 +1,78 @@
+/* button.css
+   Source: docs/archive/v2-cutover/prototype/ide-theme.css `.btn` block.
+   Sizing/border/state per shared-components.plan.md §4.6 (heights
+   28/36/44 px replace prototype's 26/32/40, ghost border uses
+   border-2, focus-visible ring is new). Uses @keyframes spin from
+   global.css for the loading spinner. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: all 0.12s;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ── Variant ──────────────────────────────────────── */
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border-color: var(--border-2);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ── Size ─────────────────────────────────────────── */
+.btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.btn-md { height: 36px; padding: 0 14px; font-size: 13.5px; }
+.btn-lg { height: 44px; padding: 0 18px; font-size: 14px; }
+
+/* ── Modifier ─────────────────────────────────────── */
+.btn-full { width: 100%; }
+
+/* ── State ────────────────────────────────────────── */
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Loading ──────────────────────────────────────── */
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Wrapper for children — keeps label as a single flex item alongside
+ * iconStart/iconEnd slots, simplifies future truncation rules. */
+.btn-label {
+  display: inline-flex;
+  align-items: center;
+}
