@@ -1,5 +1,5 @@
 /* status-chip.css
-   Source: docs/redesign/prototype/ide-theme.css `.status-chip` block.
+   Source: docs/archive/v2-cutover/prototype/ide-theme.css `.status-chip` block.
    Variant → token map per shared-components.plan.md §4.4 (note: §4.4 maps
    `ok` to term-green tokens, diverging from prototype's success-* — plan
    is authoritative). dot color is variant-specific, not currentColor. */

@@ -11,7 +11,7 @@ import { SidebarUpcoming } from './SidebarUpcoming';
 import { SidebarSession } from './SidebarSession';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-6.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-6.
  *
  * Container only — owns the two collapse states (menu, upcoming) per §3-6 and
  * gates SidebarSession on auth (§4-2). Session is always expanded (§3-9).

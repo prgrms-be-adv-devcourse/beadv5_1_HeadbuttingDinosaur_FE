@@ -1,5 +1,5 @@
 /* quantity-stepper.css
-   Source: docs/redesign/prototype EventDetail.jsx qtyBtn (md) and
+   Source: docs/archive/v2-cutover/prototype EventDetail.jsx qtyBtn (md) and
    Cart.jsx qtyBtnSm (sm). State spec per shared-components.plan.md
    §4.13 — at-min/at-max disable the boundary button automatically;
    focus-visible ring is new in v2 (mirrors Button/Card pattern). */

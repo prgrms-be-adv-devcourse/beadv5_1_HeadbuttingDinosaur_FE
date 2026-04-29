@@ -3,7 +3,7 @@ import { getCart } from '@/api/cart.api';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
- * Source: docs/redesign/layout.plan.md §4-4 (1차 안).
+ * Source: docs/archive/v2-cutover/layout.plan.md §4-4 (1차 안).
  *
  * Layout-internal cart badge feed. Reads `isLoggedIn` from AuthContext, fetches
  * `/cart` on login transition, returns 0 while logged out (no API call).

@@ -1,5 +1,5 @@
 /* chip.css
-   Source: docs/redesign/prototype/ide-theme.css `.chip` block.
+   Source: docs/archive/v2-cutover/prototype/ide-theme.css `.chip` block.
    Sizing/hover follow shared-components.plan.md §4.5 (5px 10px /
    13px / radius 6, hover→text-2) — diverges from prototype where
    the plan is authoritative. focus-visible ring is new per §4.5. */

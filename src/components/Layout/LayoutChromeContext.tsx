@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-2.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-2.
  *
  * `paletteOpen` is exposed on top of the §3-2 listed members so the consumer
  * (Layout) can wire it into <CommandPalette open={…} onClose={…} /> per §3-13

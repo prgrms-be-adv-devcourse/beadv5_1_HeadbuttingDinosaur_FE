@@ -1,7 +1,7 @@
 /**
  * Cart 페이지 어댑터 — API DTO ↔ 페이지 VM 변환.
  *
- * 설계 근거: docs/redesign/Cart.plan.md
+ * 설계 근거: docs/archive/v2-cutover/Cart.plan.md
  *  - § 4 어댑트 매핑 (요약) 표
  *  - § 4 표 1 (`updateCartItemQuantity` 응답은 `{ cartItemId, quantity }` 만 → 부분 머지)
  *  - § 4 표 2 (`createOrder` → `OrderResponse`)

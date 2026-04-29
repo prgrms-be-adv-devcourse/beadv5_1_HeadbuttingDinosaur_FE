@@ -1,7 +1,7 @@
 import type { SessionUser } from '../types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-9.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-9.
  *
  * Session row is always expanded (no toggle) — gating logged-out rendering is
  * the parent's responsibility, so user is always non-null here.

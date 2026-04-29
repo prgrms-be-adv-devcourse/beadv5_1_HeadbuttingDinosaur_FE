@@ -1,8 +1,8 @@
 /* ==========================================================================
    Landing page — v2
    Tokens: src/styles/tokens.css
-   Spec:   docs/redesign/Spec.md § 6
-   Plan:   docs/redesign/Landing.plan.md § 3 (TypedTerminal), § 12.1 (PR 1),
+   Spec:   docs/archive/v2-cutover/Spec.md § 6
+   Plan:   docs/archive/v2-cutover/Landing.plan.md § 3 (TypedTerminal), § 12.1 (PR 1),
                                           § 12.2 (Hero + Stats, PR 2)
 
    Sections appear top-to-bottom: TypedTerminal → Hero → Stats.

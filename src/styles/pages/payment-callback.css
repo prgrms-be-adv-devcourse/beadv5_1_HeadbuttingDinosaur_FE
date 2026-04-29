@@ -1,5 +1,5 @@
 /* DevTicket v2 — Payment callback page styles
-   Source: docs/redesign/Cart.plan.md § 9.1-8 (decision row)
+   Source: docs/archive/v2-cutover/Cart.plan.md § 9.1-8 (decision row)
            + v1 pages/Payment{Success,Fail,Complete}.tsx visual intent
    Scope:  classes prefixed with `payment-callback`, `payment-status-icon`,
            `payment-receipt`, `payment-actions` are local to the three v2

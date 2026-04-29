@@ -2,7 +2,7 @@ import { Icon } from '../../Icon';
 import type { CategoryCount, NavigateFn, RouteKey } from '../types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-7.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-7.
  *
  * Item active rule per §4-1: simple 1:1 with currentRoute (events item is
  * active only on 'events', not 'detail' — distinct from ActivityBar).

@@ -1,6 +1,6 @@
 /**
  * Shared types for the v2 Layout chrome.
- * Source: docs/redesign/layout.plan.md §3-1.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-1.
  */
 
 export type RouteKey =

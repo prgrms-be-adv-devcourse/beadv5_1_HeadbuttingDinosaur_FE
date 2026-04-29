@@ -1,7 +1,7 @@
 /* ide-chrome.css
  * Layout chrome (IDE skeleton) only. Token consumer — depends on tokens.css.
  * Page-body classes (terminal, json-card, btn, chip, form, syntax) live elsewhere.
- * Source: docs/redesign/prototype/ide-theme.css L98-805 (chrome subset).
+ * Source: docs/archive/v2-cutover/prototype/ide-theme.css L98-805 (chrome subset).
  */
 
 /* ─── Grid container ──────────────────────────────────── */

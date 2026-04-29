@@ -1,4 +1,4 @@
-/* Source: docs/redesign/prototype/common.jsx — fmtDate / fmtPrice / fmtISO.
+/* Source: docs/archive/v2-cutover/prototype/common.jsx — fmtDate / fmtPrice / fmtISO.
  *
  * Output matches prototype verbatim:
  *   fmtDate('2026-05-18T14:00')   →  '2026.05.18 14:00'   (local time)

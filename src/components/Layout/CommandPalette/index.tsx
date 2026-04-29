@@ -4,7 +4,7 @@ import { PaletteList } from './PaletteList';
 import { usePaletteCommands } from './usePaletteCommands';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-13 + §6-7 focus trap.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-13 + §6-7 focus trap.
  *
  * Lifecycle (§6-7):
  *   open=true  → capture document.activeElement, reset query/index, focus input

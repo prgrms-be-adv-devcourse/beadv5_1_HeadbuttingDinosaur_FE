@@ -2,7 +2,7 @@ import { Icon, type IconName } from '../../Icon';
 import type { PaletteItem } from '../types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-14 + §6-7 a11y.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-14 + §6-7 a11y.
  *
  * Empty-state rendering ("검색 결과가 없습니다") is this component's
  * responsibility per §3-14. When empty, the listbox is omitted entirely —

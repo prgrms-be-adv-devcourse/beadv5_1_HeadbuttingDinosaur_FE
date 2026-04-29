@@ -3,7 +3,7 @@ import { Icon } from '../../Icon';
 import type { UpcomingEventVM } from '../types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-8.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-8.
  *
  * Header is a <button> per §6-6 (aria-expanded + aria-controls); list is a
  * <ul role="list"> matching the controls id. Each row is two stacked lines

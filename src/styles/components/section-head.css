@@ -1,5 +1,5 @@
 /* section-head.css
-   Source: docs/redesign/prototype/Landing.jsx SectionHead helper
+   Source: docs/archive/v2-cutover/prototype/Landing.jsx SectionHead helper
    (lines 273-284). Layout/typography per shared-components.plan.md
    §4.9 — single variant, h2 fixed (level prop deferred). // prefix
    on hint is added by the component, callers pass plain label. */

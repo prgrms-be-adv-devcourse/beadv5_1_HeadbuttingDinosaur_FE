@@ -1,7 +1,7 @@
 /**
  * Cart 페이지 v2 타입.
  *
- * 설계 근거: docs/redesign/Cart.plan.md
+ * 설계 근거: docs/archive/v2-cutover/Cart.plan.md
  *  - § 1 (디렉토리 구조 / 신규 정의가 필요한 이유)
  *  - § 3 (서버 only · CartQuery 디스크리미네이티드 유니온)
  *  - § 4 (어댑트 매핑 · OrderResultVM)

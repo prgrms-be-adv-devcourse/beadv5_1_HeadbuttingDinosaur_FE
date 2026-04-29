@@ -2,7 +2,7 @@ import { Icon, type IconName } from '../Icon';
 import type { ActivityItem, NavigateFn, RouteKey } from './types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-5 + §6-6 a11y markup.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-5 + §6-6 a11y markup.
  *
  * Items list is a component-internal constant per §3-5. The settings button
  * is rendered separately after the spacer; it is intentionally not wired —

@@ -27,7 +27,7 @@ import type {
 import { pathFromRoute, routeFromPath } from './utils';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-3.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-3.
  *
  * Single-prop API (children?). When omitted, renders <Outlet/> from the
  * router so this works as both a route element and a manual wrapper (the

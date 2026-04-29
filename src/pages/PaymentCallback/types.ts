@@ -1,9 +1,8 @@
 /**
  * 결제 콜백 페이지 v2 타입.
  *
- * 설계 근거: docs/redesign/Cart.plan.md
+ * 설계 근거: docs/archive/v2-cutover/Cart.plan.md
  *  - § 9.1-8 (결제 완료/실패 페이지를 v2 톤앤매너로 리스킨)
- *  - § 9.4 (신규 PR: /payment/{success,fail,complete} 3개를 VersionedRoute 로 토글)
  *  - § 10.3.1 PR 5 (별도 plan 문서로 분리 권장 — 본 PR 은 시각 골격만)
  *
  * 스코프: PaymentSuccess(Toss redirect 직후 confirm 처리) / PaymentFail

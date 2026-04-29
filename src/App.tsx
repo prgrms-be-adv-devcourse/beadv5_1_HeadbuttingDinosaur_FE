@@ -15,7 +15,7 @@ import NotFound          from './pages/NotFound'
 const OAuthCallback       = lazy(() => import('./pages/OAuthCallback'))
 const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
 
-// lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1, Cart.plan §10.1 / §10.3 PR 5, Landing.plan §12.4 PR 4)
+// lazy – 메인 페이지
 const Login             = lazy(() => import('./pages/Login'))
 const EventList         = lazy(() => import('./pages/EventList'))
 const EventDetail       = lazy(() => import('./pages/EventDetail'))

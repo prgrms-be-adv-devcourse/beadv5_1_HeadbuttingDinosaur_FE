@@ -1,5 +1,5 @@
 /* empty-state.css
-   Source: docs/redesign/prototype Cart.jsx + MyPage.jsx empty-state
+   Source: docs/archive/v2-cutover/prototype Cart.jsx + MyPage.jsx empty-state
    surface (centered, padding 40, emoji separated from title). Per
    shared-components.plan.md §4.15: single fixed size, own surface
    (no Card wrap needed per §3.4). EventList ports its inline ".hint"

@@ -1,6 +1,6 @@
 /**
  * URL ↔ RouteKey conversion for the v2 Layout chrome.
- * Source: docs/redesign/layout.plan.md §4-1.
+ * Source: docs/archive/v2-cutover/layout.plan.md §4-1.
  *
  * `/` maps to 'home' per the Landing-introduced policy. Until the cutover PR
  * wires Landing to `/`, this PR's dev preview drives currentRoute directly via

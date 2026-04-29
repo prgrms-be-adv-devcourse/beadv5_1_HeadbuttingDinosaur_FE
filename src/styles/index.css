@@ -2,7 +2,7 @@
    Single entry point for v2 tokens + globals + component CSS.
    Imported once from src/main.tsx. Add new component CSS files below.
    Layout chrome (ide-chrome.css) is loaded by Layout itself per its own
-   migration track (see docs/redesign/layout.plan.md). */
+   migration track (see docs/archive/v2-cutover/layout.plan.md). */
 
 @import './tokens.css';
 @import './global.css';

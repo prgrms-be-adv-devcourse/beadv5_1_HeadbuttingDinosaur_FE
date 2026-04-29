@@ -1,5 +1,5 @@
 /* meta-line.css
-   Source: docs/redesign/prototype EventList.jsx MetaLine (compact)
+   Source: docs/archive/v2-cutover/prototype EventList.jsx MetaLine (compact)
    and EventDetail.jsx InfoRow (full). Two presentations toggled by
    `compact` prop per shared-components.plan.md §4.14:
    - compact (default, EventList card meta): mono uppercase 30px label

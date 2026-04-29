@@ -4,7 +4,7 @@ import type { TerminalLine } from '../types';
 
 /**
  * Landing Hero 우측 터미널 타이핑 데모.
- * Plan: docs/redesign/Landing.plan.md §3, §12.1.
+ * Plan: docs/archive/v2-cutover/Landing.plan.md §3, §12.1.
  *
  * - 라이브러리: react-type-animation (SPEC §9 예외 도입).
  * - 접근성: 컨테이너 aria-hidden + sr-only 요약 1줄. 포커스 미부여.

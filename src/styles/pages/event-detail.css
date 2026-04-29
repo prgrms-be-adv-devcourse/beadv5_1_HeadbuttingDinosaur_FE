@@ -1,5 +1,5 @@
 /* DevTicket v2 — EventDetail page styles
-   Source: docs/redesign/prototype/EventDetail.jsx + docs/redesign/EventDetail.plan.md
+   Source: docs/archive/v2-cutover/prototype/EventDetail.jsx + docs/archive/v2-cutover/EventDetail.plan.md
    Scope: classes prefixed with `ed-` are local to /events/:id (v2). */
 
 /* Layout grid (§2 EventDetail container) — 2-column main + sticky right panel */

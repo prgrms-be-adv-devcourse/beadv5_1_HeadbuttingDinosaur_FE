@@ -7,7 +7,7 @@ import type { PaletteItem } from '../types';
 import { pathFromRoute } from '../utils';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-15.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-15.
  *
  * Static commands (6 routes / theme / login-logout) are filtered locally on
  * label+hint substring; event search results are merged in via a debounced

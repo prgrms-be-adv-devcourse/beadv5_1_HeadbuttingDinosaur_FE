@@ -2,7 +2,7 @@ import { forwardRef } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 
 /**
- * Source: docs/redesign/prototype/common.jsx — Icon + FileIcon set, ported to
+ * Source: docs/archive/v2-cutover/prototype/common.jsx — Icon + FileIcon set, ported to
  * typed React components. Decorative by default (aria-hidden="true"); consumers
  * are expected to label the surrounding interactive element.
  *

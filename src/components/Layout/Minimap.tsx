@@ -1,7 +1,7 @@
 import type { RouteKey } from './types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-11.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-11.
  *
  * Decorative right-rail "minimap" that mimics IDE syntax patterns. No
  * interaction; `aria-hidden` per §6-6.

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { NavigateFn } from '../types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-16 + §6-5 keyboard table.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-16 + §6-5 keyboard table.
  *
  * Always-on keys (work even inside inputs):
  *   Cmd/Ctrl+K → onOpenPalette

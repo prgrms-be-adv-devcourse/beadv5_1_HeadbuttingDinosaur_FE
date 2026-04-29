@@ -2,7 +2,7 @@ import { Icon } from '../Icon';
 import type { RouteKey, SessionUser } from './types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-12 + §6-6 a11y markup.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-12 + §6-6 a11y markup.
  *
  * Layout (left → right):
  *   git icon · DevTicket | ● 정상 | route label | (spacer) | 한국어 | ● user | ⌘K

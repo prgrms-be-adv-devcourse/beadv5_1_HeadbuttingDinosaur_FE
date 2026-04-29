@@ -1,4 +1,4 @@
-/* Source: docs/redesign/prototype/common.jsx — accent() + ACCENT map.
+/* Source: docs/archive/v2-cutover/prototype/common.jsx — accent() + ACCENT map.
  *
  * §3.0 contract: components do not know about colors; callers compute
  * accent(eventId) and pass the hex into <AccentMediaBox accent={...}>.

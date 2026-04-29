@@ -1,5 +1,5 @@
 /* button.css
-   Source: docs/redesign/prototype/ide-theme.css `.btn` block.
+   Source: docs/archive/v2-cutover/prototype/ide-theme.css `.btn` block.
    Sizing/border/state per shared-components.plan.md §4.6 (heights
    28/36/44 px replace prototype's 26/32/40, ghost border uses
    border-2, focus-visible ring is new). Uses @keyframes spin from

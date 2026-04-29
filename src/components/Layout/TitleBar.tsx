@@ -2,7 +2,7 @@ import { Icon } from '../Icon';
 import type { ThemeMode } from './types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-4 + §6-6 a11y markup.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-4 + §6-6 a11y markup.
  *
  * theme arrives as a 'light' | 'dark' resolved value (§4-3): 'system' has been
  * collapsed at the Layout level. Sun icon means "switch to light" (so it shows

@@ -4,7 +4,7 @@ import type { RouteKey } from './types';
 import { pathFromRoute, routeFromPath } from './utils';
 
 /**
- * Source: docs/redesign/layout.plan.md §7-0, §7-2 Step 8.
+ * Source: docs/archive/v2-cutover/layout.plan.md §7-0, §7-2 Step 8.
  *
  * Dev-only verification harness for the v2 Layout chrome. Mounted via
  * main.tsx when `import.meta.env.DEV && location.pathname === '/__layout-preview'`.

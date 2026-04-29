@@ -3,7 +3,7 @@ import { Icon, type IconName } from '../Icon';
 import type { RouteKey, TabDef } from './types';
 
 /**
- * Source: docs/redesign/layout.plan.md §3-10.
+ * Source: docs/archive/v2-cutover/layout.plan.md §3-10.
  *
  * Each tab is a <div role="tab"> rather than a <button> so the inner close
  * <button> remains valid HTML (button-in-button is invalid). Selection is
