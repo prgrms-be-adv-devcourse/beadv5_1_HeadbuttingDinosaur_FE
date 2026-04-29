@@ -9,7 +9,9 @@ export type RouteKey =
   | 'detail'
   | 'cart'
   | 'mypage'
-  | 'login';
+  | 'login'
+  | 'seller'
+  | 'admin';
 
 export type ActivityKey = RouteKey | 'search' | 'settings';
 

@@ -34,6 +34,8 @@ const MOCK_LABEL: Record<RouteKey, string> = {
   cart: '장바구니',
   mypage: '마이페이지',
   login: '로그인',
+  seller: '판매자 센터',
+  admin: '관리자 패널',
 };
 
 function MockPane({ route }: { route: RouteKey }) {
