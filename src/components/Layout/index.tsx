@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getEvents } from '@/api/events.api';
@@ -24,7 +24,7 @@ import type {
   TabDef,
   UpcomingEventVM,
 } from './types';
-import { pathFromRoute, routeFromPath } from './utils';
+import { detailIdFromPath, pathFromRoute, routeFromPath } from './utils';
 
 /**
  * Source: docs/archive/v2-cutover/layout.plan.md §3-3.
@@ -128,8 +128,18 @@ function LayoutInner({ children }: LayoutProps) {
     [events],
   );
 
+  const lastDetailIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = detailIdFromPath(location.pathname);
+    if (id) lastDetailIdRef.current = id;
+  }, [location.pathname]);
+
   const onNavigate: NavigateFn = (key, params) => {
-    navigate(pathFromRoute(key, params));
+    const resolvedParams =
+      key === 'detail' && !params?.id && lastDetailIdRef.current
+        ? { ...params, id: lastDetailIdRef.current }
+        : params;
+    navigate(pathFromRoute(key, resolvedParams));
   };
 
   useGlobalShortcuts({
