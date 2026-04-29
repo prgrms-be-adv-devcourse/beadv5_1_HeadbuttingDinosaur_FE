@@ -29,13 +29,6 @@ const PaymentCompleteV2   = lazy(() => import('./pages-v2/PaymentCallback/Paymen
 const MyPageV2            = lazy(() => import('./pages-v2/MyPage'))
 const LandingV2           = lazy(() => import('./pages-v2/Landing'))
 
-// lazy – v2 dev showcase (Landing.plan §12.1 PR 1; cutover/PR 4 cleanup 시 제거)
-const TypedTerminalShowcase = lazy(() => import('./pages-v2/_dev/TypedTerminalShowcase'))
-// lazy – v2 dev showcase (Landing.plan §12.2 PR 2; cutover/PR 4 cleanup 시 제거)
-const HeroStatsShowcase     = lazy(() => import('./pages-v2/_dev/HeroStatsShowcase'))
-// lazy – v2 dev showcase (Landing.plan §12.3 PR 3; cutover/PR 4 cleanup 시 제거)
-const CategoriesFeaturedShowcase = lazy(() => import('./pages-v2/_dev/CategoriesFeaturedShowcase'))
-
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
 const Cart                = lazy(() => import('./pages/Cart'))
@@ -91,11 +84,6 @@ export default function App() {
         {/* 소셜 로그인 */}
         <Route path="/oauth/callback"      element={<OAuthCallback />} />
         <Route path="/social/profile-setup" element={<SocialProfileSetup />} />
-
-        {/* v2 dev showcase (cutover/PR 4 cleanup 시 제거) */}
-        <Route path="/_dev/typed-terminal"               element={<TypedTerminalShowcase />} />
-        <Route path="/_dev/landing-hero-stats"           element={<HeroStatsShowcase />} />
-        <Route path="/_dev/landing-categories-featured" element={<CategoriesFeaturedShowcase />} />
 
         {/* 일반 사용자 */}
         <Route element={<Layout />}>
