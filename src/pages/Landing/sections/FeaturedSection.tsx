@@ -39,12 +39,16 @@ export function FeaturedSection({ query }: FeaturedSectionProps) {
   const isError = query.status === 'error' && !data;
   const isLoading = query.status === 'loading' && !data;
   const isEmpty = query.status === 'success' && data && data.length === 0;
+  const isLoginRequired = query.status === 'login-required';
 
   const handleSeeAll = (): void => {
     navigate('/events?v=2');
   };
   const handleRowClick = (eventId: string): void => {
     navigate(`/events/${eventId}?v=2`);
+  };
+  const handleLogin = (): void => {
+    navigate('/login');
   };
 
   return (
@@ -76,7 +80,7 @@ export function FeaturedSection({ query }: FeaturedSectionProps) {
         </div>
       )}
 
-      {data && !isEmpty && (
+      {data && !isEmpty && !isLoginRequired && (
         <div className="featured-section__list">
           {data.map((ev) => (
             <FeaturedRow
@@ -86,6 +90,23 @@ export function FeaturedSection({ query }: FeaturedSectionProps) {
             />
           ))}
         </div>
+      )}
+
+      {isLoginRequired && (
+        <EmptyState
+          className="featured-section__empty"
+          title="로그인하면 추천 이벤트를 보여드릴게요"
+          message="관심사에 맞는 이벤트를 추천받으려면 로그인이 필요합니다"
+          action={
+            <button
+              type="button"
+              className="featured-section__empty-action"
+              onClick={handleLogin}
+            >
+              로그인하러 가기 →
+            </button>
+          }
+        />
       )}
 
       {isEmpty && (
