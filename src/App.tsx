@@ -8,9 +8,6 @@ import Loading from './components/Loading'
 import { RequireAuth } from './router-v2'
 
 // 즉시 로드 (비로그인 첫 화면)
-import EventList         from './pages/EventList'
-import EventDetail       from './pages/EventDetail'
-import Login             from './pages/Login'
 import Signup            from './pages/Signup'
 import NotFound          from './pages/NotFound'
 
@@ -31,13 +28,8 @@ const LandingV2           = lazy(() => import('./pages-v2/Landing'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))
-const Cart                = lazy(() => import('./pages/Cart'))
 const Payment             = lazy(() => import('./pages/Payment'))
-const PaymentComplete     = lazy(() => import('./pages/PaymentComplete'))
-const MyPage              = lazy(() => import('./pages/MyPage'))
 const SellerApply         = lazy(() => import('./pages/SellerApply'))
-const PaymentSuccess      = lazy(() => import('./pages/PaymentSuccess'))
-const PaymentFail         = lazy(() => import('./pages/PaymentFail'))
 const WalletChargeSuccess = lazy(() => import('./pages/WalletChargeSuccess'))
 const WalletChargeFail    = lazy(() => import('./pages/WalletChargeFail'))
 
