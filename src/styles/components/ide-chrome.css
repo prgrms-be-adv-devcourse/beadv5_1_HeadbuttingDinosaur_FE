@@ -578,10 +578,10 @@ button.side-header {
 }
 
 /* ─── Dark overrides ──────────────────────────────────── */
-/* brand-light 위 텍스트 가독성 보정. tokens.css 가 처리하지 못하는 1건. */
+/* brand-light 위 텍스트 가독성 보정. VS Code 선택 강조 톤. */
 [data-theme="dark"] .palette-item:hover,
 [data-theme="dark"] .palette-item.sel {
-  color: #C7D2FE;
+  color: #75BEFF;
 }
 
 /* ─── Responsive ──────────────────────────────────────── */

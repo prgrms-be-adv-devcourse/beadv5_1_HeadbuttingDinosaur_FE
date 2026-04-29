@@ -121,7 +121,12 @@ export function useFirstPage(): UseFirstPageReturn {
     }
     setState((prev) => ({
       status: 'loading',
-      previous: 'data' in prev ? prev.data : prev.previous,
+      previous:
+        'data' in prev
+          ? prev.data
+          : 'previous' in prev
+            ? prev.previous
+            : undefined,
     }));
 
     let cancelled = false;
@@ -135,7 +140,12 @@ export function useFirstPage(): UseFirstPageReturn {
         setState((prev) => ({
           status: 'error',
           error,
-          previous: 'data' in prev ? prev.data : prev.previous,
+          previous:
+        'data' in prev
+          ? prev.data
+          : 'previous' in prev
+            ? prev.previous
+            : undefined,
         }));
       });
 
@@ -262,7 +272,12 @@ export function useLandingCategories(): UseLandingCategoriesReturn {
     }
     setState((prev) => ({
       status: 'loading',
-      previous: 'data' in prev ? prev.data : prev.previous,
+      previous:
+        'data' in prev
+          ? prev.data
+          : 'previous' in prev
+            ? prev.previous
+            : undefined,
     }));
 
     let cancelled = false;
@@ -278,7 +293,12 @@ export function useLandingCategories(): UseLandingCategoriesReturn {
         setState((prev) => ({
           status: 'error',
           error,
-          previous: 'data' in prev ? prev.data : prev.previous,
+          previous:
+        'data' in prev
+          ? prev.data
+          : 'previous' in prev
+            ? prev.previous
+            : undefined,
         }));
       });
 
@@ -390,6 +410,7 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
   const cacheKey = isLoggedIn ? FEATURED_KEY_AUTH : FEATURED_KEY_ANON;
 
   const [state, setState] = useState<LandingFeaturedQuery>(() => {
+    if (!isLoggedIn) return { status: 'login-required' };
     const hit = featuredCache.get(cacheKey);
     return hit
       ? { status: 'success', data: hit.data, fetchedAt: hit.fetchedAt }
@@ -398,6 +419,12 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    /* 비로그인 시 개인화 추천을 호출하지 않고 안내 상태로 둠 (Cart /
+     * EventDetail 의 'hidden' 패턴과 같은 취지 — 401/500 흡수 + 빈 페치 회피). */
+    if (!isLoggedIn) {
+      setState({ status: 'login-required' });
+      return;
+    }
     const hit = featuredCache.get(cacheKey);
     if (hit && Date.now() - hit.fetchedAt < FEATURED_STALE_MS) {
       setState({ status: 'success', data: hit.data, fetchedAt: hit.fetchedAt });
@@ -405,7 +432,12 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
     }
     setState((prev) => ({
       status: 'loading',
-      previous: 'data' in prev ? prev.data : prev.previous,
+      previous:
+        'data' in prev
+          ? prev.data
+          : 'previous' in prev
+            ? prev.previous
+            : undefined,
     }));
 
     let cancelled = false;
@@ -419,7 +451,12 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
         setState((prev) => ({
           status: 'error',
           error,
-          previous: 'data' in prev ? prev.data : prev.previous,
+          previous:
+        'data' in prev
+          ? prev.data
+          : 'previous' in prev
+            ? prev.previous
+            : undefined,
         }));
       });
 
