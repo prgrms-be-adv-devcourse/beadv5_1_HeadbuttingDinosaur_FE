@@ -51,18 +51,25 @@ export interface LayoutProps {
 
 const CATEGORY_LIST = ['컨퍼런스', '밋업', '해커톤', '스터디', '세미나', '워크샵'];
 
+/**
+ * Pinned tabs (no close affordance). `detail` is intentionally *not* in this
+ * list — it becomes a dynamic per-event tab that is opened on first visit
+ * and dismissable by the user. Login/seller/admin remain pinned but
+ * conditional on auth state.
+ */
 const BASE_TABS: TabDef[] = [
-  { key: 'home', label: '홈', icon: 'terminal' },
-  { key: 'events', label: '이벤트 목록', icon: 'folder' },
-  { key: 'detail', label: '이벤트 상세', icon: 'file' },
-  { key: 'cart', label: '장바구니', icon: 'cart' },
-  { key: 'mypage', label: '마이페이지', icon: 'user' },
+  { key: 'home', label: '홈', icon: 'terminal', route: 'home' },
+  { key: 'events', label: '이벤트 목록', icon: 'folder', route: 'events' },
+  { key: 'cart', label: '장바구니', icon: 'cart', route: 'cart' },
+  { key: 'mypage', label: '마이페이지', icon: 'user', route: 'mypage' },
 ];
 
-const LOGIN_TAB: TabDef = { key: 'login', label: '로그인', icon: 'terminal' };
+const LOGIN_TAB: TabDef = { key: 'login', label: '로그인', icon: 'terminal', route: 'login' };
 
-const SELLER_TAB: TabDef = { key: 'seller', label: '판매자 센터', icon: 'wallet' };
-const ADMIN_TAB: TabDef = { key: 'admin', label: '관리자 패널', icon: 'settings' };
+const SELLER_TAB: TabDef = { key: 'seller', label: '판매자 센터', icon: 'wallet', route: 'seller' };
+const ADMIN_TAB: TabDef = { key: 'admin', label: '관리자 패널', icon: 'settings', route: 'admin' };
+
+const detailTabKey = (id: string) => `detail:${id}`;
 
 const SIDEBAR_FETCH_SIZE = 50;
 const UPCOMING_LIMIT = 4;
@@ -85,8 +92,10 @@ function LayoutInner({ children }: LayoutProps) {
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
+  const [openDetailIds, setOpenDetailIds] = useState<string[]>([]);
 
   const currentRoute = routeFromPath(location.pathname);
+  const currentDetailId = detailIdFromPath(location.pathname);
   const sessionUser: SessionUser | null = user
     ? { nickname: user.nickname }
     : null;
@@ -134,9 +143,13 @@ function LayoutInner({ children }: LayoutProps) {
 
   const lastDetailIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const id = detailIdFromPath(location.pathname);
-    if (id) lastDetailIdRef.current = id;
-  }, [location.pathname]);
+    if (currentDetailId) {
+      lastDetailIdRef.current = currentDetailId;
+      setOpenDetailIds((prev) =>
+        prev.includes(currentDetailId) ? prev : [...prev, currentDetailId],
+      );
+    }
+  }, [currentDetailId]);
 
   const onNavigate: NavigateFn = (key, params) => {
     const resolvedParams =
@@ -144,6 +157,64 @@ function LayoutInner({ children }: LayoutProps) {
         ? { ...params, id: lastDetailIdRef.current }
         : params;
     navigate(pathFromRoute(key, resolvedParams));
+  };
+
+  const detailTabs = useMemo<TabDef[]>(
+    () =>
+      openDetailIds.map((id) => {
+        const ev = events.find((e) => String(e.eventId) === id);
+        return {
+          key: detailTabKey(id),
+          label: ev?.title ?? `이벤트 #${id}`,
+          icon: 'file',
+          route: 'detail' as const,
+          params: { id },
+          closeable: true,
+        };
+      }),
+    [openDetailIds, events],
+  );
+
+  const tabs = useMemo<TabDef[]>(
+    () => [
+      ...BASE_TABS,
+      ...(isLoggedIn ? [] : [LOGIN_TAB]),
+      ...(role === 'SELLER' || role === 'ADMIN' ? [SELLER_TAB] : []),
+      ...(role === 'ADMIN' ? [ADMIN_TAB] : []),
+      ...detailTabs,
+    ],
+    [isLoggedIn, role, detailTabs],
+  );
+
+  const activeTabKey =
+    currentRoute === 'detail' && currentDetailId
+      ? detailTabKey(currentDetailId)
+      : currentRoute;
+
+  const handleTabSelect = (tab: TabDef) => {
+    onNavigate(tab.route, tab.params);
+  };
+
+  const handleTabClose = (tab: TabDef) => {
+    if (tab.route !== 'detail' || !tab.params?.id) return;
+    const closingId = tab.params.id;
+    if (activeTabKey === tab.key) {
+      // Prefer the neighbouring detail tab; otherwise fall back to the
+      // events list so the editor pane is never left without a route.
+      const idx = openDetailIds.indexOf(closingId);
+      const remaining = openDetailIds.filter((id) => id !== closingId);
+      const fallbackId =
+        remaining[idx] ?? remaining[idx - 1] ?? remaining[remaining.length - 1] ?? null;
+      if (fallbackId) {
+        navigate(pathFromRoute('detail', { id: fallbackId }));
+      } else {
+        navigate(pathFromRoute('events'));
+      }
+    }
+    setOpenDetailIds((prev) => prev.filter((id) => id !== closingId));
+    if (lastDetailIdRef.current === closingId) {
+      lastDetailIdRef.current = null;
+    }
   };
 
   useGlobalShortcuts({
@@ -182,14 +253,10 @@ function LayoutInner({ children }: LayoutProps) {
           onNavigate={onNavigate}
         />
         <TabBar
-          tabs={[
-            ...BASE_TABS,
-            ...(isLoggedIn ? [] : [LOGIN_TAB]),
-            ...(role === 'SELLER' || role === 'ADMIN' ? [SELLER_TAB] : []),
-            ...(role === 'ADMIN' ? [ADMIN_TAB] : []),
-          ]}
-          activeKey={currentRoute}
-          onSelect={onNavigate}
+          tabs={tabs}
+          activeKey={activeTabKey}
+          onSelect={handleTabSelect}
+          onClose={handleTabClose}
         />
         <main className="ide-editor" id="ide-editor" tabIndex={-1}>
           {children ?? <Outlet />}

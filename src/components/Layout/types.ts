@@ -27,10 +27,19 @@ export interface ActivityItem {
   action?: 'palette';
 }
 
+/**
+ * `key` is a string id (not strictly RouteKey) so dynamic tabs like
+ * `detail:<eventId>` can coexist with pinned route tabs. Pinned tabs use
+ * a RouteKey as their key; dynamic tabs encode their target via `route`
+ * + `params` so the tab bar doesn't need to parse the key.
+ */
 export interface TabDef {
-  key: RouteKey;
+  key: string;
   label: string;
   icon: string;
+  route: RouteKey;
+  params?: NavParams;
+  closeable?: boolean;
 }
 
 export interface PaletteItem {
