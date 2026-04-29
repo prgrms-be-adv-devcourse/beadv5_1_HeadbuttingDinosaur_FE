@@ -25,6 +25,7 @@
 
 /* Page-level styles. One file per page route. */
 @import './pages/login.css';
+@import './pages/event-list.css';
 @import './pages/event-detail.css';
 @import './pages/cart.css';
 @import './pages/payment-callback.css';
