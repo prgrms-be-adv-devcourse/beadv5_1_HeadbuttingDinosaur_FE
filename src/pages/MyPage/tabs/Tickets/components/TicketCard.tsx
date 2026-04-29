@@ -12,7 +12,10 @@ interface TicketCardProps {
 
 export function TicketCard({ ticket, onRefunded }: TicketCardProps) {
   const [open, setOpen] = useState(false);
-  const canRefund = ticket.status === 'ISSUED';
+  // Match v1: surface the button for issued tickets *and* unrecognised
+  // backend statuses, then let the dialog's getRefundInfo gate the actual
+  // submit via `refundable`.
+  const canRefund = ticket.status === 'ISSUED' || ticket.status === 'UNKNOWN';
 
   return (
     <Card variant="solid" padding="none" className="ticket-card">

@@ -14,9 +14,9 @@ import type { TabDef } from './types';
  * §6-6 a11y: role="tablist" + aria-label, each tab aria-selected and
  * aria-controls="ide-editor"; close button has explicit aria-label.
  *
- * Close affordance is per-tab via `tab.closeable` so pinned base tabs (home,
- * events, cart, mypage, …) can stay un-closeable while dynamic detail tabs
- * become user-dismissible.
+ * Close affordance is per-tab via `tab.closeable`. Only the home tab is
+ * pinned; route tabs (events/cart/mypage/login/seller/admin) and dynamic
+ * detail tabs are all user-dismissible.
  */
 export interface TabBarProps {
   tabs: TabDef[];
