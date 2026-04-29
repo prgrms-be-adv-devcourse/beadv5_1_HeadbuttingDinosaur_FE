@@ -65,6 +65,75 @@
   border-radius: var(--r-md);
 }
 
+/* ── Charge / Withdraw action panels ───────────────────────────── */
+.wallet-action-panel {
+  margin-bottom: 24px;
+}
+.wallet-action-title {
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.wallet-action-quicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.wallet-quick {
+  padding: 6px 14px;
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.wallet-quick:hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--text);
+}
+.wallet-quick.active {
+  border-color: var(--brand);
+  background: var(--brand-light, var(--surface-2));
+  color: var(--brand);
+  font-weight: var(--fw-semibold);
+}
+.wallet-quick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.wallet-action-input {
+  margin-bottom: 8px;
+}
+.wallet-withdraw-allbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 12px;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.wallet-withdraw-allbtn:hover:not(:disabled) {
+  color: var(--brand);
+}
+.wallet-withdraw-allbtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.wallet-action-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 /* ── Transaction list shell (§12.4 row 7) ──────────────────────── */
 .tx-list-card {
   overflow: hidden;

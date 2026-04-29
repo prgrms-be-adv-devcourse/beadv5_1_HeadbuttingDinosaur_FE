@@ -1,14 +1,19 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { TabErrorBox } from '../../shared/TabErrorBox';
 import { TabFetchState } from '../../shared/TabFetchState';
 import { useWalletBalance } from '../../shared/walletBalance';
 import { BalanceCard } from './components/BalanceCard';
 import { BalanceCardSkeleton } from './components/BalanceCardSkeleton';
+import { ChargePanel } from './components/ChargePanel';
 import { EmptyTransactions } from './components/EmptyTransactions';
 import { TransactionList } from './components/TransactionList';
 import { TransactionsPager } from './components/TransactionsPager';
 import { TransactionsSkeleton } from './components/TransactionsSkeleton';
+import { WithdrawPanel } from './components/WithdrawPanel';
 import { useWalletTransactions } from './hooks';
+
+type Mode = 'idle' | 'charge' | 'withdraw';
 
 export function WalletTab() {
   const balance = useWalletBalance();
@@ -16,6 +21,7 @@ export function WalletTab() {
   const rawPage = Number(sp.get('page') ?? '1');
   const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
   const txState = useWalletTransactions(page);
+  const [mode, setMode] = useState<Mode>('idle');
 
   const onPageChange = (next: number) => {
     setSp((prev) => {
@@ -25,6 +31,11 @@ export function WalletTab() {
       return nextSp;
     });
   };
+
+  const refreshBalance = balance.status !== 'loading' ? balance.refresh : () => {};
+  const refreshTransactions = txState.refetch;
+
+  const balanceAmount = balance.status === 'ready' ? balance.data.amount : 0;
 
   return (
     <div className="wallet-tab">
@@ -36,8 +47,23 @@ export function WalletTab() {
         <BalanceCard
           balance={balance.data.amount}
           lastUpdatedAtLabel={null}
-          onCharge={() => alert('충전 — 준비 중입니다')}
-          onWithdraw={() => alert('출금 — 준비 중입니다')}
+          onCharge={() => setMode((m) => (m === 'charge' ? 'idle' : 'charge'))}
+          onWithdraw={() => setMode((m) => (m === 'withdraw' ? 'idle' : 'withdraw'))}
+        />
+      )}
+
+      {mode === 'charge' && balance.status === 'ready' && (
+        <ChargePanel onCancel={() => setMode('idle')} />
+      )}
+      {mode === 'withdraw' && balance.status === 'ready' && (
+        <WithdrawPanel
+          balance={balanceAmount}
+          onCancel={() => setMode('idle')}
+          onSuccess={() => {
+            setMode('idle');
+            refreshBalance();
+            refreshTransactions();
+          }}
         />
       )}
 
