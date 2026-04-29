@@ -1,4 +1,4 @@
-export type TabKey = 'tickets' | 'orders' | 'wallet' | 'refund';
+export type TabKey = 'tickets' | 'orders' | 'wallet' | 'refund' | 'settings';
 
 export interface ProfileVM {
   initial: string;

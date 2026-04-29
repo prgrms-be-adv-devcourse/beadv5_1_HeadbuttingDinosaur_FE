@@ -13,7 +13,12 @@
 import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { clearCart, getCart, updateCartItemQuantity } from '@/api/cart.api';
+import {
+  clearCart,
+  deleteCartItem,
+  getCart,
+  updateCartItemQuantity,
+} from '@/api/cart.api';
 import {
   apiClient,
   idempotencyConfig,
@@ -123,11 +128,7 @@ const isStatus = (err: unknown, status: number): boolean =>
 export interface UseCartMutationsReturn {
   pendingItemIds: Set<string>;
   setQuantityDelta: (cartItemId: string, delta: 1 | -1) => Promise<void>;
-  /**
-   * 단건 삭제 — v1 백엔드 스펙엔 단건 삭제 API 가 없다. 로컬 상태에서만
-   * 제거하고 결제 시 `cartItemIds` 에서 빠지도록 둔다.
-   */
-  removeItem: (cartItemId: string) => void;
+  removeItem: (cartItemId: string) => Promise<void>;
   /** 전체 삭제 — `DELETE /cart` 호출 + 로컬 비우기. */
   clearAll: () => Promise<void>;
   clearing: boolean;
@@ -163,6 +164,9 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
     [cart, toast],
   );
 
+  // PATCH /cart/items/:id — body `{ quantity: delta }`. 응답은 raw
+  // `CartItemQuantityResponse` (ApiResponse 래퍼 없음 — 백엔드 컨트롤러
+  // `ResponseEntity<CartItemQuantityResponse>`).
   const setQuantityDelta = useCallback(
     async (cartItemId: string, delta: 1 | -1): Promise<void> => {
       if (pendingRef.current.has(cartItemId)) return;
@@ -187,12 +191,24 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
     [cart, handleError, lockItem, unlockItem],
   );
 
+  // DELETE /cart/items/:id — 낙관적으로 즉시 제거 후 실패 시 복구.
   const removeItem = useCallback(
-    (cartItemId: string): void => {
+    async (cartItemId: string): Promise<void> => {
+      if (pendingRef.current.has(cartItemId)) return;
       if (cart.status !== 'success') return;
+      const snapshot = cart.data;
+      lockItem(cartItemId);
       cart.mutate((prev) => applyRemove(prev, cartItemId));
+      try {
+        await deleteCartItem(cartItemId);
+      } catch (err) {
+        cart.mutate(() => snapshot);
+        handleError(err, '항목을 삭제하지 못했습니다.');
+      } finally {
+        unlockItem(cartItemId);
+      }
     },
-    [cart],
+    [cart, handleError, lockItem, unlockItem],
   );
 
   const [clearing, setClearing] = useState(false);

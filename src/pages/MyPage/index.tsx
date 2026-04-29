@@ -4,6 +4,7 @@ import { TicketsTab } from './tabs/Tickets/TicketsTab';
 import { OrdersTab } from './tabs/Orders/OrdersTab';
 import { WalletTab } from './tabs/Wallet/WalletTab';
 import { RefundTab } from './tabs/Refund/RefundTab';
+import { SettingsTab } from './tabs/Settings/SettingsTab';
 
 export function MyPageRouterV2() {
   return (
@@ -14,6 +15,7 @@ export function MyPageRouterV2() {
         <Route path="orders"   element={<OrdersTab />} />
         <Route path="wallet"   element={<WalletTab />} />
         <Route path="refund"   element={<RefundTab />} />
+        <Route path="settings" element={<SettingsTab />} />
         <Route path="*"        element={<Navigate to="tickets" replace />} />
       </Route>
     </Routes>

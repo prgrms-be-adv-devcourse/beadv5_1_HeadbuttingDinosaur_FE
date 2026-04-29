@@ -16,7 +16,6 @@ import { InfoCard } from './components/InfoCard';
 import { NotFoundCard } from './components/NotFoundCard';
 import { PurchasePanel } from './components/PurchasePanel';
 import { RecommendedSection } from './components/RecommendedSection';
-import { RecommendedTeaser } from './components/RecommendedTeaser';
 import { useEventDetail, useRecommendedEvents } from './hooks';
 
 export interface EventDetailProps {
@@ -125,7 +124,6 @@ export function EventDetail({ eventId }: EventDetailProps) {
         </div>
         <PurchasePanel vm={vm} />
       </div>
-      {!isLoggedIn && <RecommendedTeaser />}
       {isLoggedIn && recommended.status === 'ready' && (
         <RecommendedSection cards={recommended.cards} />
       )}
