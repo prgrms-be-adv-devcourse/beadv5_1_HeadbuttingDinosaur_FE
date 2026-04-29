@@ -117,4 +117,7 @@ export type LandingCategoriesQuery =
 export type LandingFeaturedQuery =
   | { status: 'loading'; previous?: FeaturedItemVM[] }
   | { status: 'success'; data: FeaturedItemVM[]; fetchedAt: number }
-  | { status: 'error'; error: unknown; previous?: FeaturedItemVM[] };
+  | { status: 'error'; error: unknown; previous?: FeaturedItemVM[] }
+  /* 비로그인 상태 — Cart / EventDetail 추천 섹션과 동일하게 개인화 추천을
+   * 호출하지 않고 "로그인하면 보여드릴게요" 안내로 대체. */
+  | { status: 'login-required' };

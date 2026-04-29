@@ -9,6 +9,7 @@
  * EventDetail/Cart 가 실제 사용하는 narrow 응답 형태를 별도로 정의한다.
  */
 
+import { toCategoryLabel } from './category';
 import { toDateTimeLabels, isFree } from './eventFormat';
 
 export interface RawRecommendedEvent {
@@ -42,10 +43,16 @@ const toRecommendedCardVM = (raw: RawRecommendedEvent): RecommendedCardVM => {
   const dateLabel = raw.eventDateTime
     ? (toDateTimeLabels(raw.eventDateTime).dateLabel || FALLBACK_DATE_LABEL)
     : FALLBACK_DATE_LABEL;
+  /* enum key / 한글 라벨 / 누락 / "UNDEFINED" 등 어떤 값이 와도 한글 라벨 또는
+   * 기본 라벨('기타')로 정규화. raw 값 그대로 노출돼 "#UNDEFINED" 가 되는 것을
+   * 방지하면서, MEETUP / CONFERENCE 같은 enum 키도 한국어로 매핑한다. */
+  const category = raw.category
+    ? toCategoryLabel(raw.category)
+    : FALLBACK_CATEGORY;
   return {
     eventId: raw.eventId,
     title: raw.title,
-    category: raw.category ?? FALLBACK_CATEGORY,
+    category,
     price,
     isFree: isFree(price),
     eventDateTime: raw.eventDateTime,

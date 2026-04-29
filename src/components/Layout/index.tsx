@@ -5,6 +5,10 @@ import { getEvents } from '@/api/events.api';
 import type { EventItem } from '@/api/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  EVENT_CATEGORY_LABELS,
+  toCategoryLabel,
+} from '@/pages/_shared/category';
 import '@/styles/components/ide-chrome.css';
 
 import { ActivityBar } from './ActivityBar';
@@ -50,7 +54,10 @@ export interface LayoutProps {
   children?: ReactNode;
 }
 
-const CATEGORY_LIST = ['컨퍼런스', '밋업', '해커톤', '스터디', '세미나', '워크샵'];
+/* 백엔드 EventCategory enum (소모임 / 컨퍼런스 / 해커톤 / 스터디 / 프로젝트)
+ * 과 일치. 이전에 하드코딩돼 있던 '밋업 / 세미나 / 워크샵' 은 백엔드 카테고리
+ * 가 아니라 항상 0개로 표시됐었다. */
+const CATEGORY_LIST: readonly string[] = EVENT_CATEGORY_LABELS;
 
 /**
  * Only `home` is pinned. Everything else (events/cart/mypage/login/seller/
@@ -131,7 +138,9 @@ function LayoutInner({ children }: LayoutProps) {
     () =>
       CATEGORY_LIST.map((name) => ({
         name,
-        count: events.filter((e) => e.category === name).length,
+        /* 백엔드가 enum 키(영문)/한글 라벨/대소문자가 섞인 형태로 내려와도
+         * 같은 카테고리로 카운트되도록 toCategoryLabel 로 정규화 후 비교. */
+        count: events.filter((e) => toCategoryLabel(e.category) === name).length,
       })),
     [events],
   );
