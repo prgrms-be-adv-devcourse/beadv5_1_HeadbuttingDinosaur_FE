@@ -1,6 +1,6 @@
 /* ==========================================================================
    Landing page — v2
-   Tokens: src/styles-v2/tokens.css
+   Tokens: src/styles/tokens.css
    Spec:   docs/redesign/Spec.md § 6
    Plan:   docs/redesign/Landing.plan.md § 3 (TypedTerminal), § 12.1 (PR 1),
                                           § 12.2 (Hero + Stats, PR 2)
@@ -704,7 +704,7 @@
    `landing-page` modifier 는 본문 max-width 1100 + 가운데 정렬.
 
    ⚠️ Cart / EventList / EventDetail v2 에서도 같은 클래스명을 쓰지만 현재
-      styles-v2 어디에도 정의가 없음. 본 파일에서 처음 정의 — cutover PR
+      styles 어디에도 정의가 없음. 본 파일에서 처음 정의 — cutover PR
       시 components/ide-chrome.css 로 이동 검토 (§12.4 결정).
    chrome 자체에 모션 없음 → reduced-motion 가드 추가 불필요.
    --------------------------------------------------------------------------*/

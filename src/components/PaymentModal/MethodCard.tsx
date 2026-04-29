@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
  * 시맨틱 button + CSS 클래스로 옮겼다. WAI-ARIA 의 `role="radio"` 를 부여해
  * 부모 컨테이너가 `role="radiogroup"` 을 감싸 그룹 시맨틱을 만들 수 있다.
  *
- * 스타일 토큰은 `styles-v2/components/payment-modal.css` 가 담당.
+ * 스타일 토큰은 `styles/components/payment-modal.css` 가 담당.
  */
 
 export interface MethodCardProps {

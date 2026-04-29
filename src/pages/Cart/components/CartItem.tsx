@@ -16,7 +16,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { accent } from '@/styles-v2/accent';
+import { accent } from '@/styles/accent';
 
 import type { CartItemVM } from '../types';
 

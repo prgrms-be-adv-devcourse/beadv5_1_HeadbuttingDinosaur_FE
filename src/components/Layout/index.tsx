@@ -5,7 +5,7 @@ import { getEvents } from '@/api/events.api';
 import type { EventItem } from '@/api/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import '@/styles-v2/components/ide-chrome.css';
+import '@/styles/components/ide-chrome.css';
 
 import { ActivityBar } from './ActivityBar';
 import { CommandPalette } from './CommandPalette';

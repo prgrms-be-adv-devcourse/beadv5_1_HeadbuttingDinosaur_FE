@@ -5,7 +5,7 @@
  * 유지해 success 전환 시 레이아웃 시프트 방지 (§ 6.2).
  *
  * BEM prefix `cart-skel-*`. 실제 placeholder shimmer/색상은
- * styles-v2/pages/cart.css 에 정의 (EventDetailSkeleton 패턴 동일).
+ * styles/pages/cart.css 에 정의 (EventDetailSkeleton 패턴 동일).
  */
 
 import { Card } from '@/components/Card';

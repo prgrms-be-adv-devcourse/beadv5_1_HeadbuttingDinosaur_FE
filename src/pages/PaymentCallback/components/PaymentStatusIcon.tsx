@@ -2,7 +2,7 @@
  * 결제 콜백 상태 아이콘 — `loading` 스피너 / `success` 체크 / `error` X.
  *
  * Cart.plan.md § 9.1-8 (3 페이지 톤 통일). 공용 `Icon` 의 `check`/`x` 글리프
- * 를 그대로 사용하고, loading 은 styles-v2/global.css 의 `@keyframes spin`
+ * 를 그대로 사용하고, loading 은 styles/global.css 의 `@keyframes spin`
  * 을 재사용한 원형 스피너로 표시.
  *
  * v1(`pages/PaymentSuccess.tsx` 외)의 인라인 style 분기와 동일 시각 의도,

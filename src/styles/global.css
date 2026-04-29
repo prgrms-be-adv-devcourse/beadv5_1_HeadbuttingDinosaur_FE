@@ -4,7 +4,7 @@
    DevTicket v2 — Global styles
    Loads after tokens.css. Defaults that apply to every v2 page.
    IDE-only globals (mono body font, body overflow lock) live in
-   src/styles-v2/components/ide-chrome.css.
+   src/styles/components/ide-chrome.css.
    ========================================================================== */
 
 /* ── Reset ───────────────────────────────────────────── */

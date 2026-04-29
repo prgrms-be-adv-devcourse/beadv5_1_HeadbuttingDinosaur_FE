@@ -1,6 +1,6 @@
 /* ==========================================================================
    Login page — v2
-   Tokens: src/styles-v2/tokens.css
+   Tokens: src/styles/tokens.css
    Spec:   docs/redesign/Spec.md § 1
    Layout: full-viewport center, 460px shell, Card padding=28 (handled by Card).
    No layout chrome (Layout.plan / Login.plan §5.4 D-5).

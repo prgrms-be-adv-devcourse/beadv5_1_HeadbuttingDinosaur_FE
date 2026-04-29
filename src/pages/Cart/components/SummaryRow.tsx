@@ -3,7 +3,7 @@
  *
  * 프로토타입 `Row` (Cart.jsx:89-95)의 인라인 스타일을 BEM 클래스로 변환.
  * 시각 토큰: 일반 13.5px / text-2, bold 15px / text + fontWeight 700,
- * marginBottom 8 (CSS는 styles-v2/pages/cart.css에 정의).
+ * marginBottom 8 (CSS는 styles/pages/cart.css에 정의).
  *
  * `value`는 string으로 받아 포맷 책임을 호출자에게 둔다 (예: `total.toLocaleString() + '원'`).
  */

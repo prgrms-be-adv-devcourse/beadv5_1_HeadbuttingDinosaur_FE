@@ -1,6 +1,6 @@
 import type { TicketItem } from '@/api/types';
 import { fmtDate } from '@/lib/format';
-import { accent } from '@/styles-v2/accent';
+import { accent } from '@/styles/accent';
 import type { TicketStatus, TicketVM } from './types';
 
 type StatusEntry = { variant: TicketVM['statusVariant']; label: string };

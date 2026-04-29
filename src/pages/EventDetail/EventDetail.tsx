@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { ReactNode } from 'react';
 
-import { accent } from '@/styles-v2/accent';
+import { accent } from '@/styles/accent';
 
 import { Breadcrumb } from './components/Breadcrumb';
 import { ErrorState } from './components/ErrorState';

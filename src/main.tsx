@@ -6,7 +6,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ThemeProvider } from './contexts/ThemeContext'
-import './styles-v2/index.css'
+import './styles/index.css'
 import './styles/globals.css'
 
 // Dev-only v2 Layout preview entry. The DEV guard lets Vite/Rollup
