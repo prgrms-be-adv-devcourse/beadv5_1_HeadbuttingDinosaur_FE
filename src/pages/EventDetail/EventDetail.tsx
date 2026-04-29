@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { ReactNode } from 'react';
 
+import { useAuth } from '@/contexts/AuthContext';
 import { accent } from '@/styles/accent';
 
 import { Breadcrumb } from './components/Breadcrumb';
@@ -15,6 +16,7 @@ import { InfoCard } from './components/InfoCard';
 import { NotFoundCard } from './components/NotFoundCard';
 import { PurchasePanel } from './components/PurchasePanel';
 import { RecommendedSection } from './components/RecommendedSection';
+import { RecommendedTeaser } from './components/RecommendedTeaser';
 import { useEventDetail, useRecommendedEvents } from './hooks';
 
 export interface EventDetailProps {
@@ -70,6 +72,7 @@ function describeError(err: unknown): { title: string; message: string } {
 export function EventDetail({ eventId }: EventDetailProps) {
   const query = useEventDetail(eventId);
   const recommended = useRecommendedEvents(eventId);
+  const { isLoggedIn } = useAuth();
 
   /* §5 우선순위: loading → not-found → forbidden → error → success.
    * Recommended section only renders inside the success branch. */
@@ -122,7 +125,8 @@ export function EventDetail({ eventId }: EventDetailProps) {
         </div>
         <PurchasePanel vm={vm} />
       </div>
-      {recommended.status === 'ready' && (
+      {!isLoggedIn && <RecommendedTeaser />}
+      {isLoggedIn && recommended.status === 'ready' && (
         <RecommendedSection cards={recommended.cards} />
       )}
     </PageShell>
