@@ -40,7 +40,7 @@ export const toEventVM = (api: EventItem): EventVM => {
 };
 
 export const toEventListPage = (res: EventListResponse): EventListPage => ({
-  items: res.content.map(toEventVM),
+  items: res.content.map(toEventVM).filter((item) => item.status === 'ON_SALE'),
   page: res.page,
   size: res.size,
   totalElements: res.totalElements,

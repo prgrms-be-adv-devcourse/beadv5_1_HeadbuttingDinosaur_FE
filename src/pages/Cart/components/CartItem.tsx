@@ -12,9 +12,7 @@
  */
 
 import { AccentMediaBox } from '@/components/AccentMediaBox';
-import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { Icon } from '@/components/Icon';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { accent } from '@/styles/accent';
 
@@ -23,14 +21,12 @@ import type { CartItemVM } from '../types';
 export interface CartItemProps {
   item: CartItemVM;
   onQuantityChange: (next: number) => void;
-  onRemove: () => void;
   pending?: boolean;
 }
 
 export function CartItem({
   item,
   onQuantityChange,
-  onRemove,
   pending = false,
 }: CartItemProps) {
   const className = ['cart-item', pending && 'is-pending']
@@ -55,16 +51,6 @@ export function CartItem({
             size="sm"
             disabled={pending}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            disabled={pending}
-            iconStart={<Icon name="trash" size={12} />}
-            className="cart-item__remove"
-          >
-            삭제
-          </Button>
         </div>
       </div>
       <div className="cart-item__total">

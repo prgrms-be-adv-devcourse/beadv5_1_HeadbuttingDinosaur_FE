@@ -14,14 +14,12 @@ import { CartItem } from './CartItem';
 export interface CartItemListProps {
   items: CartItemVM[];
   onQuantityChange: (itemId: string, next: number) => void;
-  onRemove: (itemId: string) => void;
   pendingItemIds?: Set<string>;
 }
 
 export function CartItemList({
   items,
   onQuantityChange,
-  onRemove,
   pendingItemIds,
 }: CartItemListProps) {
   return (
@@ -31,7 +29,6 @@ export function CartItemList({
           <CartItem
             item={item}
             onQuantityChange={(next) => onQuantityChange(item.cartItemId, next)}
-            onRemove={() => onRemove(item.cartItemId)}
             pending={pendingItemIds?.has(item.cartItemId) ?? false}
           />
         </li>

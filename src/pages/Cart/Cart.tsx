@@ -32,7 +32,6 @@ export type CheckoutState = 'idle' | 'submitting' | 'error';
 export interface CartProps {
   query: CartQuery;
   onQuantityChange: (itemId: string, next: number) => void;
-  onRemove: (itemId: string) => void;
   onCheckout: () => void;
   onBrowse: () => void;
   checkoutState: CheckoutState;
@@ -66,7 +65,6 @@ function PageShell({ children }: { children: ReactNode }) {
 export function Cart({
   query,
   onQuantityChange,
-  onRemove,
   onCheckout,
   onBrowse,
   checkoutState,
@@ -128,7 +126,6 @@ export function Cart({
         <CartItemList
           items={cart.items}
           onQuantityChange={onQuantityChange}
-          onRemove={onRemove}
           pendingItemIds={pendingItemIds}
         />
         <OrderSummary

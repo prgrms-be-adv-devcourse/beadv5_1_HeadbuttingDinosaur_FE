@@ -81,6 +81,25 @@
 .ed-seat-sold {
   color: var(--danger);
 }
+.ed-map {
+  margin-bottom: 24px;
+}
+.ed-map__title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+.ed-map__card {
+  overflow: hidden;
+}
+.ed-map__frame {
+  display: block;
+  width: 100%;
+  height: 280px;
+  border: 0;
+}
 
 /* EventDescription (§2 EventDescription) — §8-O9 단순 h2, §8-O2 plain text + pre-wrap */
 .ed-description__title {

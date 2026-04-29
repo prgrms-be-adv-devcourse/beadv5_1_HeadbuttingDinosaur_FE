@@ -18,12 +18,11 @@ import {
 
 const CATEGORIES = [
   '전체',
+  '소모임',
   '컨퍼런스',
-  '밋업',
   '해커톤',
   '스터디',
-  '세미나',
-  '워크샵',
+  '프로젝트',
 ] as const;
 
 const SKELETON_COUNT = 8;

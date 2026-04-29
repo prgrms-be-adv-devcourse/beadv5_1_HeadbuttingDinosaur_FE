@@ -90,9 +90,6 @@ export default function CartPage() {
       <Cart
         query={cart}
         onQuantityChange={handleQuantityChange}
-        onRemove={(id) => {
-          void mut.removeItem(id);
-        }}
         onCheckout={() => {
           void co.submit();
         }}
