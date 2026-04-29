@@ -51,14 +51,15 @@ export interface LayoutProps {
 
 const CATEGORY_LIST = ['컨퍼런스', '밋업', '해커톤', '스터디', '세미나', '워크샵'];
 
-const TABS: TabDef[] = [
+const BASE_TABS: TabDef[] = [
   { key: 'home', label: '홈', icon: 'terminal' },
   { key: 'events', label: '이벤트 목록', icon: 'folder' },
   { key: 'detail', label: '이벤트 상세', icon: 'file' },
   { key: 'cart', label: '장바구니', icon: 'cart' },
   { key: 'mypage', label: '마이페이지', icon: 'user' },
-  { key: 'login', label: '로그인', icon: 'terminal' },
 ];
+
+const LOGIN_TAB: TabDef = { key: 'login', label: '로그인', icon: 'terminal' };
 
 const SELLER_TAB: TabDef = { key: 'seller', label: '판매자 센터', icon: 'wallet' };
 const ADMIN_TAB: TabDef = { key: 'admin', label: '관리자 패널', icon: 'settings' };
@@ -182,7 +183,8 @@ function LayoutInner({ children }: LayoutProps) {
         />
         <TabBar
           tabs={[
-            ...TABS,
+            ...BASE_TABS,
+            ...(isLoggedIn ? [] : [LOGIN_TAB]),
             ...(role === 'SELLER' || role === 'ADMIN' ? [SELLER_TAB] : []),
             ...(role === 'ADMIN' ? [ADMIN_TAB] : []),
           ]}

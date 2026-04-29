@@ -400,9 +400,7 @@ export interface OrderItem {
   createdAt: string;
 }
 export interface OrderListResponse {
-  content: OrderItem[];
-  page: number;
-  size: number;
+  orders: OrderItem[];
   totalElements: number;
   totalPages: number;
 }
@@ -435,11 +433,12 @@ export interface TicketListRequest {
   size?: number;
 }
 export interface TicketItem {
-  ticketId: number;
+  ticketId: string;
   eventId: string;
   eventTitle: string;
-  eventDate: string;
+  eventDateTime: string;
   status: string;
+  issuedAt: string;
 }
 export interface TicketListResponse {
   tickets: TicketItem[];
