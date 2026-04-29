@@ -150,7 +150,101 @@ Cutover 가 건드리는 모든 영역을 한눈에 보기 위한 매핑.
 | CI / CD | 소 | 설정 파일에 v2 경로 박혀있는지 |
 
 ## 3. 삭제 대상 (기존 코드)
-(작성 예정)
+
+INVENTORY § 1 (페이지 매핑) / § 7 (기존에만 있는 페이지) 기준으로 v2 로 대체된 항목만 삭제.
+v1 잔존 페이지(admin / seller / signup / payment 결과 등)에서 사용 중인 코드는 cutover 시점에 **유지**.
+
+각 항목의 안전성 확인은 `git grep` 으로 import 0건을 증명한 뒤 삭제한다.
+
+### 3.1 페이지 (`src/pages/`)
+
+| 경로 | 대체된 v2 위치 | 처리 | 비고 |
+|------|----------------|------|------|
+| `src/pages/EventList.tsx` | `src/pages-v2/EventList/` | **삭제** | INVENTORY § 1: `/` 라우트. 라우트 정책에 따라 `/events` 로 옮길지 결정(§9) |
+| `src/pages/EventDetail.tsx` | `src/pages-v2/EventDetail/` | **삭제** | `/events/:id` |
+| `src/pages/Cart.tsx` | `src/pages-v2/Cart/` | **삭제** | `/cart` |
+| `src/pages/MyPage.tsx` | `src/pages-v2/MyPage/` | **삭제** | `/mypage` |
+| `src/pages/Login.tsx` | `src/pages-v2/Login/` | **삭제** | `/login` |
+| (없음 — 신규) | `src/pages-v2/Landing/` | (삭제 대상 없음) | Landing 은 v2 신규 페이지 |
+| `src/pages/Payment.tsx` | `src/pages-v2/PaymentCallback/` 매핑 검토 | **§9 결정 필요** | INVENTORY § 7: 신규 디자인 필수로 분류. v2 PaymentCallback 이 결제 + 결과까지 모두 커버하는지 확인 후 결정 |
+| `src/pages/PaymentSuccess.tsx`, `PaymentFail.tsx`, `PaymentComplete.tsx` | 동상 | **§9 결정 필요** | 위와 동일. v2 가 콜백 1개로 통합했는지, 별도 결과 페이지가 살아있는지 검증 후 결정 |
+| `src/pages/WalletChargeSuccess.tsx`, `WalletChargeFail.tsx` | (없음) | **유지** | INVENTORY § 7: 신규 디자인 필수로 분류되었으나 cutover 시점 미이관 → 유지 |
+| `src/pages/Signup.tsx`, `SignupComplete.tsx`, `SocialProfileSetup.tsx` | (없음) | **유지** | INVENTORY § 7: 신규 디자인 필수지만 cutover 시점 미이관 → 유지 |
+| `src/pages/OAuthCallback.tsx` | (없음) | **유지** | INVENTORY § 7: UI 거의 없음 / 로직만 |
+| `src/pages/SellerApply.tsx` | (없음) | **유지** | INVENTORY § 7: 신규 디자인 필요지만 미이관 |
+| `src/pages/NotFound.tsx` | (없음) | **유지** | INVENTORY § 7: 신규 디자인 필수지만 미이관 |
+| `src/pages/admin/*` (6개) | (해당 없음) | **유지** | 범위 밖 (관리자 콘솔, 별도 트랙) |
+| `src/pages/seller/*` (5개) | (해당 없음) | **유지** | 범위 밖 (판매자 콘솔, 별도 트랙) |
+
+**안전성 확인**: 삭제 직전 각 파일에 대해 `git grep -n "from .*pages/<basename>"` 결과가 **App.tsx 의 import 한 줄뿐**임을 확인. 그 import 는 § 5 의 라우터 수정에서 v2 경로로 전환되며 함께 사라진다.
+
+### 3.2 컴포넌트 (`src/components/`)
+
+| 경로 | 대체된 v2 위치 | 처리 | 사용처 / 안전성 |
+|------|----------------|------|-----------------|
+| `src/components/EventCard.tsx` | `src/components-v2/Card/` | **삭제** | 사용처: `src/pages/EventList.tsx:10` 1건 → 페이지 삭제와 함께 dead |
+| `src/components/EventMap.tsx` | (지도 컴포넌트 v2 신규 필요 시 신설) | **삭제 검토** | 사용처: `src/pages/EventDetail.tsx:8` 1건. v2 EventDetail 이 지도 컴포넌트를 자체 보유하면 삭제, 아니면 v2 로 이전 후 삭제 |
+| `src/components/Pagination.tsx` | (v2 내부 처리) | **삭제** | 사용처: `src/pages/EventList.tsx:11` 1건 |
+| `src/components/Modal.tsx` | (v2 모달 패턴) | **삭제** | 사용처: `src/components/TicketDetailModal.tsx:2` 1건 → TicketDetailModal 삭제와 함께 dead |
+| `src/components/TicketDetailModal.tsx` | v2 MyPage 내부 처리 | **삭제** | 사용처: `src/pages/MyPage.tsx:6` 1건 |
+| `src/components/PaymentModal.tsx` | `src/components-v2/PaymentModal/` | **삭제** | 사용처: `src/pages/Cart.tsx:12` 1건. v2 PaymentModal 이 v1 동작을 1:1 보존(v2 파일 주석 다수 참조) |
+| `src/components/PaymentSuccess.tsx`, `PaymentFail.tsx` | v2 PaymentModal / PaymentCallback 내부 | **삭제 검토** | v1 결제 결과 페이지(§3.1)와 함께 처리. v1 페이지가 유지되면 함께 유지 |
+| `src/components/Layout.tsx` | `src/components-v2/Layout/` | **§9 결정 필요** | 사용처: `src/App.tsx:4`. v1 잔존 라우트(signup, payment 결과, oauth, wallet 등)가 여전히 `<Layout>` 으로 감싸여 있음 → v2 Layout 으로 통일할지, v1 잔존을 위해 유지할지 결정 |
+| `src/components/ThemeToggle.tsx` | (v2 Layout 내부) | **§9 결정 필요** | 사용처: `src/components/Layout.tsx:5,58`. v1 Layout 운명에 종속 |
+| `src/components/AdminLayout.tsx` | (해당 없음) | **유지** | admin 페이지 전용 |
+| `src/components/SellerLayout.tsx` | (해당 없음) | **유지** | seller 페이지 전용 |
+| `src/components/ErrorBoundary.tsx` | (전역) | **유지** | v1/v2 공통 |
+| `src/components/Loading.tsx` | (전역) | **유지** | App.tsx 의 가드 / Suspense 에서 사용 |
+
+**안전성 확인 절차**: 삭제 후보 각 파일에 대해 `git grep -n "<ComponentName>"` 으로 import / JSX 사용처가 모두 § 3.1 의 삭제 대상 페이지에 한정되는지 검증. v1 잔존 페이지에서 1건이라도 import 되면 **유지로 분류 변경**.
+
+### 3.3 스타일 (`src/styles/`)
+
+| 경로 | 처리 | 비고 |
+|------|------|------|
+| `src/styles/globals.css` | **§9 결정 필요** | INVENTORY § 5: 현재 CSS 라이브러리 없음, 단일 globals.css. v2 가 `src/styles-v2/{tokens,global,index}.css` + `components/`, `pages/` 로 분화 → 합치는 방식과 변수 충돌 정책 합의 필요 (§4 / §5 와 함께 처리) |
+
+**안전성 확인**: v1 globals.css 안에 v2 가 의존하는 reset / 폰트 / 전역 클래스가 있는지 grep. 있다면 v2 styles 로 흡수 후 삭제.
+
+### 3.4 hooks / contexts / utils
+
+INVENTORY § 4 / § 5 기준, 아래 항목은 v1 / v2 가 **공유** 하므로 cutover 시점에 삭제 대상 없음.
+
+| 경로 | 처리 | 사유 |
+|------|------|------|
+| `src/hooks/useApi.ts`, `useDebounce.ts`, `useLocalStorage.ts` | **유지** | v1 / v2 공통, INVENTORY § 5 에서 데이터 페칭 자체 훅으로 명시 |
+| `src/contexts/AuthContext.tsx` | **유지** | INVENTORY § 4: 토큰 / 가드 / `useAuth()` 진입점 |
+| `src/contexts/ThemeContext.tsx`, `ToastContext.tsx` | **유지** | 전역 |
+| `src/utils/index.ts` | **유지** (내부 미사용 함수만 정리) | cutover 시점에는 일괄 처리하지 말고 dead-code 정리는 § 10.3 (사후 PR) 로 분리 |
+
+**안전성 확인**: v2 코드가 위 모듈 중 어느 함수를 import 하는지 grep 으로 매핑. v1 전용으로만 쓰이던 함수가 있다면 § 10.3 PR 에서 별도 정리.
+
+### 3.5 의존성 (`package.json`)
+
+§ 2.4 에서 거론된 패키지를 cutover 시점에 함께 점검. 삭제는 cutover PR 본체가 아니라 **§ 10.3 사후 PR** 로 분리해 회귀 위험을 줄인다.
+
+| 패키지 | 점검 방법 | 처리 |
+|--------|-----------|------|
+| `react-type-animation` | `git grep -n "react-type-animation" src/` | v1 페이지에서만 쓰이면 cutover 후 제거 후보 |
+| `react-kakao-maps-sdk` | 위와 동일 | EventMap 운명에 종속 (§ 3.2). v2 가 지도를 안 쓰면 제거 후보 |
+| 그 외 | 동일 | v1 잔존 페이지에서 1건이라도 import 되면 유지 |
+
+### 3.6 일괄 안전성 확인 명령 (요약)
+
+cutover PR 직전, 아래 명령을 모두 실행해 결과가 **0건** 또는 **명시된 예상 위치만** 임을 확인:
+
+```bash
+# v1 페이지 import 잔존 확인 (App.tsx 외 0건이어야 함)
+git grep -nE "from .*pages/(EventList|EventDetail|Cart|MyPage|Login)" src/
+
+# v1 컴포넌트 import 잔존 확인
+git grep -nE "from .*components/(EventCard|EventMap|Pagination|Modal|TicketDetailModal|PaymentModal)['\"]" src/
+
+# v2 디렉토리 외부에서 v1 전용 자산 참조 확인
+git grep -nE "components/Payment(Success|Fail)['\"]" src/
+```
+
+위 결과가 § 3.1 / § 3.2 의 "삭제 대상" 외 위치를 가리키면 **삭제를 보류**하고 § 9 의사결정 항목으로 이관.
 
 ## 4. 이동 / rename 대상 (v2 → 메인)
 (작성 예정)
