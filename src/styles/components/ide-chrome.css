@@ -286,6 +286,26 @@ button.side-header {
   color: var(--text-4);
 }
 
+/* Button variant: trailing meta slot used as an action (e.g. logout). */
+.side-meta--button {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin-right: -4px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 120ms, background 120ms;
+}
+.side-meta--button:hover,
+.side-meta--button:focus-visible {
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+.side-meta--button:focus-visible {
+  outline: 1px solid var(--text-3);
+  outline-offset: 1px;
+}
+
 /* '#' prefix glyph for category rows. */
 .side-prefix {
   color: var(--text-4);

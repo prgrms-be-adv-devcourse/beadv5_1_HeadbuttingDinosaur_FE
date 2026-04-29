@@ -8,6 +8,7 @@ import { ErrorState } from './components/ErrorState';
 import { EventDescription } from './components/EventDescription';
 import { EventDetailSkeleton } from './components/EventDetailSkeleton';
 import { EventHeader } from './components/EventHeader';
+import { EventMap } from './components/EventMap';
 import { ForbiddenCard } from './components/ForbiddenCard';
 import { HeroBanner } from './components/HeroBanner';
 import { InfoCard } from './components/InfoCard';
@@ -116,6 +117,7 @@ export function EventDetail({ eventId }: EventDetailProps) {
           <HeroBanner accent={accentColor} />
           <EventHeader vm={vm} accent={accentColor} />
           <InfoCard vm={vm} />
+          {vm.location && <EventMap location={vm.location} />}
           <EventDescription description={vm.description} />
         </div>
         <PurchasePanel vm={vm} />

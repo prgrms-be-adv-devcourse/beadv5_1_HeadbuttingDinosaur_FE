@@ -16,15 +16,9 @@ import {
   useEvents,
 } from './hooks';
 
-const CATEGORIES = [
-  '전체',
-  '컨퍼런스',
-  '밋업',
-  '해커톤',
-  '스터디',
-  '세미나',
-  '워크샵',
-] as const;
+import { EVENT_CATEGORY_LABELS } from '@/pages/_shared/category';
+
+const CATEGORIES = ['전체', ...EVENT_CATEGORY_LABELS] as const;
 
 const SKELETON_COUNT = 8;
 

@@ -90,13 +90,15 @@ export default function CartPage() {
       <Cart
         query={cart}
         onQuantityChange={handleQuantityChange}
-        onRemove={(id) => {
-          void mut.removeItem(id);
-        }}
+        onRemove={(id) => mut.removeItem(id)}
         onCheckout={() => {
           void co.submit();
         }}
         onBrowse={() => navigate('/events')}
+        onClearAll={() => {
+          void mut.clearAll();
+        }}
+        clearing={mut.clearing}
         checkoutState={co.checkoutState}
         pendingItemIds={mut.pendingItemIds}
         recommended={recommended}

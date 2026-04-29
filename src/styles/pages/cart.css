@@ -11,6 +11,12 @@
 .cart-header {
   margin-bottom: 22px;
 }
+.cart-header__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .cart-header__title {
   font-family: var(--font);
   font-size: var(--fs-h1);

@@ -1,21 +1,34 @@
-/**
- * 페이지 상단 타이틀 + 부제.
- *
- * 프로토타입 Cart.jsx:19-22 의 인라인 스타일을 BEM 클래스로 변환.
- * 시각: h1 26px/700 text, 부제 14px text-3 (CSS는 styles/pages/cart.css).
- */
+import { Button } from '@/components/Button';
+import { Icon } from '@/components/Icon';
 
 export interface CartHeaderProps {
   itemCount: number;
+  onClearAll?: () => void;
+  clearing?: boolean;
 }
 
-export function CartHeader({ itemCount }: CartHeaderProps) {
+export function CartHeader({ itemCount, onClearAll, clearing = false }: CartHeaderProps) {
   return (
     <header className="cart-header">
-      <h1 className="cart-header__title">장바구니</h1>
-      <p className="cart-header__subtitle">
-        담긴 티켓 {itemCount}개 · 결제 전 최종 수량을 확인해주세요.
-      </p>
+      <div className="cart-header__row">
+        <div>
+          <h1 className="cart-header__title">장바구니</h1>
+          <p className="cart-header__subtitle">
+            담긴 티켓 {itemCount}개 · 결제 전 최종 수량을 확인해주세요.
+          </p>
+        </div>
+        {itemCount > 0 && onClearAll && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearAll}
+            disabled={clearing}
+            iconStart={<Icon name="trash" size={12} />}
+          >
+            {clearing ? '비우는 중...' : '전체 삭제'}
+          </Button>
+        )}
+      </div>
     </header>
   );
 }

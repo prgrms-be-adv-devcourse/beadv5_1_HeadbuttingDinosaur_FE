@@ -1,25 +1,19 @@
 /**
  * Cart 페이지 훅.
  *
- * Cart.plan.md § 3 / § 5 / § 7 / § 10.2.
- *
- * - `useCart` — 마운트 시 1회 `getCart()` → `toCartVM` → `CartQuery` 상태 머신.
- *   `refetch()` 와 `mutate(updater)` 를 노출. `mutate` 는 `useCartMutations` 가
- *   낙관적 업데이트/롤백 시 데이터 차원만 갱신하기 위해 쓴다 (`fetchedAt` 보존).
- * - `useCartMutations` — `pendingItemIds: Set<string>` 가드 + PATCH/DELETE 낙관적
- *   업데이트 + 실패 시 snapshot 롤백 + 409 시 `refetch()` 1 회 호출.
- *   `addCartItem` 은 EventDetail/`usePurchaseActions` 에서 처리하므로 여기 미포함.
- * - `useCheckout` — `createOrder` (POST `/orders`) + `idempotencyConfig()` 헤더 부착.
- *   성공 시 `paymentTarget(OrderResultVM)` 노출 → 컨테이너가 `<PaymentModal>` 마운트.
+ * v1 백엔드 스펙: 단건 삭제 API 가 없고 전체 삭제(`DELETE /cart`)만 존재.
+ * 따라서 단건 삭제는 백엔드 호출 없이 로컬 상태에서만 제거하고, 결제 시
+ * `cartItemIds` 에서 자연스럽게 빠지도록 둔다 (페이지 재진입 시 다시
+ * 나타나는 비영속 상태가 의도). 전체 삭제만 백엔드와 동기화한다.
  *
  * 401/403/PROFILE_NOT_COMPLETED 는 `apiClient` 인터셉터가 페이지 도달 전에
- * 처리하므로 본 훅들은 그 외 케이스만 분기 (§ 4 표 4).
+ * 처리하므로 본 훅들은 그 외 케이스만 분기.
  */
 
 import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { deleteCartItem, getCart, updateCartItemQuantity } from '@/api/cart.api';
+import { clearCart, getCart, updateCartItemQuantity } from '@/api/cart.api';
 import {
   apiClient,
   idempotencyConfig,
@@ -42,10 +36,6 @@ import type { CartItemVM, CartQuery, CartVM, OrderResultVM } from './types';
 
 export type UseCartReturn = CartQuery & {
   refetch: () => void;
-  /**
-   * `success` 일 때만 의미 있는 데이터 차원 갱신. `fetchedAt` 등 메타는 유지.
-   * mutation 훅이 낙관적 업데이트/응답 머지/롤백에서 사용.
-   */
   mutate: (updater: (prev: CartVM) => CartVM) => void;
 };
 
@@ -133,7 +123,14 @@ const isStatus = (err: unknown, status: number): boolean =>
 export interface UseCartMutationsReturn {
   pendingItemIds: Set<string>;
   setQuantityDelta: (cartItemId: string, delta: 1 | -1) => Promise<void>;
-  removeItem: (cartItemId: string) => Promise<void>;
+  /**
+   * 단건 삭제 — v1 백엔드 스펙엔 단건 삭제 API 가 없다. 로컬 상태에서만
+   * 제거하고 결제 시 `cartItemIds` 에서 빠지도록 둔다.
+   */
+  removeItem: (cartItemId: string) => void;
+  /** 전체 삭제 — `DELETE /cart` 호출 + 로컬 비우기. */
+  clearAll: () => Promise<void>;
+  clearing: boolean;
 }
 
 export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
@@ -141,7 +138,6 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(
     () => new Set(),
   );
-  /** 가드를 동기적으로 읽기 위한 mirror — setState 비동기성으로 인한 동시 클릭 race 방지. */
   const pendingRef = useRef<Set<string>>(pendingItemIds);
 
   const lockItem = useCallback((id: string) => {
@@ -162,7 +158,6 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
         toast('재고 상태가 변경되었습니다. 장바구니를 다시 불러옵니다.', 'error');
         return;
       }
-      // 401/403/PROFILE_NOT_COMPLETED 는 인터셉터가 처리 → 도달하지 않음 가정.
       toast(fallbackMsg, 'error');
     },
     [cart, toast],
@@ -173,7 +168,6 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
       if (pendingRef.current.has(cartItemId)) return;
       if (cart.status !== 'success') return;
       const snapshot = cart.data;
-      // min=1 가드 (서버에 -1 보내 422 받기 전에 클라에서 차단)
       const target = snapshot.items.find((i) => i.cartItemId === cartItemId);
       if (!target) return;
       if (delta === -1 && target.quantity <= 1) return;
@@ -194,27 +188,36 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
   );
 
   const removeItem = useCallback(
-    async (cartItemId: string): Promise<void> => {
-      if (pendingRef.current.has(cartItemId)) return;
+    (cartItemId: string): void => {
       if (cart.status !== 'success') return;
-      const snapshot = cart.data;
-
-      lockItem(cartItemId);
       cart.mutate((prev) => applyRemove(prev, cartItemId));
-      try {
-        await deleteCartItem(cartItemId);
-        // DELETE 응답은 { success } 만 → 추가 머지 없음. 낙관적 상태 유지.
-      } catch (err) {
-        cart.mutate(() => snapshot);
-        handleError(err, '삭제하지 못했습니다.');
-      } finally {
-        unlockItem(cartItemId);
-      }
     },
-    [cart, handleError, lockItem, unlockItem],
+    [cart],
   );
 
-  return { pendingItemIds, setQuantityDelta, removeItem };
+  const [clearing, setClearing] = useState(false);
+  const clearAll = useCallback(async (): Promise<void> => {
+    if (cart.status !== 'success') return;
+    if (clearing) return;
+    const snapshot = cart.data;
+    setClearing(true);
+    cart.mutate((prev) => ({
+      ...prev,
+      items: [],
+      subtotal: 0,
+      total: prev.fee - prev.discount,
+    }));
+    try {
+      await clearCart();
+    } catch (err) {
+      cart.mutate(() => snapshot);
+      handleError(err, '전체 삭제에 실패했습니다.');
+    } finally {
+      setClearing(false);
+    }
+  }, [cart, clearing, handleError]);
+
+  return { pendingItemIds, setQuantityDelta, removeItem, clearAll, clearing };
 }
 
 // ── useCheckout ──────────────────────────────────────────────────────────────
@@ -223,21 +226,12 @@ export type CheckoutState = 'idle' | 'submitting' | 'error';
 
 export interface UseCheckoutReturn {
   checkoutState: CheckoutState;
-  /** 성공 시 set → 컨테이너가 `<PaymentModal>` 을 마운트하는 트리거. */
   paymentTarget: OrderResultVM | null;
-  /** 409 시 `OrderSummary` 영역에 표시할 인라인 메시지 (§ 4 표 4 (b)). */
   inlineError: string | null;
-  /** 결제하기 버튼 핸들러. items / pending 가드 후 createOrder 호출. */
   submit: () => Promise<void>;
-  /** PaymentModal close — paymentTarget clear (idempotency 키는 호출당 새로 발급). */
   closeModal: () => void;
 }
 
-/**
- * § 9.2-15: `createOrder` 에 `idempotencyConfig()` 헤더 부착.
- * `src/api/orders.api.ts :: createOrder` 가 config 인자를 받지 않으므로
- * (api 레이어 freeze — § 4 헤더 주석 참고) `apiClient.post` 를 직접 호출.
- */
 const submitCreateOrder = (body: OrderRequest) =>
   apiClient.post<ApiResponse<OrderResponse>>('/orders', body, idempotencyConfig());
 
@@ -253,8 +247,6 @@ export function useCheckout(
   const [paymentTarget, setPaymentTarget] = useState<OrderResultVM | null>(null);
   const [inlineError, setInlineError] = useState<string | null>(null);
 
-  // 최신 items 를 submit 클로저로 흘려보내기 위한 ref. 의존성으로 잡으면
-  // 매 mutation 마다 submit 인스턴스가 재생성되어 부수효과가 큼.
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const stateRef = useRef(checkoutState);
@@ -294,18 +286,6 @@ export function useCheckout(
 
 // ── useRecommendedEvents ─────────────────────────────────────────────────────
 
-/**
- * 카트 하단 "이런 이벤트는 어떠세요?" 섹션의 데이터 훅.
- *
- * Cart.plan.md § 10.3 PR 4. EventDetail 의 동명 훅과 유사하지만
- *  - `currentEventId` 인자 없음 (카트엔 단일 "현재 이벤트" 가 없음 → 필터 패스)
- *  - 모듈 캐시 미공유 (의도적 분리 — EventDetail 와 카트가 같은 사이트
- *    세션에 동시에 존재하는 흐름은 드뭄. 향후 `_shared` 로 끌어올리는 건
- *    별도 정리 PR)
- *
- * 페치 실패 (401 / 5xx / network) 는 모두 `'hidden'` 으로 흡수해 메인 카트
- * 동작을 침해하지 않는다 (§ 10.3.6 PR 4 시나리오).
- */
 export type RecommendedQuery =
   | { status: 'loading' }
   | { status: 'ready'; cards: RecommendedCardVM[] }
@@ -319,7 +299,6 @@ let cartRecommendCache: {
 
 const deriveCartRecommended = (): RecommendedQuery => {
   if (!cartRecommendCache) return { status: 'loading' };
-  // currentEventId 자리에 빈 문자열 — eventId 가 비는 경우는 없으므로 필터 무효.
   const cards = toRecommendedCards(cartRecommendCache.api, '');
   return cards.length > 0 ? { status: 'ready', cards } : { status: 'hidden' };
 };
