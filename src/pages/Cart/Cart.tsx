@@ -25,19 +25,17 @@ export type CheckoutState = 'idle' | 'submitting' | 'error';
 
 export interface CartProps {
   query: CartQuery;
+  onQuantityChange: (itemId: string, next: number) => void;
+  onRemove: (itemId: string) => void;
   onCheckout: () => void;
   onBrowse: () => void;
   onClearAll: () => void;
   clearing?: boolean;
   checkoutState: CheckoutState;
-  /** PR 4 — Cart.plan.md § 10.3 추천 카드. 컨테이너 (`useRecommendedEvents`)
-   *  가 채움. 페치 실패 시 hidden → 본 컴포넌트는 자동으로 섹션을 숨김. */
+  pendingItemIds?: Set<string>;
   recommended: RecommendedQuery;
-  /** 추천 카드의 `inCart` 판정용 — 현재 cart 의 eventId 집합. */
   cartEventIds: Set<string>;
-  /** addCartItem inflight eventId 집합 — 카드 단위 가드. */
   pendingRecEventIds?: Set<string>;
-  /** 추천 카드 "빠르게 담기" 클릭 핸들러. */
   onRecAdd: (eventId: string) => void;
 }
 
@@ -58,11 +56,14 @@ function PageShell({ children }: { children: ReactNode }) {
 
 export function Cart({
   query,
+  onQuantityChange,
+  onRemove,
   onCheckout,
   onBrowse,
   onClearAll,
   clearing = false,
   checkoutState,
+  pendingItemIds,
   recommended,
   cartEventIds,
   pendingRecEventIds,
@@ -121,7 +122,12 @@ export function Cart({
         clearing={clearing}
       />
       <div className="cart-grid">
-        <CartItemList items={cart.items} />
+        <CartItemList
+          items={cart.items}
+          onQuantityChange={onQuantityChange}
+          onRemove={onRemove}
+          pendingItemIds={pendingItemIds}
+        />
         <OrderSummary
           subtotal={cart.subtotal}
           fee={cart.fee}

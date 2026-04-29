@@ -1,4 +1,4 @@
-import { Outlet, useMatch } from 'react-router-dom';
+import { Outlet, useMatch, useNavigate } from 'react-router-dom';
 import { ProfileHeader } from './shell/ProfileHeader';
 import { ProfileHeaderSkeleton } from './shell/ProfileHeaderSkeleton';
 import { TabNav } from './shell/TabNav';
@@ -21,12 +21,13 @@ function MyPageShell() {
   const match = useMatch('/mypage/:tab');
   const tabParam = match?.params.tab;
   const activeTab: TabKey = isTabKey(tabParam) ? tabParam : DEFAULT_TAB;
+  const navigate = useNavigate();
 
   const profileState = useMyProfile();
   const balance = toBalanceSlot(useWalletBalance());
 
   const handleEditProfile = () => {
-    alert('준비 중입니다');
+    navigate('/mypage/settings');
   };
 
   return (

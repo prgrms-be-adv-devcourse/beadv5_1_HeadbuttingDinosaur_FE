@@ -12,6 +12,7 @@
  */
 import type {
   CartItemDetail,
+  CartItemQuantityResponse,
   CartResponse,
   OrderResponse,
 } from '@/api/types';
@@ -49,6 +50,36 @@ export const toCartVM = (res: CartResponse): CartVM => {
     fee,
     discount,
     total: subtotal + fee - discount,
+  };
+};
+
+/**
+ * `updateCartItemQuantity` 응답을 직전 `CartVM` 에 부분 머지.
+ * 응답 `cartItemId` 는 백엔드가 `String.valueOf(id)` 로 보내므로 string.
+ * 일치 row 가 없으면 prev 그대로 (낙관적 업데이트가 이미 사라진 row 안전).
+ */
+export const mergeQuantityUpdate = (
+  prev: CartVM,
+  res: CartItemQuantityResponse,
+): CartVM => {
+  const idx = prev.items.findIndex((i) => i.cartItemId === res.cartItemId);
+  if (idx === -1) return prev;
+
+  const target = prev.items[idx];
+  const nextItem: CartItemVM = {
+    ...target,
+    quantity: res.quantity,
+    lineTotal: target.unitPrice * res.quantity,
+  };
+  const items = prev.items.slice();
+  items[idx] = nextItem;
+
+  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+  return {
+    ...prev,
+    items,
+    subtotal,
+    total: subtotal + prev.fee - prev.discount,
   };
 };
 

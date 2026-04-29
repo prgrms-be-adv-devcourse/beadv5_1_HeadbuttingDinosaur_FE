@@ -354,14 +354,15 @@ export interface CartItemQuantityRequest {
 }
 
 // PATCH /cart/items/{cartItemId} 응답 (백엔드 CartItemQuantityResponse)
+// 백엔드는 cartItemId 를 `String.valueOf(id)` 로 내려준다.
 export interface CartItemQuantityResponse {
-  cartItemId: number;
+  cartItemId: string;
   quantity: number;
 }
 
-// DELETE /cart/items/{cartItemId} 응답
+// DELETE /cart/items/{cartItemId} 응답 (백엔드 CartItemDeleteResponse)
 export interface CartItemDeleteResponse {
-  success: boolean;
+  message: string;
 }
 
 // DELETE /cart 응답

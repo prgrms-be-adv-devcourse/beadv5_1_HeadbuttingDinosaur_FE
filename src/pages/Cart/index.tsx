@@ -1,12 +1,11 @@
 /**
  * Cart 페이지 컨테이너 — 라우트 진입점.
  *
- * - 데이터 페치 / 결제 트리거: `useCart` + `useCartMutations` + `useCheckout`
+ * - 데이터 페치 / 뮤테이션 / 결제 트리거: `useCart` + `useCartMutations` + `useCheckout`
  * - 추천 카드: `useRecommendedEvents` + 본 컨테이너 로컬의 빠른 담기 핸들러
  * - 인증 가드: `App.tsx` 의 `<RequireAuth>` 가 라우트 진입 차단 → 본 컨테이너는 무지
- *
- * v1 동작 정렬: 단건 수량 증감/삭제는 백엔드 단건 엔드포인트가 안정화되기
- * 전까지 노출하지 않는다. 전체 삭제만 노출 (`useCartMutations.clearAll`).
+ * - QuantityStepper 는 절대 next quantity (`(itemId, next)`) 를 보내지만 mutation 훅은
+ *   delta 기반(`setQuantityDelta(id, ±1)`) 이라 본 컨테이너에서 변환.
  *
  * 결제 성공(`onSuccess`)은 PaymentModal 의 WALLET-only 즉시 결제 경로에서만
  * 발화. PG 경로는 SDK 가 브라우저를 redirect 시키므로 Cart 자체는 unmount.
@@ -31,8 +30,16 @@ export default function CartPage() {
   const co = useCheckout(items, cart.refetch);
   const recommended = useRecommendedEvents();
 
-  /* 추천 카드 "빠르게 담기" — addCartItem 인플라이트 가드 (eventId 단위) +
-   * 성공 시 cart.refetch 로 메인 리스트에 즉시 반영. */
+  const handleQuantityChange = (itemId: string, next: number) => {
+    if (cart.status !== 'success') return;
+    const item = cart.data.items.find((i) => i.cartItemId === itemId);
+    if (!item) return;
+    const delta = next - item.quantity;
+    if (delta === 1 || delta === -1) {
+      void mut.setQuantityDelta(itemId, delta);
+    }
+  };
+
   const cartEventIds = useMemo(
     () => new Set(items.map((i) => i.eventId)),
     [items],
@@ -70,6 +77,10 @@ export default function CartPage() {
     <>
       <Cart
         query={cart}
+        onQuantityChange={handleQuantityChange}
+        onRemove={(id) => {
+          void mut.removeItem(id);
+        }}
         onCheckout={() => {
           void co.submit();
         }}
@@ -79,6 +90,7 @@ export default function CartPage() {
         }}
         clearing={mut.clearing}
         checkoutState={co.checkoutState}
+        pendingItemIds={mut.pendingItemIds}
         recommended={recommended}
         cartEventIds={cartEventIds}
         pendingRecEventIds={pendingRecEventIds}

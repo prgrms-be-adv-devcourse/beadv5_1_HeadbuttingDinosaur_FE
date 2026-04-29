@@ -13,7 +13,12 @@
 import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { clearCart, getCart } from '@/api/cart.api';
+import {
+  clearCart,
+  deleteCartItem,
+  getCart,
+  updateCartItemQuantity,
+} from '@/api/cart.api';
 import {
   apiClient,
   idempotencyConfig,
@@ -29,7 +34,7 @@ import {
   type RecommendedCardVM,
 } from '@/pages/_shared/recommendation';
 
-import { toCartVM, toOrderResultVM } from './adapters';
+import { mergeQuantityUpdate, toCartVM, toOrderResultVM } from './adapters';
 import type { CartItemVM, CartQuery, CartVM, OrderResultVM } from './types';
 
 // ── useCart ──────────────────────────────────────────────────────────────────
@@ -87,10 +92,43 @@ export function useCart(): UseCartReturn {
 
 // ── useCartMutations ─────────────────────────────────────────────────────────
 
+const recomputeTotals = (items: CartItemVM[], fee: number, discount: number) => {
+  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+  return { subtotal, total: subtotal + fee - discount };
+};
+
+const applyQuantityDelta = (
+  prev: CartVM,
+  cartItemId: string,
+  delta: number,
+): CartVM => {
+  const idx = prev.items.findIndex((i) => i.cartItemId === cartItemId);
+  if (idx === -1) return prev;
+  const target = prev.items[idx];
+  const nextQty = target.quantity + delta;
+  if (nextQty < 1) return prev;
+  const items = prev.items.slice();
+  items[idx] = {
+    ...target,
+    quantity: nextQty,
+    lineTotal: target.unitPrice * nextQty,
+  };
+  return { ...prev, items, ...recomputeTotals(items, prev.fee, prev.discount) };
+};
+
+const applyRemove = (prev: CartVM, cartItemId: string): CartVM => {
+  const items = prev.items.filter((i) => i.cartItemId !== cartItemId);
+  if (items.length === prev.items.length) return prev;
+  return { ...prev, items, ...recomputeTotals(items, prev.fee, prev.discount) };
+};
+
 const isStatus = (err: unknown, status: number): boolean =>
   axios.isAxiosError(err) && err.response?.status === status;
 
 export interface UseCartMutationsReturn {
+  pendingItemIds: Set<string>;
+  setQuantityDelta: (cartItemId: string, delta: 1 | -1) => Promise<void>;
+  removeItem: (cartItemId: string) => Promise<void>;
   /** 전체 삭제 — `DELETE /cart` 호출 + 로컬 비우기. */
   clearAll: () => Promise<void>;
   clearing: boolean;
@@ -98,8 +136,82 @@ export interface UseCartMutationsReturn {
 
 export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
   const { toast } = useToast();
-  const [clearing, setClearing] = useState(false);
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const pendingRef = useRef<Set<string>>(pendingItemIds);
 
+  const lockItem = useCallback((id: string) => {
+    pendingRef.current = new Set(pendingRef.current).add(id);
+    setPendingItemIds(pendingRef.current);
+  }, []);
+  const unlockItem = useCallback((id: string) => {
+    const next = new Set(pendingRef.current);
+    next.delete(id);
+    pendingRef.current = next;
+    setPendingItemIds(next);
+  }, []);
+
+  const handleError = useCallback(
+    (err: unknown, fallbackMsg: string) => {
+      if (isStatus(err, 409)) {
+        cart.refetch();
+        toast('재고 상태가 변경되었습니다. 장바구니를 다시 불러옵니다.', 'error');
+        return;
+      }
+      toast(fallbackMsg, 'error');
+    },
+    [cart, toast],
+  );
+
+  // PATCH /cart/items/:id — body `{ quantity: delta }`. 응답은 raw
+  // `CartItemQuantityResponse` (ApiResponse 래퍼 없음 — 백엔드 컨트롤러
+  // `ResponseEntity<CartItemQuantityResponse>`).
+  const setQuantityDelta = useCallback(
+    async (cartItemId: string, delta: 1 | -1): Promise<void> => {
+      if (pendingRef.current.has(cartItemId)) return;
+      if (cart.status !== 'success') return;
+      const snapshot = cart.data;
+      const target = snapshot.items.find((i) => i.cartItemId === cartItemId);
+      if (!target) return;
+      if (delta === -1 && target.quantity <= 1) return;
+
+      lockItem(cartItemId);
+      cart.mutate((prev) => applyQuantityDelta(prev, cartItemId, delta));
+      try {
+        const res = await updateCartItemQuantity(cartItemId, { quantity: delta });
+        cart.mutate((prev) => mergeQuantityUpdate(prev, res.data));
+      } catch (err) {
+        cart.mutate(() => snapshot);
+        handleError(err, '수량을 변경하지 못했습니다.');
+      } finally {
+        unlockItem(cartItemId);
+      }
+    },
+    [cart, handleError, lockItem, unlockItem],
+  );
+
+  // DELETE /cart/items/:id — 낙관적으로 즉시 제거 후 실패 시 복구.
+  const removeItem = useCallback(
+    async (cartItemId: string): Promise<void> => {
+      if (pendingRef.current.has(cartItemId)) return;
+      if (cart.status !== 'success') return;
+      const snapshot = cart.data;
+      lockItem(cartItemId);
+      cart.mutate((prev) => applyRemove(prev, cartItemId));
+      try {
+        await deleteCartItem(cartItemId);
+      } catch (err) {
+        cart.mutate(() => snapshot);
+        handleError(err, '항목을 삭제하지 못했습니다.');
+      } finally {
+        unlockItem(cartItemId);
+      }
+    },
+    [cart, handleError, lockItem, unlockItem],
+  );
+
+  const [clearing, setClearing] = useState(false);
   const clearAll = useCallback(async (): Promise<void> => {
     if (cart.status !== 'success') return;
     if (clearing) return;
@@ -115,18 +227,13 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
       await clearCart();
     } catch (err) {
       cart.mutate(() => snapshot);
-      if (isStatus(err, 409)) {
-        cart.refetch();
-        toast('재고 상태가 변경되었습니다. 장바구니를 다시 불러옵니다.', 'error');
-      } else {
-        toast('전체 삭제에 실패했습니다.', 'error');
-      }
+      handleError(err, '전체 삭제에 실패했습니다.');
     } finally {
       setClearing(false);
     }
-  }, [cart, clearing, toast]);
+  }, [cart, clearing, handleError]);
 
-  return { clearAll, clearing };
+  return { pendingItemIds, setQuantityDelta, removeItem, clearAll, clearing };
 }
 
 // ── useCheckout ──────────────────────────────────────────────────────────────

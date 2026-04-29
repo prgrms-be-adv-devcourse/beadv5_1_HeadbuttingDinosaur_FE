@@ -1,0 +1,138 @@
+/* MyPage Settings tab — 프로필/비밀번호/판매자/위험 카드 스택. */
+
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 720px;
+}
+
+.settings-card {
+  padding: 24px;
+}
+.settings-card__title {
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-form__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-field__label {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.settings-field__hint {
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.settings-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Seller application card */
+.seller-apply-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.seller-apply-card__desc {
+  margin: 4px 0 0;
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.seller-apply-card__status {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.seller-apply-card__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.seller-apply-card__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+}
+.seller-apply-card__badge--warning { background: var(--warning, #f59e0b); }
+.seller-apply-card__badge--success { background: var(--success, #10b981); }
+.seller-apply-card__badge--danger  { background: var(--danger,  #ef4444); }
+.seller-apply-card__date {
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.seller-apply-card__msg {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.seller-apply-card__reason {
+  margin: 6px 0 0;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Danger card */
+.settings-danger {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 30%, var(--border));
+}
+.settings-danger__head {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--danger, #ef4444);
+  margin-bottom: 6px;
+}
+.settings-danger__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-danger__desc {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.settings-danger__btn {
+  color: var(--danger, #ef4444);
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 30%, var(--border));
+}
+.settings-danger__btn:hover {
+  background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent);
+}
