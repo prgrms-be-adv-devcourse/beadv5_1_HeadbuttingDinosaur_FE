@@ -615,7 +615,139 @@ cutover 후에도 사용자 브라우저에 남는 유일한 의미 없는 키.
 **마이그레이션 코드 위치 / 제거 시점**: 위 옵션 6.6-(b) 채택 시에만 의미 있음. 채택 시 → `src/main.tsx` 1줄 추가 → cutover 후 4~8주(=평균 활성 사용자 1회 방문 주기) 뒤 § 10.3 사후 PR 에서 제거. 그 외 마이그레이션 코드는 **추가하지 않음**.
 
 ## 7. docs/redesign/ 정리
-(작성 예정)
+
+cutover 가 끝나면 `docs/redesign/` 의 존재 의의(=v2 재구축의 설계 / 작업 가이드)가 사라진다.
+원칙: **git history 가 있으니 폴더 통째로 삭제**, 단 외부 참조(코드 주석 + CLAUDE.md)는 별도로 정리.
+
+### 7.1 현재 폴더 인벤토리
+
+| 파일 | LOC | 분류 |
+|------|-----|------|
+| `README.md` | 87 | 가이드 (인덱스) |
+| `Spec.md` | 463 | 디자인 / API 스펙 |
+| `WORKFLOW.md` | 307 | 작업 가이드 |
+| `pr-templat.md` | 134 | PR 템플릿 (오타 그대로) |
+| `INVENTORY.md` | 432 | 사전 조사 (페이지 / API / 인증 매핑) |
+| `Cutover.plan.md` | 630 | **본 문서** |
+| `Cart.plan.md` | 1172 | 페이지 plan |
+| `EventDetail.plan.md` | 1434 | 페이지 plan |
+| `EventList.plan.md` | 894 | 페이지 plan |
+| `Landing.plan.md` | 1700 | 페이지 plan |
+| `Login.plan.md` | 446 | 페이지 plan |
+| `MyPage.plan.md` | 2843 | 페이지 plan |
+| `layout.plan.md` | 1186 | 횡단 plan |
+| `router-toggle.plan.md` | 264 | 횡단 plan |
+| `shared-components.plan.md` | 1820 | 횡단 plan |
+| `tokens.plan.md` | 778 | 횡단 plan |
+| `prototype/` (12 항목) | — | jsx 8 + tokens.css + ide-theme.css + html + assets/ |
+
+총 16 markdown + prototype 트리. 합계 약 14,590 LOC.
+
+### 7.2 삭제 대상 (전체)
+
+원칙적으로 **모두 삭제**. 사후 가치는 git log / blame 으로 충분히 추적 가능.
+
+```bash
+# 페이지 / 횡단 plan + 가이드
+git rm docs/redesign/README.md \
+       docs/redesign/Spec.md \
+       docs/redesign/WORKFLOW.md \
+       docs/redesign/pr-templat.md \
+       docs/redesign/INVENTORY.md \
+       docs/redesign/Cart.plan.md \
+       docs/redesign/EventDetail.plan.md \
+       docs/redesign/EventList.plan.md \
+       docs/redesign/Landing.plan.md \
+       docs/redesign/Login.plan.md \
+       docs/redesign/MyPage.plan.md \
+       docs/redesign/layout.plan.md \
+       docs/redesign/router-toggle.plan.md \
+       docs/redesign/shared-components.plan.md \
+       docs/redesign/tokens.plan.md
+
+# 프로토타입 트리 (재귀)
+git rm -r docs/redesign/prototype/
+
+# Cutover.plan.md (본 문서) — cutover PR 자체의 변경 이력으로 가치가 끝남 → 함께 삭제
+git rm docs/redesign/Cutover.plan.md
+
+# 폴더 자체 (git 은 빈 디렉토리를 추적 안 함, 위 명령으로 사실상 사라짐)
+```
+
+기재 정정: 원래 요청에 있던 파일 중 다음은 **존재하지 않음** → 삭제 명령에서 제외:
+- `docs/redesign/SETUP.md` — 없음
+- `docs/redesign/{Page}.pr.md` (PR 본문 모음) — 없음. PR 템플릿은 `pr-templat.md` 1개만 존재 (오타 유지)
+- 실제 스펙 파일명은 `SPEC.md` 가 아니라 `Spec.md` — 위 명령에 정정 반영
+
+### 7.3 보존 검토 (옵션)
+
+전체 삭제 외 대안:
+
+| 옵션 | 처리 | 장점 | 단점 |
+|------|------|------|------|
+| **(A) 전체 삭제** (권장) | 위 § 7.2 명령 | 깔끔. git history 가 사후 참조원 | history 검색 비용. 외부 링크(이슈 / PR / 외부 문서) 깨짐 |
+| (B) 통째로 `docs/archive/v2-cutover/` 로 이동 | `git mv docs/redesign docs/archive/v2-cutover` | 외부 링크 살아있음. 코드 주석 (§ 7.4) 도 부분적으로 유효 | repo 에 dead 문서 14k LOC 잔존 |
+| (C) 선별 보존 | INVENTORY 와 Spec 만 `docs/architecture/` 로 이동 | 디자인 결정 / API 매핑 등 이후에도 참조 가치 있는 일부만 살림 | 어디까지 살릴지 결정 비용. plan / prototype 은 어차피 생명주기 끝남 |
+
+**권장: (A) 전체 삭제**. 다만 § 7.4 의 코드 주석이 다수라 (B) 옵션의 효용이 무시할 수 없으므로, **§ 9 의사결정 항목**으로 이관해 PR 시점에 최종 합의.
+
+(C) 가 채택되는 경우 후보:
+- `INVENTORY.md` → `docs/architecture/api-inventory.md` (페이지 ↔ API 매핑은 cutover 후에도 유효)
+- `Spec.md` 의 § 0 (공통 규칙) / § 10 (API 가이드) → `docs/architecture/frontend-conventions.md` 로 발췌 이식
+
+### 7.4 코드 주석의 dangling reference
+
+`git grep` 결과 `src/` 안에 `docs/redesign/...` 를 가리키는 주석이 **약 30+ 곳** 존재 (§ 7.0 grep 참조). 대표 예:
+
+| 위치 | 참조 |
+|------|------|
+| `src/components-v2/Icon/index.tsx:5` | `docs/redesign/prototype/common.jsx` |
+| `src/components-v2/Layout/*.tsx` (10여 곳) | `docs/redesign/layout.plan.md §3-x` |
+| `src/lib/format.ts:1` | `docs/redesign/prototype/common.jsx` |
+| `src/pages-v2/Cart/{adapters,types}.ts` | `docs/redesign/Cart.plan.md` |
+| `src/pages-v2/PaymentCallback/types.ts` | `docs/redesign/Cart.plan.md` |
+| `src/pages-v2/Landing/components/TypedTerminal.tsx:7` | `docs/redesign/Landing.plan.md §3, §12.1` |
+| `src/styles-v2/accent.ts:1` | `docs/redesign/prototype/common.jsx` |
+| `src/styles-v2/components/accent-media-box.css:2` | `docs/redesign/prototype Cart thumb` |
+
+이 주석들의 처리:
+
+| 옵션 | 처리 | 비고 |
+|------|------|------|
+| **(α) 그대로 둠** | 손대지 않음 | 가장 단순. 주석은 "출처는 git log 에서 추적" 의미로 격하됨. dead link 지만 동작에는 영향 0 |
+| (β) 전부 제거 | 30+ 파일에서 해당 주석 라인만 삭제 | 대규모 diff. § 10.3 사후 PR 로 분리 권장 |
+| (γ) 일괄 치환 | `docs/redesign/X` → `(legacy: v2 재구축 설계, git history 참조)` | 주석은 남기되 dead link 표시. sed 한 줄 가능하지만 §3-x 같은 섹션 번호 보존이 까다로움 |
+
+**권장**: (α) 그대로 두고, § 10.3 사후 PR 에서 dead-code / dead-comment 정리할 때 (β) 진행. cutover PR 본체에서는 손대지 않음 (diff 노이즈 감소).
+
+§ 7.3 에서 (B) 를 채택하면 주석의 경로가 `docs/archive/v2-cutover/...` 로 부분 유효 → 그래도 (β) 의 정리 가치는 유지 (출처 명시는 좋지만 cutover 후엔 stale).
+
+### 7.5 docs/CLAUDE.md 의 참조 제거
+
+`docs/CLAUDE.md` 5~7 행에 `docs/redesign/` 참조 3건:
+
+```
+- 디자인 & API 스펙: @docs/redesign/SPEC.md
+- 작업 가이드: @docs/redesign/WORKFLOW.md
+- 시각 참고 프로토타입: @docs/redesign/prototype/
+```
+
+§ 5.4 의 옵션 B (CLAUDE.md "완료됨" 변환) 와 함께 **세 줄 모두 제거**. § 7.3 (C) 가 채택되면 살아남은 문서로 1~2 줄 갱신.
+
+검증:
+```bash
+git grep -nE "docs/redesign" docs/CLAUDE.md   # 0건이어야 함
+git grep -nE "docs/redesign" -- ':!src/'      # 코드 외 영역에서 0건이어야 함
+```
+
+### 7.6 PR 분할 (이 절의 작업 위치)
+
+| 작업 | 어느 PR | 사유 |
+|------|---------|------|
+| `docs/redesign/` 전체 삭제 (§ 7.2) | **§ 10.2 PR 2 (Cutover 본체)** | 코드 cutover 와 한 묶음. 삭제 후 빌드 영향 0 |
+| 코드 주석 정리 (§ 7.4 옵션 β) | **§ 10.3 PR 3 (사후 정리)** | diff 분리 / 리뷰 부담 감소 |
+| `docs/CLAUDE.md` 갱신 (§ 7.5) | **§ 10.2 PR 2 (Cutover 본체)** | 본체와 의미적으로 한 단위 |
+| (C) 선별 보존 — `docs/architecture/` 이동 | **§ 10.1 PR 1 (선행 정리)** | cutover 본체 diff 를 키우지 않기 위해 사전 분리 |
 
 ## 8. 롤백 계획
 (작성 예정)
