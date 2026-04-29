@@ -1,0 +1,196 @@
+/* ==========================================================================
+   DevTicket v2 — Design Tokens
+   Source: docs/archive/v2-cutover/prototype/tokens.css + prototype/ide-theme.css
+   Scope:  variables only. Font @import and color-scheme hint live in global.css.
+   ========================================================================== */
+
+:root {
+  /* ── Brand ────────────────────────────────────────── */
+  --brand:        #4F46E5;   /* indigo-600 — primary action, logo, active nav */
+  --brand-hover:  #4338CA;   /* indigo-700 — primary button hover */
+  --brand-light:  #EEF2FF;   /* indigo-50  — pill / filter background */
+  --brand-muted:  #818CF8;   /* indigo-400 — subtle border on active chips */
+
+  /* ── Surfaces (light) ─────────────────────────────── */
+  --bg:        #F8FAFC;      /* page background (slate-50) */
+  --surface:   #FFFFFF;      /* cards, inputs, modals */
+  --surface-2: #F1F5F9;      /* hovered rows, tab tracks, muted fills */
+  --surface-3: #E2E8F0;      /* skeleton fills, pressed states */
+
+  /* ── Text ─────────────────────────────────────────── */
+  --text:   #0F172A;         /* primary copy, headings (slate-900) */
+  --text-2: #334155;         /* secondary copy (slate-700) */
+  --text-3: #64748B;         /* tertiary / helper (slate-500) */
+  --text-4: #94A3B8;         /* placeholder, disabled (slate-400) */
+
+  /* ── Borders ──────────────────────────────────────── */
+  --border:   #E2E8F0;       /* card, table row, default input */
+  --border-2: #CBD5E1;       /* secondary button, strong input */
+
+  /* ── Semantic ─────────────────────────────────────── */
+  --success:      #10B981;
+  --success-bg:   #ECFDF5;
+  --success-text: #065F46;
+
+  --warning:      #F59E0B;
+  --warning-bg:   #FFFBEB;
+  --warning-text: #92400E;
+
+  --danger:       #EF4444;
+  --danger-bg:    #FEF2F2;
+  --danger-text:  #991B1B;
+
+  --info:         #3B82F6;
+  --info-bg:      #EFF6FF;
+  --info-text:    #1E40AF;
+
+  /* ── Accent palette (rotated by eventId hash) ─────── */
+  --accent-indigo:  #4F46E5;
+  --accent-sky:     #0EA5E9;
+  --accent-emerald: #10B981;
+  --accent-amber:   #F59E0B;
+  --accent-violet:  #8B5CF6;
+  --accent-pink:    #EC4899;
+  --accent-red:     #EF4444;
+
+  /* ── Radius ───────────────────────────────────────── */
+  --r-sm:   6px;
+  --r-md:   8px;
+  --r-lg:   12px;
+  --r-xl:   16px;
+  --r-full: 9999px;
+
+  /* ── Elevation ────────────────────────────────────── */
+  --shadow-sm:         0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md:         0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg:         0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-card-hover: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --shadow-modal:      0 20px 60px rgba(0, 0, 0, 0.2);
+
+  /* ── Typography — family ──────────────────────────── */
+  --font:      'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', 'Fira Code', monospace;
+
+  /* Type scale */
+  --fs-display: 34px;        /* hero h1 (event list hero) */
+  --fs-h1:      26px;        /* page titles (event detail) */
+  --fs-h2:      22px;        /* auth page titles */
+  --fs-h3:      18px;        /* section dividers */
+  --fs-lg:      16px;        /* lead copy, hero subtitle */
+  --fs-md:      15px;        /* body text */
+  --fs-base:    14px;        /* default UI, inputs, buttons */
+  --fs-sm:      13px;        /* labels, secondary */
+  --fs-xs:      12px;        /* meta, badges */
+  --fs-2xs:     11px;        /* tags, fine print */
+  --fs-3xs:     10px;        /* pills (PRO, ADMIN) */
+
+  /* Weights */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --fw-black:    800;
+
+  /* Line height */
+  --lh-tight:   1.35;
+  --lh-body:    1.6;
+  --lh-relaxed: 1.75;
+
+  /* Letter spacing */
+  --ls-tight: -0.02em;
+  --ls-wide:   0.02em;
+
+  /* ── Layout ───────────────────────────────────────── */
+  --nav-h:       60px;
+  --sidebar-w:   240px;
+  --content-max: 1200px;
+
+  /* ── Motion ───────────────────────────────────────── */
+  --dur-fast: 0.12s;
+  --dur-base: 0.15s;
+  --dur-slow: 0.18s;
+  --ease:     ease;
+
+  /* === IDE ============================================
+     Source: prototype/ide-theme.css:8-36
+     Kept in this single file per SPEC § 8 ("토큰 위치: tokens.css").
+     ==================================================== */
+
+  /* Terminal accent */
+  --term-green:      #00FF88;
+  --term-green-dim:  #00CC6A;
+  --term-green-soft: rgba(0, 255, 136, 0.12);
+
+  /* Syntax highlighting (light) */
+  --syn-keyword: #7C3AED;    /* const, function, import */
+  --syn-string:  #0F9D58;    /* "strings" */
+  --syn-number:  #D97706;    /* 49000, 1.2.0 */
+  --syn-fn:      #2563EB;    /* function names */
+  --syn-prop:    #0891B2;    /* object properties */
+  --syn-comment: #64748B;    /* // comments */
+  --syn-punct:   #475569;    /* brackets, commas */
+  --syn-type:    #BE185D;    /* TS types */
+  --syn-tag:     #DC2626;    /* JSX tags */
+
+  /* IDE chrome */
+  --chrome:      #F3F4F6;    /* title bar, tabs bg */
+  --chrome-2:    #E5E7EB;    /* divider, inactive tab */
+  --gutter:      #F8FAFC;    /* line-number gutter */
+  --gutter-text: #94A3B8;    /* line-number color */
+  --editor-bg:   #FFFFFF;    /* editor surface */
+  --editor-line: rgba(79, 70, 229, 0.04); /* current-line highlight */
+  --sidebar-bg:  #FAFBFC;    /* explorer sidebar */
+  --status-bg:   #4F46E5;    /* bottom status bar */
+  --status-text: #FFFFFF;    /* status bar text */
+  --minimap-bg:  #F8FAFC;    /* minimap surface */
+}
+
+/* ==========================================================================
+   Dark mode overrides
+   Triggered by ThemeContext setting <html data-theme="dark">.
+   Per plan § 5-4-a: surface/text/border keep slate tones (no IDE re-override).
+   color-scheme hint is set in global.css.
+   ========================================================================== */
+
+[data-theme="dark"] {
+  /* Common — from prototype/tokens.css:117-131 */
+  --bg:          #0F172A;
+  --surface:     #1E293B;
+  --surface-2:   #263047;
+  --surface-3:   #334155;
+  --text:        #F1F5F9;
+  --text-2:      #CBD5E1;
+  --text-3:      #94A3B8;
+  --text-4:      #64748B;
+  --border:      #1E293B;
+  --border-2:    #334155;
+  --brand-light: rgba(79, 70, 229, 0.20);
+
+  /* IDE — Terminal accent (from prototype/ide-theme.css:39-41) */
+  --term-green:      #00FF88;
+  --term-green-dim:  #00E07A;
+  --term-green-soft: rgba(0, 255, 136, 0.14);
+
+  /* IDE — Syntax (VS Code Dark+ tone) */
+  --syn-keyword: #C586C0;
+  --syn-string:  #CE9178;
+  --syn-number:  #B5CEA8;
+  --syn-fn:      #DCDCAA;
+  --syn-prop:    #9CDCFE;
+  --syn-comment: #6B7280;
+  --syn-punct:   #94A3B8;
+  --syn-type:    #4EC9B0;
+  --syn-tag:     #569CD6;
+
+  /* IDE — Chrome */
+  --chrome:      #252526;
+  --chrome-2:    #333333;
+  --gutter:      #1E1E1E;
+  --gutter-text: #5A6270;
+  --editor-bg:   #1E1E1E;
+  --editor-line: rgba(255, 255, 255, 0.035);
+  --sidebar-bg:  #1A1A1C;
+  --status-bg:   #007ACC;
+  --status-text: #FFFFFF;
+  --minimap-bg:  #161618;
+}

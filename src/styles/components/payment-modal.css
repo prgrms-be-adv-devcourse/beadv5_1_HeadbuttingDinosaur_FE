@@ -1,0 +1,217 @@
+/* payment-modal.css
+   PaymentModal v2 리스킨 (Cart.plan.md § 7.1 / § 10.3 PR 3).
+
+   v1 (`src/components/PaymentModal.tsx`) 의 inline-style 마크업을 그대로
+   토큰 매핑한 정적 스타일. 시각적 변경은 최소화하고 (PR 3 검증 시
+   결제 종단 동작이 PR 2 와 동일해야 함 — § 10.3.6) 조립만 v2 primitives
+   (`Card`, `Button`, `Input`) 로 교체했다.
+
+   `.payment-method-card` 는 라디오 시맨틱 (`role="radio"`) 을 가진 button
+   요소이므로 자체 스타일 + focus ring 을 둔다 (`Card` 미사용 — Card 는
+   `<div>` 라 키보드 시맨틱이 부족). */
+
+/* ── Backdrop ────────────────────────────────────────── */
+.payment-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* ── Surface ─────────────────────────────────────────── */
+.payment-modal-surface {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.payment-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.payment-modal-title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.payment-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-md);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-4);
+  font-size: 18px;
+  line-height: 1;
+}
+.payment-modal-close:hover {
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+.payment-modal-close:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ── Body ────────────────────────────────────────────── */
+.payment-modal-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.payment-modal-total {
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.payment-modal-total__label {
+  font-size: 14px;
+  color: var(--text-2);
+}
+.payment-modal-total__value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.payment-modal-method-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── MethodCard (role=radio button) ──────────────────── */
+.payment-method-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: var(--font);
+  transition: border-color 0.15s, background 0.15s;
+}
+.payment-method-card:hover:not(:disabled) {
+  border-color: var(--border-2);
+}
+.payment-method-card.is-selected {
+  border-color: var(--brand);
+  background: var(--brand-light);
+}
+.payment-method-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.payment-method-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.payment-method-card__radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid var(--border-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.payment-method-card.is-selected .payment-method-card__radio {
+  border-color: var(--brand);
+}
+.payment-method-card__radio-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+.payment-method-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.payment-method-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.payment-method-card__desc {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.payment-method-card.is-warn .payment-method-card__desc {
+  color: var(--danger);
+}
+
+/* ── WALLET_PG 입력 영역 ─────────────────────────────── */
+.payment-modal-walletpg {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.payment-modal-walletpg__label {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.payment-modal-walletpg__helper {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.payment-modal-walletpg__error {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* ── 잔액 부족 경고 박스 ─────────────────────────────── */
+.payment-modal-warning {
+  padding: 10px 14px;
+  background: var(--danger-bg);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  color: var(--danger-text);
+}
+
+/* ── Footer ──────────────────────────────────────────── */
+.payment-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  background: var(--surface-2);
+}
+.payment-modal-footer .btn {
+  justify-content: center;
+}
+.payment-modal-footer__cancel { flex: 1; }
+.payment-modal-footer__pay    { flex: 2; }

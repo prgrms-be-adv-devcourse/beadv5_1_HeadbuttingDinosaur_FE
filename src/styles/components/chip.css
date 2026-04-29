@@ -1,0 +1,58 @@
+/* chip.css
+   Source: docs/archive/v2-cutover/prototype/ide-theme.css `.chip` block.
+   Sizing/hover follow shared-components.plan.md §4.5 (5px 10px /
+   13px / radius 6, hover→text-2) — diverges from prototype where
+   the plan is authoritative. focus-visible ring is new per §4.5. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--text-2);
+  color: var(--text);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Active overrides hover so toggled chips keep brand envelope while
+ * pointer is over them. */
+.chip.is-active,
+.chip.is-active:hover {
+  background: var(--brand-light);
+  color: var(--brand);
+  border-color: var(--brand);
+}
+
+/* Brand-on-translucent reads poorly on dark; lighten foreground
+ * (mirrors prototype line 632). */
+[data-theme="dark"] .chip.is-active,
+[data-theme="dark"] .chip.is-active:hover {
+  color: #A5B4FC;
+}
+
+.chip-count {
+  margin-left: 4px;
+  opacity: 0.6;
+  font-size: 10.5px;
+}

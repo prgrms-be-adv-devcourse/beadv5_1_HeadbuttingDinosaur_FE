@@ -1,0 +1,41 @@
+/* status-chip.css
+   Source: docs/archive/v2-cutover/prototype/ide-theme.css `.status-chip` block.
+   Variant → token map per shared-components.plan.md §4.4 (note: §4.4 maps
+   `ok` to term-green tokens, diverging from prototype's success-* — plan
+   is authoritative). dot color is variant-specific, not currentColor. */
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ── Variant: bg + foreground ──────────────────────── */
+.status-chip-ok   { background: var(--term-green-soft); color: var(--term-green-dim); }
+.status-chip-sold { background: var(--danger-bg);       color: var(--danger-text); }
+.status-chip-free { background: var(--brand-light);     color: var(--brand); }
+.status-chip-end  { background: var(--surface-2);       color: var(--text-3); }
+
+/* ── Dot ───────────────────────────────────────────── */
+.status-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.status-chip-ok   .status-chip-dot { background: var(--term-green); }
+.status-chip-sold .status-chip-dot { background: var(--danger); }
+.status-chip-free .status-chip-dot { background: var(--brand); }
+.status-chip-end  .status-chip-dot { background: var(--text-4); }
+
+/* tokens.css does not override --danger-bg/--danger-text in dark mode, so
+ * sold needs its own dark envelope (mirrors prototype line 531). */
+[data-theme="dark"] .status-chip-sold {
+  background: rgba(239, 68, 68, 0.15);
+  color: #F87171;
+}
