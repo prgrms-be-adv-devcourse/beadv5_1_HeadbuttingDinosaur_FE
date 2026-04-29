@@ -153,18 +153,49 @@
    ========================================================================== */
 
 [data-theme="dark"] {
-  /* Common — from prototype/tokens.css:117-131 */
-  --bg:          #0F172A;
-  --surface:     #1E293B;
-  --surface-2:   #263047;
-  --surface-3:   #334155;
-  --text:        #F1F5F9;
-  --text-2:      #CBD5E1;
-  --text-3:      #94A3B8;
-  --text-4:      #64748B;
-  --border:      #1E293B;
-  --border-2:    #334155;
-  --brand-light: rgba(79, 70, 229, 0.20);
+  /* Common — VS Code Dark+ palette
+     Surfaces use VS Code's neutral grays (no slate/blue cast):
+       editor #1E1E1E, sidebar #252526, hover #2A2D2E, active #37373D.
+     Text follows VS Code's foreground tokens (#CCCCCC family).
+     Borders use #3C3C3C / #474747 (panel.border, contrastBorder).        */
+  --bg:          #1E1E1E;
+  --surface:     #252526;
+  --surface-2:   #2D2D30;
+  --surface-3:   #37373D;
+  --text:        #D4D4D4;
+  --text-2:      #CCCCCC;
+  --text-3:      #9D9D9D;
+  --text-4:      #6E7681;
+  --border:      #3C3C3C;
+  --border-2:    #474747;
+  --brand:       #0E7DEC;   /* VS Code activity-bar blue */
+  --brand-hover: #1F8CEF;
+  --brand-light: rgba(14, 125, 236, 0.18);
+  --brand-muted: #2D5C9B;
+
+  /* Semantic — VS Code editor diagnostic palette */
+  --success:      #4EC9B0;
+  --success-bg:   rgba(78, 201, 176, 0.12);
+  --success-text: #4EC9B0;
+
+  --warning:      #DCDCAA;
+  --warning-bg:   rgba(220, 220, 170, 0.12);
+  --warning-text: #DCDCAA;
+
+  --danger:       #F48771;
+  --danger-bg:    rgba(244, 135, 113, 0.12);
+  --danger-text:  #F48771;
+
+  --info:         #75BEFF;
+  --info-bg:      rgba(117, 190, 255, 0.12);
+  --info-text:    #75BEFF;
+
+  /* Elevation — deeper shadows on dark for separation */
+  --shadow-sm:         0 1px 3px 0 rgb(0 0 0 / 0.40), 0 1px 2px -1px rgb(0 0 0 / 0.30);
+  --shadow-md:         0 4px 6px -1px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.35);
+  --shadow-lg:         0 10px 15px -3px rgb(0 0 0 / 0.50), 0 4px 6px -4px rgb(0 0 0 / 0.40);
+  --shadow-card-hover: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-modal:      0 20px 60px rgba(0, 0, 0, 0.70);
 
   /* IDE — Terminal accent (from prototype/ide-theme.css:39-41) */
   --term-green:      #00FF88;
@@ -177,20 +208,20 @@
   --syn-number:  #B5CEA8;
   --syn-fn:      #DCDCAA;
   --syn-prop:    #9CDCFE;
-  --syn-comment: #6B7280;
-  --syn-punct:   #94A3B8;
+  --syn-comment: #6A9955;
+  --syn-punct:   #D4D4D4;
   --syn-type:    #4EC9B0;
   --syn-tag:     #569CD6;
 
   /* IDE — Chrome */
-  --chrome:      #252526;
-  --chrome-2:    #333333;
+  --chrome:      #2D2D30;   /* tab strip / title bar */
+  --chrome-2:    #252526;   /* inactive tab */
   --gutter:      #1E1E1E;
-  --gutter-text: #5A6270;
+  --gutter-text: #858585;   /* VS Code editorLineNumber.foreground */
   --editor-bg:   #1E1E1E;
-  --editor-line: rgba(255, 255, 255, 0.035);
-  --sidebar-bg:  #1A1A1C;
+  --editor-line: rgba(255, 255, 255, 0.04);
+  --sidebar-bg:  #252526;   /* sideBar.background */
   --status-bg:   #007ACC;
   --status-text: #FFFFFF;
-  --minimap-bg:  #161618;
+  --minimap-bg:  #1E1E1E;
 }

@@ -15,6 +15,7 @@ import {
   updateProfile,
   withdrawUser,
 } from '@/api/auth.api';
+import { extractTechStacks } from '@/api/techStacks';
 import type { TechStackItem } from '@/api/types';
 import { Button, Card, Chip, Input } from '@/components';
 import { POSITION_OPTIONS } from '@/constants/profile';
@@ -52,7 +53,7 @@ export function SettingsTab() {
 
   useEffect(() => {
     getTechStacks()
-      .then((res) => setTechStackOptions(res.data.techStacks ?? []))
+      .then((res) => setTechStackOptions(extractTechStacks(res.data)))
       .catch(() => toast('기술 스택 목록을 불러오지 못했습니다.', 'error'));
   }, [toast]);
 

@@ -44,11 +44,11 @@
   border-color: var(--brand);
 }
 
-/* Brand-on-translucent reads poorly on dark; lighten foreground
- * (mirrors prototype line 632). */
+/* Brand-on-translucent reads poorly on dark; lighten foreground.
+ * VS Code uses a sky-tinted blue for active selections. */
 [data-theme="dark"] .chip.is-active,
 [data-theme="dark"] .chip.is-active:hover {
-  color: #A5B4FC;
+  color: #75BEFF;
 }
 
 .chip-count {
