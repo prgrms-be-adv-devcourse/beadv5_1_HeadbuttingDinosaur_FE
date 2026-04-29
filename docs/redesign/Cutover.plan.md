@@ -77,7 +77,77 @@ Cutover 직후에도 기존 사용자가 끊김 없이 사용 가능해야 함.
   - 번들 사이즈 증가가 v1 대비 합리적 범위 (목표: initial JS +10% 이내, 초과 시 PR 에서 사유 / 후속 최적화 계획 명시)
 
 ## 2. 영향 범위 매핑
-(작성 예정)
+
+Cutover 가 건드리는 모든 영역을 한눈에 보기 위한 매핑.
+영향 정도 표기: **대** (구조 변경 / 회귀 위험 큼) / **중** (다수 파일 수정) / **소** (국지적 / 자동화 가능).
+
+### 2.1 라우트 — 영향 정도: **대**
+- 변경 (v1 → v2 로 전환): INVENTORY § 6 의 v2 이관 완료 페이지 전부
+  - Landing (`/`)
+  - EventList (`/events`)
+  - EventDetail (`/events/:id`)
+  - Cart (`/cart`)
+  - 결제 (`/checkout` 또는 동등 경로)
+  - MyPage (`/mypage` 및 하위 탭)
+- 변경 안 됨 (v1 유지, INVENTORY § 7 기준): admin, signup 등 cutover 범위 밖 라우트
+- 비고: 정확한 라우트 목록은 § 5 에서 router 파일 단위로 다시 명세.
+
+### 2.2 디렉토리 — 영향 정도: **대**
+- 삭제: `src/pages/`, `src/components/` 중 v2 로 대체된 항목 (정확한 파일 단위는 § 3)
+- 이동 (rename): 
+  - `src/pages-v2/` → `src/pages/`
+  - `src/components-v2/` → `src/components/`
+  - `src/types-v2/` → `src/types/` (또는 기존 타입과 병합)
+  - `src/router-v2/` → `src/router/` (router-toggle 헬퍼 제거 후)
+- 통합: `src/styles-v2/` → `src/styles/` (토큰 / 글로벌 CSS 병합, 충돌 시 v2 우선)
+- 위험: import 경로 일괄 변경 필요 → codemod 또는 정규식 치환 필수 (§ 5 에서 명세)
+
+### 2.3 라우터 — 영향 정도: **중**
+- Phase 0 의 `router-toggle` 헬퍼 (`?v=2` 분기) 제거
+- v1 / v2 분기 로직 단순화 → 단일 라우트 트리
+- `useSearchParams` 로 `v` 를 읽는 코드 전부 제거 (페이지 / 훅 양쪽)
+- 위험: 분기 잔존 시 v1 코드가 dead 상태로 살아있어 번들에 포함될 수 있음 → grep 으로 0건 확인
+
+### 2.4 의존성 — 영향 정도: **소~중** (조사 필요)
+- 점검 항목 (package.json):
+  - `react-type-animation` — v1 Landing 외 사용처 없으면 제거 후보
+  - `react-kakao-maps-sdk` — v1/v2 양쪽 사용 여부 확인 후 결정
+  - `@tosspayments/tosspayments-sdk` — 결제 v2 에서도 사용하면 유지
+- v2 전용으로 추가된 신규 의존성 (있다면) → devDependencies / dependencies 위치 재확인 후 영구화
+- 위험: v1 만 쓰던 패키지를 너무 일찍 제거하면 v1 잔존 페이지 (admin 등) 가 깨질 수 있음 → § 1.3 검증 후 제거
+
+### 2.5 CLAUDE.md — 영향 정도: **소**
+- `docs/CLAUDE.md` 의 "프론트엔드 v2 재구축 (진행 중)" 섹션 제거 또는 완료 상태로 갱신
+- 절대 규칙 항목 제거 / 갱신:
+  - "신규 코드: src/pages-v2/, src/components-v2/, src/styles-v2/" → 삭제
+  - "기존 src/pages/, src/components/는 cutover PR 전까지 절대 수정 금지" → 삭제
+  - 나머지 (adapters / VM 변환, 프로토타입 인라인 style 금지 등) 는 일반 규칙으로 유지
+- SPEC.md / WORKFLOW.md 참조 링크는 § 7 에서 별도로 정리
+
+### 2.6 테스트 — 영향 정도: **중** (테스트 인프라 도입 여부에 따라 달라짐)
+- 현 상태: 테스트 인프라 미설치 (package.json 에 test runner 없음). v1 테스트가 존재하지 않으면 이 항목은 NO-OP.
+- v1 단위 / 통합 테스트가 존재하는 경우: 해당 테스트 파일 삭제
+- v2 테스트 파일이 `__tests__-v2/` 또는 `*.v2.test.ts` 등 분리 위치에 있으면 메인 위치로 이동
+- 위험: 테스트가 없는 상태로 cutover 시 § 1.5 의 "테스트 통과" 기준은 typecheck + lint + 수동 시나리오로 대체
+
+### 2.7 CI / CD — 영향 정도: **소**
+- 현재 빌드 스크립트 (`vite build`) 자체는 변경 불필요
+- 영향 가능 항목 점검:
+  - GitHub Actions 워크플로우에서 `pages-v2`, `components-v2` 등을 명시적으로 참조하는지
+  - eslint / tsconfig 의 `paths`, `include`, `exclude` 에 v2 경로가 박혀 있는지
+  - PR 템플릿 (`docs/redesign/pr-templat.md`) 의 v2 전용 체크 항목
+- 영향 있을 시 cutover PR 에서 함께 갱신, 없으면 NO-OP
+
+### 2.8 영향 정도 요약
+| 영역 | 정도 | 주요 위험 |
+|------|------|-----------|
+| 라우트 | 대 | 진입점 변경, SEO / 북마크 영향 |
+| 디렉토리 | 대 | import 경로 일괄 변경 |
+| 라우터 | 중 | 분기 잔존 시 dead code |
+| 의존성 | 소~중 | v1 잔존 페이지 깨짐 |
+| CLAUDE.md | 소 | 문서 정합성만 |
+| 테스트 | 중 | 인프라 유무에 따라 달라짐 |
+| CI / CD | 소 | 설정 파일에 v2 경로 박혀있는지 |
 
 ## 3. 삭제 대상 (기존 코드)
 (작성 예정)
