@@ -3,11 +3,11 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Loading from '@/components/Loading';
 
-interface RequireAuthV2Props {
+interface RequireAuthProps {
   children: ReactElement;
 }
 
-export function RequireAuthV2({ children }: RequireAuthV2Props) {
+export function RequireAuth({ children }: RequireAuthProps) {
   const { isLoggedIn, isLoading } = useAuth();
   const location = useLocation();
 
