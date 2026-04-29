@@ -372,7 +372,136 @@ git grep -nE "(pages|components|styles|types|router)-v2" src/ && echo "FAIL: v2 
 자동화 스크립트는 cutover PR 의 **첫 커밋**에서 한 번에 적용해 diff 를 분리하면 리뷰가 쉬움 (rename diff + import 치환 diff 가 섞이지 않게).
 
 ## 5. 수정 대상 (라우터 / 토글 / import)
-(작성 예정)
+
+§ 3 (삭제) / § 4 (이동) 와 별개로, **파일 삭제 / 이동 없이 코드 본문만 고치는** 작업을 모은다.
+
+### 5.1 라우터 정의 (`src/App.tsx`)
+
+현재 `src/App.tsx` 는 9개 라우트가 `<VersionedRoute v1={...} v2={...} />` 로 분기되고, lazy import 가 v1 / v2 두 벌 선언되어 있다 (`src/App.tsx:8, 22-30, 41-49, 94, 109-114, 122-123`).
+
+수정 항목:
+
+| 라인 (현재) | 변경 |
+|-------------|------|
+| `:8` `import { VersionedRoute, RequireAuthV2 } from './router-v2'` | `VersionedRoute` import 제거. `RequireAuthV2` 는 § 5.2-(c) 결정에 따라 처리 |
+| `:11-15` v1 즉시 import (`EventList`, `EventDetail`, `Login`, `Signup`, `NotFound`) | `EventList`, `EventDetail`, `Login` 제거 (§ 3.1 삭제 대상). `Signup`, `NotFound` 는 v1 잔존 → 유지 |
+| `:22-30` v2 lazy import 9건 (`LoginV2`, `EventListV2`, `EventDetailV2`, `CartV2`, `PaymentSuccessV2`, `PaymentFailV2`, `PaymentCompleteV2`, `MyPageV2`, `LandingV2`) | `V2` 접미사 제거 + 경로 `./pages-v2/` → `./pages/` (§ 4.5 sed 와 일괄). 비로그인 첫 화면 5종은 lazy → 즉시 import 로 전환 검토 (§ 9) |
+| `:33-37` `_dev` showcase lazy import 3건 | **§ 9 결정 필요**. Landing.plan §12 주석상 cutover/PR 4 cleanup 시 제거 예정 → 보통은 § 10.3 사후 PR 에서 일괄 삭제 |
+| `:41-49` v1 lazy import (`Cart`, `MyPage`, `PaymentSuccess`, `PaymentFail`, `PaymentComplete`) | 모두 제거 (§ 3.1 삭제 대상). `SignupComplete`, `Payment`, `SellerApply`, `WalletChargeSuccess`, `WalletChargeFail` 는 v1 잔존 → 유지 |
+| `:94` `<Route path="/login" element={<VersionedRoute v1={<Login />} v2={<LoginV2 />} />} />` | `element={<Login />}` (v2 가 새 `Login`) |
+| `:102-105` `_dev` 라우트 3건 | § 5.1 의 `_dev` import 와 운명 동일 |
+| `:109` `/` Landing 분기 | `element={<Landing />}`. **§ 9 결정**: `/` 를 Landing 으로, `/events` 를 EventList 로 분리 (현재 둘 다 `?v=1` 에서 EventList) |
+| `:110` `/events` 분기 | `element={<EventList />}` |
+| `:111` `/events/:id` 분기 | `element={<EventDetail />}` |
+| `:112` `/cart` 분기 | `element={<RequireAuth><Cart /></RequireAuth>}` |
+| `:114` `/payment/complete` 분기 | `element={<RequireAuth><PaymentComplete /></RequireAuth>}` (v2 가 새 `PaymentComplete`) |
+| `:115-120` `/mypage/*` 의 가드 중첩 분기 | `element={<RequireAuth><MyPage /></RequireAuth>}`. **§ 5.2-(c)** 의 가드 통일 결정에 따라 `RequireAuth` 가 returnTo 동작 흡수 |
+| `:122-123` `/payment/success`, `/payment/fail` 분기 | 동일 패턴으로 단일화 |
+
+수정 후 App.tsx 의 v1 즉시 import (`Signup`, `NotFound`)와 v1 잔존 lazy import 5종은 그대로 유지.
+
+### 5.2 router-toggle 헬퍼 정리 (`src/router-v2/`)
+
+INVENTORY § 5 / router-toggle.plan §2 기준, 토글 메커니즘은 다음 4개 파일로 구성:
+
+| 파일 | 처리 | 사유 |
+|------|------|------|
+| `src/router-v2/VersionedRoute.tsx` (12 LOC) | **삭제** | § 5.1 에서 호출 0건 됨 → dead |
+| `src/router-v2/useUiVersion.ts` (32 LOC) | **삭제** | URL `?v=` / `localStorage['ui.version']` / env `VITE_UI_DEFAULT_VERSION` 우선순위 해석. 분기 사라지면 호출 0건 |
+| `src/router-v2/RequireAuthV2.tsx` (23 LOC) | **§ 9 결정 — 둘 중 하나** | 옵션 (c-1) v1 `RequireAuth` (`App.tsx:67-72`) 를 삭제하고 이 파일을 메인 `RequireAuth` 로 승격(returnTo 기능 보존). 옵션 (c-2) v2 returnTo 기능을 v1 `RequireAuth` 에 흡수하고 이 파일은 삭제 |
+| `src/router-v2/index.ts` (4줄 barrel) | **삭제 또는 갱신** | 위 결정에 따라. `RequireAuthV2` 만 살아남으면 barrel 정리 후 § 4.1 의 `router-v2/ → router/` 이동에 합류 |
+
+**부수 효과**:
+- `localStorage['ui.version']` 키는 cutover 후 의미 없는 stale 데이터로 남음 → § 6 (마이그레이션) 에서 1회성 cleanup 다룸
+- `VITE_UI_DEFAULT_VERSION` env 는 § 5.5 에서 함께 제거
+
+**삭제 안전성 확인**:
+```bash
+git grep -nE "VersionedRoute|useUiVersion|UiVersion|RequireAuthV2" src/
+# App.tsx 의 § 5.1 수정이 끝난 후 0건이어야 함 (RequireAuthV2 는 § 9 결정에 따라 잔존 가능)
+```
+
+### 5.3 import 경로 일괄 변경
+
+§ 4.5 / § 4.6 의 sed 한 줄로 처리 (`-v2` 접미사 일괄 제거). 이 절은 sed 결과를 라우터 외 파일에서도 검증.
+
+| 영향 받는 import 패턴 | 검증 명령 |
+|-----------------------|-----------|
+| `@/components-v2/X` → `@/components/X` (라인 64건) | `git grep -n "components-v2" src/` 결과 0건 |
+| `@/pages-v2/X` → `@/pages/X` (라인 12건) | `git grep -n "pages-v2" src/` 결과 0건 |
+| `@/styles-v2/X` → `@/styles/X` (라인 5건, CSS `import` 포함) | `git grep -nE "styles-v2" src/` 결과 0건 |
+| `@/types-v2/X` → `@/types/X` (라인 5건) | `git grep -n "types-v2" src/` 결과 0건 |
+| `./router-v2` → `./router` (App.tsx 1건) | `git grep -n "router-v2" src/` 결과 0건 |
+
+추가로, §5.1 의 라우터 수정이 끝난 뒤에는 주석 / lazy 변수명에 남은 `V2` 접미사도 함께 정리:
+```bash
+git grep -nE "\b(LoginV2|EventListV2|EventDetailV2|CartV2|MyPageV2|LandingV2|Payment(Success|Fail|Complete)V2)\b" src/
+# 0건이어야 함
+```
+
+IDE refactor (VS Code "Rename Symbol") 도 가능하지만, alias 변경은 단순 텍스트 치환이라 `sed` 가 빠르고 정확.
+
+### 5.4 docs/CLAUDE.md
+
+전체 16줄 짜리 1개 섹션 (`docs/CLAUDE.md:1-16`) 전부 cutover 의 영향권. 옵션:
+
+- **옵션 A — 통째로 삭제**: "v2 재구축" 자체가 종료되었으므로 섹션 제거. 깔끔하지만 신규 합류자가 "v2 가 무엇이었는지" 추적 불가.
+- **옵션 B — "완료됨" 으로 변환** (권장): 섹션 제목을 "프론트엔드 디자인 가이드" 등 일반 명칭으로 바꾸고, 절대 규칙 중 다음만 남김:
+  - "모든 API 응답은 페이지별 adapters.ts 거쳐서 VM으로 변환"
+  - "프로토타입의 인라인 style, window.\*, useStateA 별칭은 가져오지 않음"
+  - "프로토타입의 mock 데이터는 코드에 들어가면 안 됨 (반드시 실제 API)"
+  
+  제거 대상:
+  - "신규 코드: src/pages-v2/, src/components-v2/, src/styles-v2/" (디렉토리 자체가 사라짐)
+  - "기존 src/pages/, src/components/는 cutover PR 전까지 절대 수정 금지" (cutover 완료)
+  - "페이지 1개 작업 = plan 먼저" (작업 절차 항목, 별도 WORKFLOW.md 로 위임)
+
+옵션 B 채택 권장. 실제 문구는 cutover PR 본문에서 확정.
+
+### 5.5 환경 변수 / config
+
+| 항목 | 위치 | 처리 | 검증 |
+|------|------|------|------|
+| `VITE_UI_DEFAULT_VERSION=1` | `.env.development:4` | **삭제** | 토글 사라짐 → 의미 없음 |
+| `VITE_UI_DEFAULT_VERSION` 주석 | `src/api/.env.example:5` | **삭제** | 동일 |
+| `VITE_API_BASE_URL`, `VITE_GOOGLE_OAUTH_URL`, `VITE_KAKAO_MAP_KEY`, `VITE_TOSS_CLIENT_KEY` | (각 위치) | **유지** | v2 와 무관 |
+| `tsconfig.json` paths (`@/*`) | `tsconfig.json:24` | **유지** | alias 자체는 그대로 |
+| `vite.config.ts` alias | `vite.config.ts:9` | **유지** | 동일 |
+
+**검증**:
+```bash
+git grep -nE "VITE_UI_DEFAULT_VERSION|ui\.version" .env* src/  # 0건이어야 함
+```
+
+### 5.6 테스트 import 경로
+
+INVENTORY § 5 + § 1.5 기준 **테스트 인프라 미설치** (Vitest/Jest 등 의존성 0개, `*.test.*` / `*.spec.*` 파일 0개). 이 절은 **NO-OP**.
+
+테스트가 도입된 상태였다면 § 5.3 의 sed 한 줄이 `src/` 에 한정되어 있으므로, `tests/` 또는 `__tests__/` 디렉토리에 같은 sed 를 별도 적용하면 됨.
+
+### 5.7 검증 (전체)
+
+cutover PR 의 마지막 빌드 검증 시퀀스:
+
+```bash
+# 1) 타입 체크 (현재 npm script 미정의 → tsc 직접 호출)
+npx tsc --noEmit
+
+# 2) lint (INVENTORY § 5 기준 ESLint 미설치 → § 9 결정에 따라 도입 시 실행)
+# npx eslint src/
+
+# 3) 빌드
+npm run build
+
+# 4) v2 잔재 0건 확인
+git grep -nE "(pages|components|styles|types|router)-v2|VersionedRoute|useUiVersion|VITE_UI_DEFAULT_VERSION|ui\.version|\bV2\b" src/ .env*
+# (router/ 안의 RequireAuthV2 가 § 9-c 옵션으로 살아남는 경우는 예외)
+
+# 5) 번들 크기 비교 (§ 1.5)
+ls -la dist/assets/
+```
+
+위 4 / 5 단계가 통과하면 cutover PR 머지 가능 상태.
 
 ## 6. v1 ↔ v2 호환성 / 마이그레이션
 (작성 예정)
