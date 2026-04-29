@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import { Icon, type IconName } from '../Icon';
-import type { RouteKey, TabDef } from './types';
+import type { TabDef } from './types';
 
 /**
  * Source: docs/archive/v2-cutover/layout.plan.md §3-10.
@@ -13,24 +13,26 @@ import type { RouteKey, TabDef } from './types';
  *
  * §6-6 a11y: role="tablist" + aria-label, each tab aria-selected and
  * aria-controls="ide-editor"; close button has explicit aria-label.
+ *
+ * Close affordance is per-tab via `tab.closeable`. Only the home tab is
+ * pinned; route tabs (events/cart/mypage/login/seller/admin) and dynamic
+ * detail tabs are all user-dismissible.
  */
 export interface TabBarProps {
   tabs: TabDef[];
-  activeKey: RouteKey;
-  onSelect: (key: RouteKey) => void;
-  /** Omit (or pass single tab) to hide the close affordance. */
-  onClose?: (key: RouteKey) => void;
+  activeKey: string;
+  onSelect: (tab: TabDef) => void;
+  onClose?: (tab: TabDef) => void;
   className?: string;
 }
 
 export function TabBar({ tabs, activeKey, onSelect, onClose, className }: TabBarProps) {
-  const showClose = Boolean(onClose) && tabs.length > 1;
   const containerCls = className ? `ide-tabs ${className}` : 'ide-tabs';
 
-  const handleTabKey = (e: KeyboardEvent<HTMLDivElement>, key: RouteKey) => {
+  const handleTabKey = (e: KeyboardEvent<HTMLDivElement>, tab: TabDef) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onSelect(key);
+      onSelect(tab);
     }
   };
 
@@ -38,6 +40,7 @@ export function TabBar({ tabs, activeKey, onSelect, onClose, className }: TabBar
     <div className={containerCls} role="tablist" aria-label="열린 페이지">
       {tabs.map((t) => {
         const isActive = activeKey === t.key;
+        const showClose = Boolean(onClose) && t.closeable;
         return (
           <div
             key={t.key}
@@ -46,8 +49,8 @@ export function TabBar({ tabs, activeKey, onSelect, onClose, className }: TabBar
             aria-selected={isActive}
             aria-controls="ide-editor"
             tabIndex={isActive ? 0 : -1}
-            onClick={() => onSelect(t.key)}
-            onKeyDown={(e) => handleTabKey(e, t.key)}
+            onClick={() => onSelect(t)}
+            onKeyDown={(e) => handleTabKey(e, t)}
           >
             <Icon name={t.icon as IconName} size={13} />
             <span>{t.label}</span>
@@ -58,7 +61,7 @@ export function TabBar({ tabs, activeKey, onSelect, onClose, className }: TabBar
                 aria-label={`${t.label} 탭 닫기`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onClose?.(t.key);
+                  onClose?.(t);
                 }}
               >
                 <Icon name="x" size={12} />

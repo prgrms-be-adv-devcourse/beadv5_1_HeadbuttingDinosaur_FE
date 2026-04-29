@@ -14,6 +14,21 @@ function isProfileIncomplete(error: AxiosError): boolean {
   return data?.code === PROFILE_INCOMPLETE_CODE;
 }
 
+/** 비로그인 사용자도 자유롭게 접근 가능한 공개 라우트 (RequireAuth 미적용). */
+const PUBLIC_PATH_PATTERNS: RegExp[] = [
+  /^\/$/,
+  /^\/events\/?$/,
+  /^\/events\/[^/]+\/?$/,
+  /^\/login\/?$/,
+  /^\/signup(\/.*)?$/,
+  /^\/oauth\/callback\/?$/,
+  /^\/social\/profile-setup\/?$/,
+];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATH_PATTERNS.some((re) => re.test(pathname));
+}
+
 export const apiClient: AxiosInstance = axios.create({
   baseURL: "/api",
   timeout: 10_000,
@@ -69,6 +84,14 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // 비로그인 상태에서 발생한 401 은 단순히 "이 API 는 인증이 필요하다"는
+    // 신호일 뿐이므로 강제 로그인 리다이렉트하지 않는다. 호출 측이 catch 해서
+    // 자체 처리(섹션 숨김 등) 하도록 그대로 reject.
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      return Promise.reject(error);
+    }
+
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject });
@@ -82,7 +105,6 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
       const { data } = await axios.post(`${BASE_URL}/auth/reissue`, { refreshToken });
       const newAccessToken: string = data.data.accessToken;
 
@@ -97,7 +119,12 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('userId');
-      window.location.href = '/login';
+      // 공개 라우트(홈, 이벤트 둘러보기/상세 등) 에서는 로그인 페이지로
+      // 강제 이동하지 않는다. 보호된 라우트(RequireAuth) 는 토큰이 사라진
+      // 다음 렌더에서 RequireAuth 가 알아서 /login 으로 보낸다.
+      if (!isPublicPath(window.location.pathname)) {
+        window.location.href = '/login';
+      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

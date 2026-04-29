@@ -161,6 +161,7 @@ const fetchRecommendations = async (
 };
 
 export function useRecommendedEvents(currentEventId: string): RecommendedQuery {
+  const { isLoggedIn } = useAuth();
   const [state, setState] = useState<RecommendedQuery>(() => {
     if (
       recommendCache &&
@@ -172,6 +173,10 @@ export function useRecommendedEvents(currentEventId: string): RecommendedQuery {
   });
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setState({ status: 'hidden' });
+      return;
+    }
     const fresh =
       recommendCache &&
       Date.now() - recommendCache.fetchedAt < RECOMMEND_STALE_MS;
@@ -195,7 +200,7 @@ export function useRecommendedEvents(currentEventId: string): RecommendedQuery {
       });
 
     return () => ctrl.abort();
-  }, [currentEventId]);
+  }, [currentEventId, isLoggedIn]);
 
   return state;
 }
