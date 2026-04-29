@@ -1,6 +1,59 @@
-export type EventListProps = Record<string, never>;
+import { useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-export default function EventList(_props: EventListProps) {
+import { EmptyStackTrace } from './components/EmptyStackTrace';
+import { ErrorState } from './components/ErrorState';
+import { EventCard } from './components/EventCard';
+import { EventCardSkeleton } from './components/EventCardSkeleton';
+import { Hero } from './components/Hero';
+import { Pagination } from './components/Pagination';
+import { ResultHeader } from './components/ResultHeader';
+import { SearchAndFilters } from './components/SearchAndFilters';
+import { DEFAULT_CATEGORY } from './adapters';
+import {
+  type UseEventsReturn,
+  useEventListFilters,
+  useEvents,
+} from './hooks';
+
+const CATEGORIES = [
+  '전체',
+  '컨퍼런스',
+  '밋업',
+  '해커톤',
+  '스터디',
+  '세미나',
+  '워크샵',
+] as const;
+
+const SKELETON_COUNT = 8;
+
+function getDisplayPage(query: UseEventsReturn) {
+  if (query.status === 'success') return query.data;
+  if (query.status === 'loading') return query.previous;
+  if (query.status === 'error') return query.previous;
+  return undefined;
+}
+
+export default function EventList() {
+  const navigate = useNavigate();
+  const { filters, setFilters } = useEventListFilters();
+  const stackNameToId = useMemo(() => new Map<string, number>(), []);
+  const query = useEvents(filters, stackNameToId);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const displayPage = getDisplayPage(query);
+  const hasActiveFilters =
+    filters.keyword.trim() !== '' || filters.category !== DEFAULT_CATEGORY;
+
+  const onResetFilters = () => {
+    setFilters({ keyword: '', category: DEFAULT_CATEGORY, stack: '', page: 0 });
+  };
+
+  const onOpenEvent = (eventId: string) => {
+    navigate(`/events/${encodeURIComponent(eventId)}`);
+  };
+
   return (
     <div className="editor-scroll">
       <div className="gutter" aria-hidden="true">
@@ -10,8 +63,53 @@ export default function EventList(_props: EventListProps) {
           </span>
         ))}
       </div>
-      <div className="editor-body">
-        <div>EventList v2 — WIP</div>
+      <div className="editor-body el-page">
+        <Hero totalCount={displayPage?.totalElements ?? 0} />
+        <SearchAndFilters
+          keyword={filters.keyword}
+          onKeywordChange={(next) => setFilters({ keyword: next })}
+          category={filters.category}
+          onCategoryChange={(next) => setFilters({ category: next })}
+          categories={CATEGORIES}
+          searchInputRef={searchInputRef}
+        />
+        <ResultHeader
+          filteredCount={displayPage?.totalElements ?? 0}
+          totalCount={displayPage?.totalElements ?? 0}
+        />
+
+        {query.status === 'error' && !displayPage ? (
+          <ErrorState onRetry={query.refetch} />
+        ) : query.status === 'loading' && !displayPage ? (
+          <div className="el-grid">
+            {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+              <EventCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : !displayPage || displayPage.items.length === 0 ? (
+          <EmptyStackTrace
+            hasActiveFilters={hasActiveFilters}
+            onReset={onResetFilters}
+          />
+        ) : (
+          <>
+            <div className="el-grid">
+              {displayPage.items.map((event) => (
+                <EventCard
+                  key={event.eventId}
+                  event={event}
+                  onOpen={() => onOpenEvent(event.eventId)}
+                />
+              ))}
+            </div>
+            <Pagination
+              page={displayPage.page}
+              totalPages={displayPage.totalPages}
+              hasNext={displayPage.hasNext}
+              onPageChange={(next) => setFilters({ page: next })}
+            />
+          </>
+        )}
       </div>
     </div>
   );

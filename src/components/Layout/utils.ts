@@ -28,16 +28,16 @@ export function pathFromRoute(key: RouteKey, params?: NavParams): string {
     case 'events': {
       const category = params?.category;
       if (category) {
-        return `/events?category=${encodeURIComponent(category)}`;
+        return `/events?cat=${encodeURIComponent(category)}`;
       }
       return '/events';
     }
     case 'detail': {
       const id = params?.id;
-      if (!id) {
-        throw new Error("pathFromRoute('detail') requires params.id");
-      }
-      return `/events/${encodeURIComponent(id)}`;
+      // Without an id we cannot build a real detail URL — fall back to the
+      // list so the tab click is never a no-op. Callers that have a specific
+      // detail in mind (e.g. Layout's last-visited tracker) should pass the id.
+      return id ? `/events/${encodeURIComponent(id)}` : '/events';
     }
     case 'cart':
       return '/cart';
@@ -46,4 +46,10 @@ export function pathFromRoute(key: RouteKey, params?: NavParams): string {
     case 'login':
       return '/login';
   }
+}
+
+export function detailIdFromPath(pathname: string): string | null {
+  if (!pathname.startsWith('/events/')) return null;
+  const id = pathname.slice('/events/'.length).split('/')[0]?.split('?')[0];
+  return id ? decodeURIComponent(id) : null;
 }

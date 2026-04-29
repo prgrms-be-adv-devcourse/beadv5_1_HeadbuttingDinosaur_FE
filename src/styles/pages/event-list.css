@@ -1,0 +1,330 @@
+/* EventList page styles.
+   Source: docs/archive/v2-cutover/prototype/EventList.jsx, ported to v2
+   tokens. Card chrome mirrors the prototype's "file tab" header. */
+
+.el-page {
+  max-width: 1100px;
+}
+
+/* ── Hero ─────────────────────────────────────────────── */
+.el-hero {
+  margin-bottom: 26px;
+}
+.el-hero__title {
+  font-family: var(--font);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 14px 0 10px;
+  color: var(--text);
+}
+.el-hero__copy {
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+.el-hero__hints {
+  margin-top: 12px;
+  display: flex;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-4);
+  flex-wrap: wrap;
+}
+
+/* ── Filters ──────────────────────────────────────────── */
+.el-filters {
+  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.el-search {
+  width: 100%;
+}
+.el-search .input-control {
+  background: var(--editor-bg);
+}
+.el-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.el-filter-label {
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.el-filter-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* ── Result header ────────────────────────────────────── */
+.el-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.el-result-header__count {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.el-result-header__count span {
+  color: var(--text-3);
+  font-weight: 500;
+  margin-left: 4px;
+}
+.el-result-header__total {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+/* ── Grid ─────────────────────────────────────────────── */
+.el-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ── Card ─────────────────────────────────────────────── */
+.el-card {
+  --el-card-accent: var(--brand);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  outline: 0;
+  text-align: left;
+}
+.el-card:hover,
+.el-card:focus-visible {
+  border-color: var(--el-card-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.10);
+}
+.el-card__accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--el-card-accent);
+}
+.el-card__chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px 9px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--chrome);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.el-card__category {
+  color: var(--el-card-accent);
+  font-weight: 700;
+}
+.el-card__sep,
+.el-card__time {
+  color: var(--text-4);
+}
+.el-card__chrome-spacer {
+  margin-left: auto;
+}
+.el-card__body {
+  padding: 16px 18px 14px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.el-card__title {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 12px;
+  min-height: 2.8em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.el-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-family: var(--font);
+  font-size: 12.5px;
+}
+.el-card__meta-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.el-card__meta-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-4);
+  width: 30px;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.el-card__meta-value {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.el-card__stacks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.el-card__stack {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--editor-line);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.el-card__stack-more {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-4);
+  align-self: center;
+  padding: 0 3px;
+}
+.el-card__footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-2, var(--border));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.el-card__footer-right {
+  text-align: right;
+}
+.el-card__footer-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-4);
+  margin-bottom: 1px;
+  letter-spacing: 0.04em;
+}
+.el-card__price {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.el-card__price.is-free {
+  color: var(--term-green-dim);
+}
+.el-card__stock {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.el-card__stock.is-low,
+.el-card__stock.is-sold {
+  color: var(--danger);
+}
+
+/* ── Skeleton ─────────────────────────────────────────── */
+.el-card--skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+.el-card--skeleton:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border);
+}
+.el-skeleton-line {
+  display: inline-block;
+  height: 12px;
+  background: var(--surface-3);
+  border-radius: 4px;
+  animation: el-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.el-card--skeleton .el-card__body {
+  gap: 8px;
+}
+@keyframes el-skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ── Empty / Error ────────────────────────────────────── */
+.el-empty,
+.el-error {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 24px;
+  text-align: left;
+  font-family: var(--font);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.el-empty__title,
+.el-error__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.el-empty__message,
+.el-error__message {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.el-empty__action,
+.el-error__action {
+  margin-top: 6px;
+}
+
+/* ── Pagination ───────────────────────────────────────── */
+.el-pagination {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+.el-pagination__page {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  min-width: 80px;
+  text-align: center;
+}
