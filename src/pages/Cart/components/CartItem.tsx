@@ -1,44 +1,23 @@
 /**
  * 장바구니 한 줄.
  *
- * 좌측 72×72 accent 박스 / 가운데 제목 + 수량 컨트롤 + 삭제 / 우측 합계.
- * 프로토타입 Cart.jsx:34-56 의 인라인 스타일을 BEM + 공용 컴포넌트로 분해.
- *
- * `pending`은 본 PR(R1) 한정으로 수량 mutation / 삭제 mutation 양쪽을 단일
- * 플래그로 묶음 — § 5에서 두 흐름을 분리한 `pendingItemIds` 가드는 PR 2.
- *
- * 📅 날짜 라인 미렌더: `CartItemVM`에 `dateLabel` 보강 필드가 없음 (§ 1
- * "보강 필드는 § 3·§ 9에서 결정 후 추가"). PR 2 이후 보강 전략 결정 시 추가.
+ * v1 Cart 와 동일하게 수량은 readonly 표시. 단건 수량 증감/삭제는 백엔드
+ * 단건 엔드포인트가 안정화되기 전까지 노출하지 않는다 (전체 삭제만 노출).
  */
 
 import { AccentMediaBox } from '@/components/AccentMediaBox';
-import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { Icon } from '@/components/Icon';
-import { QuantityStepper } from '@/components/QuantityStepper';
 import { accent } from '@/styles/accent';
 
 import type { CartItemVM } from '../types';
 
 export interface CartItemProps {
   item: CartItemVM;
-  onQuantityChange: (next: number) => void;
-  onRemove: () => void;
-  pending?: boolean;
 }
 
-export function CartItem({
-  item,
-  onQuantityChange,
-  onRemove,
-  pending = false,
-}: CartItemProps) {
-  const className = ['cart-item', pending && 'is-pending']
-    .filter(Boolean)
-    .join(' ');
-
+export function CartItem({ item }: CartItemProps) {
   return (
-    <Card variant="solid" className={className}>
+    <Card variant="solid" className="cart-item">
       <AccentMediaBox
         accent={accent(item.eventId)}
         size="sm"
@@ -47,24 +26,8 @@ export function CartItem({
       />
       <div className="cart-item__main">
         <div className="cart-item__title">{item.eventTitle}</div>
-        <div className="cart-item__controls">
-          <QuantityStepper
-            value={item.quantity}
-            onChange={onQuantityChange}
-            min={1}
-            size="sm"
-            disabled={pending}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            disabled={pending}
-            iconStart={<Icon name="trash" size={12} />}
-            className="cart-item__remove"
-          >
-            삭제
-          </Button>
+        <div className="cart-item__meta">
+          {item.unitPrice.toLocaleString()}원 · {item.quantity}매
         </div>
       </div>
       <div className="cart-item__total">

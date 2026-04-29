@@ -65,10 +65,6 @@
   align-items: center;
   transition: opacity var(--dur-base) var(--ease);
 }
-.cart-item.is-pending {
-  opacity: 0.6;
-  pointer-events: none;
-}
 .cart-item__media {
   flex-shrink: 0;
 }
@@ -81,18 +77,15 @@
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
   color: var(--text);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cart-item__controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cart-item__remove {
-  margin-left: auto;
+.cart-item__meta {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
 }
 .cart-item__total {
   font-family: var(--font);
