@@ -768,6 +768,10 @@ export interface EventCancelResponse {
   status: string;
 }
 
+export interface EventForceCancelRequest {
+  reason: string;
+}
+
 export interface UserSearchCondition {
   keyword?: string;
   role?: string;

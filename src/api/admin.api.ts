@@ -2,7 +2,7 @@ import { apiClient, ApiResponse } from './client';
 import type {
   AdminDashboardResponse,
   AdminEventSearchRequest, AdminEventListResponse,
-  EventCancelResponse,
+  EventCancelResponse, EventForceCancelRequest,
   UserSearchCondition, UserListResponse,
   AdminUserDetailResponse,
   UserStatusRequest, UserStatusResponse,
@@ -20,8 +20,8 @@ export const getAdminDashboard = () =>
 export const getAdminEvents = (params?: AdminEventSearchRequest) =>
   apiClient.get<ApiResponse<AdminEventListResponse>>('/admin/events', { params });
 
-export const forcecancelEvent = (eventId: string) =>
-  apiClient.patch<ApiResponse<EventCancelResponse>>(`/admin/events/${eventId}/force-cancel`);
+export const forcecancelEvent = (eventId: string, body: EventForceCancelRequest) =>
+  apiClient.patch<ApiResponse<EventCancelResponse>>(`/admin/events/${eventId}/force-cancel`, body);
 
 // ── 회원 관리 ──────────────────────────────────────────────────────────────────
 export const getAdminUsers = (params?: UserSearchCondition) =>

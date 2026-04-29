@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { getAdminEvents, forcecancelEvent, getSellerApplications, processSellerApplication, runSettlementProcess, getAdminSettlements, cancelSettlement, paySettlement } from '../../api/admin.api'
 import type { AdminEventItem, SellerApplicationListItem, AdminSettlementItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
+import Modal from '../../components/Modal'
+
+const REASON_MAX = 500
 
 const EVENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
   DRAFT:     { label: '초안',    cls: 'badge-gray' },
@@ -20,6 +23,9 @@ export function AdminEvents() {
   const [keyword, setKeyword] = useState('')
   const [draftKeyword, setDraftKeyword] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<{ eventId: string; title: string } | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [reasonError, setReasonError] = useState<string | null>(null)
 
   const fetchEvents = useCallback(async () => {
     setLoading(true)
@@ -32,12 +38,31 @@ export function AdminEvents() {
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
-  const handleForceCancel = async (eventId: string, title: string) => {
-    if (!confirm(`"${title}" 이벤트를 관리자 권한으로 취소할까요?\n참여자 전원 환불이 자동 처리됩니다.`)) return
-    setActionLoading(eventId)
+  const openCancelModal = (eventId: string, title: string) => {
+    setCancelTarget({ eventId, title })
+    setCancelReason('')
+    setReasonError(null)
+  }
+
+  const closeCancelModal = () => {
+    if (actionLoading) return
+    setCancelTarget(null)
+    setCancelReason('')
+    setReasonError(null)
+  }
+
+  const submitCancel = async () => {
+    if (!cancelTarget) return
+    const trimmed = cancelReason.trim()
+    if (trimmed.length === 0) { setReasonError('취소 사유를 입력해 주세요.'); return }
+    if (trimmed.length > REASON_MAX) { setReasonError(`취소 사유는 ${REASON_MAX}자 이내여야 합니다.`); return }
+    setActionLoading(cancelTarget.eventId)
     try {
-      await forcecancelEvent(eventId)
+      await forcecancelEvent(cancelTarget.eventId, { reason: trimmed })
       toast('관리자 이벤트 취소 및 환불 요청이 접수되었습니다', 'success')
+      setCancelTarget(null)
+      setCancelReason('')
+      setReasonError(null)
       fetchEvents()
     } catch { toast('처리 실패', 'error') }
     finally { setActionLoading(null) }
@@ -97,7 +122,7 @@ export function AdminEvents() {
                         <button
                           className="btn btn-danger btn-sm"
                           disabled={actionLoading === event.eventId}
-                          onClick={() => handleForceCancel(event.eventId, event.title)}
+                          onClick={() => openCancelModal(event.eventId, event.title)}
                         >
                           {actionLoading === event.eventId ? '...' : '관리자 취소'}
                         </button>
@@ -110,6 +135,75 @@ export function AdminEvents() {
           </table>
         </div>
       )}
+
+      <Modal
+        open={cancelTarget !== null}
+        onClose={closeCancelModal}
+        title="이벤트 강제취소"
+        width={480}
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={closeCancelModal}
+              disabled={actionLoading !== null}
+            >
+              취소
+            </button>
+            <button
+              className="btn btn-danger"
+              onClick={submitCancel}
+              disabled={actionLoading !== null}
+            >
+              {actionLoading ? '처리 중...' : '강제 취소'}
+            </button>
+          </>
+        }
+      >
+        {cancelTarget && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 14, color: 'var(--text-2)' }}>
+              <strong style={{ color: 'var(--text-1)' }}>{cancelTarget.title}</strong> 이벤트를 강제 취소합니다.
+              <br />
+              참여자 전원 환불이 자동 처리됩니다.
+            </div>
+
+            <textarea
+              value={cancelReason}
+              onChange={e => {
+                setCancelReason(e.target.value)
+                if (reasonError) setReasonError(null)
+              }}
+              maxLength={REASON_MAX}
+              rows={5}
+              placeholder="취소 사유를 입력해 주세요 (필수, 최대 500자)"
+              disabled={actionLoading !== null}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 'var(--r-md)',
+                border: `1px solid ${reasonError ? 'var(--danger)' : 'var(--border)'}`,
+                fontSize: 14,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                background: 'var(--surface)',
+                color: 'var(--text-1)',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+              <span style={{ color: reasonError ? 'var(--danger)' : 'var(--text-4)' }}>
+                {reasonError ?? '취소 사유는 환불 안내 및 감사 로그에 기록됩니다.'}
+              </span>
+              <span style={{ color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
+                {cancelReason.length} / {REASON_MAX}
+              </span>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
