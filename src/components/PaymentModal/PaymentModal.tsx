@@ -106,7 +106,9 @@ export function PaymentModal({
         return;
       }
 
-      const pgAmount = payment.pgAmount ?? totalAmount;
+      // 백엔드가 PG-only 모드에서 pgAmount 를 0 으로 내려주는 케이스가 있어
+      // `??` 대신 `||` 로 0 도 fallback 시킨다 (v1 Payment.tsx 와 동일).
+      const pgAmount = payment.pgAmount || totalAmount;
 
       // PaymentSuccess / PaymentFail 페이지가 confirm 단계에서 읽는 컨텍스트.
       // v1 과 동일 키로 저장 — 본 PR 의 콜백 페이지는 v1 그대로 (PR 5 에서 v2 화).
