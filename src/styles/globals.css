@@ -490,5 +490,5 @@ tr:hover td { background: var(--surface-2); }
 
 /* Backdrop blur in dark mode */
 [data-theme="dark"] header {
-  background: rgba(15, 23, 42, 0.92) !important;
+  background: rgba(11, 17, 32, 0.92) !important;
 }

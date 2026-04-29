@@ -153,23 +153,56 @@
    ========================================================================== */
 
 [data-theme="dark"] {
-  /* Common — from prototype/tokens.css:117-131 */
-  --bg:          #0F172A;
-  --surface:     #1E293B;
-  --surface-2:   #263047;
-  --surface-3:   #334155;
-  --text:        #F1F5F9;
-  --text-2:      #CBD5E1;
-  --text-3:      #94A3B8;
-  --text-4:      #64748B;
-  --border:      #1E293B;
-  --border-2:    #334155;
-  --brand-light: rgba(79, 70, 229, 0.20);
+  /* Brand — indigo-500/400 for better legibility on dark surfaces. */
+  --brand:        #6366F1;
+  --brand-hover:  #818CF8;
+  --brand-light:  rgba(99, 102, 241, 0.18);
+  --brand-muted:  #4F46E5;
 
-  /* IDE — Terminal accent (from prototype/ide-theme.css:39-41) */
-  --term-green:      #00FF88;
-  --term-green-dim:  #00E07A;
-  --term-green-soft: rgba(0, 255, 136, 0.14);
+  /* Surfaces — cohesive slate family with clear elevation steps. */
+  --bg:        #0B1120;
+  --surface:   #141C2E;
+  --surface-2: #1C2540;
+  --surface-3: #283353;
+
+  /* Text */
+  --text:   #E6EAF2;
+  --text-2: #B6C0D2;
+  --text-3: #8390A6;
+  --text-4: #5A6478;
+
+  /* Borders — distinct from surface so card edges are visible. */
+  --border:   #232E48;
+  --border-2: #344162;
+
+  /* Semantic — tinted backgrounds (no light-mode pastels on dark). */
+  --success:      #34D399;
+  --success-bg:   rgba(16, 185, 129, 0.14);
+  --success-text: #6EE7B7;
+
+  --warning:      #FBBF24;
+  --warning-bg:   rgba(245, 158, 11, 0.14);
+  --warning-text: #FCD34D;
+
+  --danger:       #F87171;
+  --danger-bg:    rgba(239, 68, 68, 0.14);
+  --danger-text:  #FCA5A5;
+
+  --info:         #60A5FA;
+  --info-bg:      rgba(59, 130, 246, 0.14);
+  --info-text:    #93C5FD;
+
+  /* Shadows — deeper to read on dark. */
+  --shadow-sm:         0 1px 2px 0 rgb(0 0 0 / 0.36);
+  --shadow-md:         0 4px 8px -2px rgb(0 0 0 / 0.40);
+  --shadow-lg:         0 12px 24px -6px rgb(0 0 0 / 0.44);
+  --shadow-card-hover: 0 10px 28px rgba(0, 0, 0, 0.50);
+  --shadow-modal:      0 24px 60px rgba(0, 0, 0, 0.60);
+
+  /* IDE — Terminal accent (less neon, easier on the eyes). */
+  --term-green:      #4ADE80;
+  --term-green-dim:  #22C55E;
+  --term-green-soft: rgba(74, 222, 128, 0.14);
 
   /* IDE — Syntax (VS Code Dark+ tone) */
   --syn-keyword: #C586C0;
@@ -182,15 +215,15 @@
   --syn-type:    #4EC9B0;
   --syn-tag:     #569CD6;
 
-  /* IDE — Chrome */
-  --chrome:      #252526;
-  --chrome-2:    #333333;
-  --gutter:      #1E1E1E;
-  --gutter-text: #5A6270;
-  --editor-bg:   #1E1E1E;
-  --editor-line: rgba(255, 255, 255, 0.035);
-  --sidebar-bg:  #1A1A1C;
-  --status-bg:   #007ACC;
-  --status-text: #FFFFFF;
-  --minimap-bg:  #161618;
+  /* IDE — Chrome (unified with slate body, no more gray ↔ slate clash). */
+  --chrome:      #141C2E;
+  --chrome-2:    #1F2840;
+  --gutter:      #0E1426;
+  --gutter-text: #4A5570;
+  --editor-bg:   #0B1120;
+  --editor-line: rgba(99, 102, 241, 0.06);
+  --sidebar-bg:  #0D1424;
+  --status-bg:   #312E81;
+  --status-text: #E0E7FF;
+  --minimap-bg:  #0A0F1E;
 }
