@@ -1,6 +1,6 @@
 /* DevTicket v2 — Tickets tab styles
    Source: docs/redesign/MyPage.plan.md §5 + prototype/MyPage.jsx tickets tab.
-   Scope: classes used in pages-v2/MyPage/tabs/Tickets/.
+   Scope: classes used in pages/MyPage/tabs/Tickets/.
    AccentMediaBox(stripe/sm) 자체가 56px width 와 그라디언트를 담당; 본 파일은
    dashed right border, 절대배치 아이콘, 우측 본문 레이아웃, 페이저, 스켈레톤만. */
 

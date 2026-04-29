@@ -5,7 +5,7 @@ import Layout from './components/Layout'
 import SellerLayout from './components/SellerLayout'
 import AdminLayout from './components/AdminLayout'
 import Loading from './components/Loading'
-import { RequireAuth } from './router-v2'
+import { RequireAuth } from './router'
 
 // 즉시 로드 (비로그인 첫 화면)
 import Signup            from './pages/Signup'
@@ -16,15 +16,15 @@ const OAuthCallback       = lazy(() => import('./pages/OAuthCallback'))
 const SocialProfileSetup  = lazy(() => import('./pages/SocialProfileSetup'))
 
 // lazy – v2 재구축 (router-toggle.plan, Login.plan §6, EventList.plan §10 PR 1, Cart.plan §10.1 / §10.3 PR 5, Landing.plan §12.4 PR 4)
-const LoginV2             = lazy(() => import('./pages-v2/Login'))
-const EventListV2         = lazy(() => import('./pages-v2/EventList'))
-const EventDetailV2       = lazy(() => import('./pages-v2/EventDetail'))
-const CartV2              = lazy(() => import('./pages-v2/Cart'))
-const PaymentSuccessV2    = lazy(() => import('./pages-v2/PaymentCallback/PaymentSuccessPage'))
-const PaymentFailV2       = lazy(() => import('./pages-v2/PaymentCallback/PaymentFailPage'))
-const PaymentCompleteV2   = lazy(() => import('./pages-v2/PaymentCallback/PaymentCompletePage'))
-const MyPageV2            = lazy(() => import('./pages-v2/MyPage'))
-const LandingV2           = lazy(() => import('./pages-v2/Landing'))
+const LoginV2             = lazy(() => import('./pages/Login'))
+const EventListV2         = lazy(() => import('./pages/EventList'))
+const EventDetailV2       = lazy(() => import('./pages/EventDetail'))
+const CartV2              = lazy(() => import('./pages/Cart'))
+const PaymentSuccessV2    = lazy(() => import('./pages/PaymentCallback/PaymentSuccessPage'))
+const PaymentFailV2       = lazy(() => import('./pages/PaymentCallback/PaymentFailPage'))
+const PaymentCompleteV2   = lazy(() => import('./pages/PaymentCallback/PaymentCompletePage'))
+const MyPageV2            = lazy(() => import('./pages/MyPage'))
+const LandingV2           = lazy(() => import('./pages/Landing'))
 
 // lazy – 로그인 후 접근
 const SignupComplete      = lazy(() => import('./pages/SignupComplete'))

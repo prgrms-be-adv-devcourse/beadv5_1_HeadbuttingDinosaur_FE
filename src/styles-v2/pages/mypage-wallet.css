@@ -1,6 +1,6 @@
 /* DevTicket v2 — Wallet tab styles
    Source: docs/redesign/MyPage.plan.md §7 + §12.4.
-   Scope: classes used in pages-v2/MyPage/tabs/Wallet/. */
+   Scope: classes used in pages/MyPage/tabs/Wallet/. */
 
 /* ── Balance card (§7.1.1) ─────────────────────────────────────── */
 .balance-card {
