@@ -504,7 +504,115 @@ ls -la dist/assets/
 위 4 / 5 단계가 통과하면 cutover PR 머지 가능 상태.
 
 ## 6. v1 ↔ v2 호환성 / 마이그레이션
-(작성 예정)
+
+요약: **사용자 영향이 있는 마이그레이션은 사실상 없음**.
+v2 가 `AuthContext` / `ThemeContext` / 서버 cart 를 그대로 재사용했기 때문에 클라이언트 영속 데이터 포맷이 동일.
+유일하게 정리할 잔재는 `localStorage['ui.version']` 키 (의미 사라짐).
+
+### 6.1 인증 토큰 — 호환성: **OK** (마이그레이션 0)
+
+| 항목 | v1 | v2 | 호환 |
+|------|----|----|------|
+| 저장소 | localStorage | localStorage (공유 — `src/contexts/AuthContext.tsx`, `src/api/client.ts`) | 동일 |
+| 키 1 | `accessToken` | 동일 (`AuthContext.tsx:30,56,66,72`, `client.ts:37,89,97`) | 동일 |
+| 키 2 | `refreshToken` | 동일 (`AuthContext.tsx:57,67,73`, `client.ts:85,98`) | 동일 |
+| 키 3 | `userId` | 동일 (`AuthContext.tsx:38,58,74`, `client.ts:38,99`) | 동일 |
+| 401 재발급 | `client.ts` 인터셉터 | 동일 모듈 사용 | 동일 |
+| 가드 | v1 `RequireAuth` (App.tsx) / v2 `RequireAuthV2` (router-v2) | 가드 코드만 다르고 토큰 / `useAuth()` 는 공유 | 동일 |
+
+**결론**: v2 코드가 자체 토큰 저장 로직을 가지지 않음 (`git grep -n "localStorage" src/pages-v2/ src/components-v2/ src/router-v2/` → 토글 키 외 0건). cutover 전후로 같은 localStorage 가 그대로 유효 → **재로그인 불필요, 마이그레이션 코드 0**.
+
+처리 방침: **무시**.
+
+### 6.2 장바구니 데이터 — 호환성: **OK** (서버 단일 소스)
+
+Cart.plan § 3 에서 **Option B (서버 only)** 채택. 근거:
+- v1 (`src/pages/Cart.tsx`) 도 서버 API 만 사용. 본문 grep 결과 v1 Cart 의 `localStorage` / `sessionStorage` 사용 0건.
+- v2 (`src/pages-v2/Cart/`) 도 동일하게 `getCart` / `addCartItem` / `clearCart` 서버 API 만 사용. 클라이언트 영속 0건.
+
+| 항목 | v1 | v2 | 호환 |
+|------|----|----|------|
+| 영속 위치 | 서버 (`/cart`) | 서버 (`/cart`) | 동일 |
+| 클라이언트 캐시 | 없음 | 페이지 내 메모리만 (Cart.plan §3 의 낙관적 업데이트) | 무관 |
+
+**결론**: 서버가 단일 소스이므로 클라이언트 마이그레이션 0. cutover 직후 v2 페이지가 `getCart` 를 호출하면 그대로 기존 카트가 보임.
+
+처리 방침: **무시**.
+
+### 6.3 테마 / 사용자 설정 — 호환성: **OK**
+
+| 항목 | 위치 | 값 | 호환 |
+|------|------|----|------|
+| localStorage 키 | `devticket-theme` (`ThemeContext.tsx:13`) | `'light' \| 'dark' \| 'system'` | v1 / v2 동일 (모듈 공유) |
+| DOM 적용 | `document.documentElement.setAttribute('data-theme', ...)` (`ThemeContext.tsx:21`) | `'light' \| 'dark'` | 동일 |
+| Provider 마운트 | `src/main.tsx:24` | `<ThemeProvider>` 로 앱 전체 | 동일 |
+| v2 사용처 | `src/components-v2/Layout/index.tsx:7,78,188` 가 같은 `useTheme()` 사용 | — | 동일 |
+| v2 CSS | `src/styles-v2/components/*.css` 가 `[data-theme="dark"]` 셀렉터로 분기 (chip / ide-chrome 등) | — | 같은 attribute 의존 |
+
+**결론**: Phase 0 에서 ThemeContext 자체를 리팩터하지 않음 (코드 위치 / 키 / attribute 모두 그대로). cutover 후에도 기존 사용자의 테마 선호 유지.
+
+처리 방침: **무시**.
+
+### 6.4 URL 쿼리스트링 — 호환성: **부분** (v1 → v2 손실 0건, v2 → v1 백워드는 무의미)
+
+| 페이지 | v1 | v2 | 호환 |
+|--------|----|----|------|
+| EventList (`/`, `/events`) | 필터 / 페이지를 **URL 에 저장 안 함** (내부 state 만 — `src/pages/EventList.tsx:27, 44-54`) | URL 키: `q`(키워드), `cat`(카테고리), `stack`(기술 스택), `page`(0-base) — `src/pages-v2/EventList/hooks.ts:20-26` | v1 사용자가 가진 북마크 / 공유 URL 에는 필터 정보가 애초에 **없음** → 호환성 문제 없음 |
+| EventDetail (`/events/:id`) | path param `:id` | 동일 | 동일 |
+| Cart (`/cart`) | 쿼리 없음 | 쿼리 없음 | 동일 |
+| Login (`/login`) | 쿼리 없음 | `?returnTo=...` 추가 (RequireAuthV2 의 returnTo, `RequireAuthV2.tsx:17-19`) | v2 신규 — v1 사용자 영향 없음 |
+| MyPage (`/mypage/*`) | 단일 페이지 (`/mypage`) | 하위 path (`/mypage/*` 의 sub-route) | v2 가 매칭 범위 확장 — v1 북마크 (`/mypage`) 는 v2 에서도 유효 |
+
+**결론**: v1 쪽 쿼리 정보가 빈약했기 때문에 cutover 시 손실되는 정보가 없음. v2 가 새로 도입한 키(`q`, `cat`, `stack`, `page`, `returnTo`)는 모두 net-new.
+
+처리 방침: **무시** (단, EventList 의 `cat=` 값 슬러그가 INVENTORY § 8 의 `CATEGORY_MAP` 과 일치하는지는 § 9 에서 별도 확인 필요).
+
+### 6.5 SSR / hydration — N/A
+
+SPA 빌드 (Vite + `vite build`). `renderToString` / `hydrateRoot` 등 SSR 진입점 0건. 서버 렌더링이 없으므로 v1 ↔ v2 hydration mismatch 가 발생할 수 없음.
+
+처리 방침: **N/A**.
+
+### 6.6 Stale 잔재 — `localStorage['ui.version']` (선택적 cleanup)
+
+cutover 후에도 사용자 브라우저에 남는 유일한 의미 없는 키.
+
+| 항목 | 값 | cutover 후 동작 |
+|------|----|-------------------|
+| 키 | `ui.version` (`router-v2/useUiVersion.ts:5`) | 토글 자체가 사라지므로 읽는 코드 없음 |
+| 값 예시 | `'2'` (이전에 `?v=2` 로 접속한 사용자) | 무시됨 |
+| 영향 | 없음 (단지 stale localStorage 한 칸 차지) | — |
+
+**옵션**:
+- (a) **무시** (권장). 의미 없는 데이터 1 키 정도는 남겨도 사용자 영향 0. 코드 추가 0.
+- (b) **1회성 cleanup**. `src/main.tsx` 진입부에 `localStorage.removeItem('ui.version')` 한 줄 추가. § 10.3 사후 PR 에서 N주 후 삭제. 코드 1줄 vs 2번의 PR.
+
+권장: **(a) 무시**. 단, INVENTORY / CLAUDE.md 정리 차원에서 § 7 의 router-toggle.plan 아카이브 노트에 "stale 키 `ui.version` 은 cleanup 하지 않음 (영향 없음)" 명시.
+
+### 6.7 캐시 무효화 (CDN / SW / 브라우저)
+
+| 레이어 | 무효화 필요? | 비고 |
+|--------|--------------|------|
+| Service Worker | **N/A** | 현재 SW 등록 없음 (`git grep -n "serviceWorker" src/` → 0건 가정. cutover 직전 재확인) |
+| 브라우저 캐시 (HTML) | **자동** | Vite 가 빌드 산출물에 hash 부착 (`assets/index-XXXX.js`) → `index.html` 만 새로 받으면 자동 무효화 |
+| CDN (있다면) | **수동** | 배포 파이프라인에서 `index.html` 무효화 보장 필요. 배포 인프라 책임 (이 plan 범위 밖) |
+| react-query 등 | **N/A** | INVENTORY § 5: 데이터 캐시 라이브러리 미도입 |
+
+처리 방침: 인프라 측면은 cutover 배포 절차에 명시 (`§ 10.2` 의 PR 본문 / 배포 체크리스트), 코드 변경 0.
+
+### 6.8 종합 요약
+
+| 영역 | 호환 | 처리 |
+|------|------|------|
+| 인증 토큰 | OK (동일 키 / 동일 모듈) | 무시 |
+| 장바구니 | OK (서버 단일 소스) | 무시 |
+| 테마 | OK (동일 키 / 동일 attribute) | 무시 |
+| URL 쿼리 | 부분 OK (v1 쪽 정보 빈약 → 손실 0) | 무시 |
+| SSR | N/A | N/A |
+| `ui.version` 키 | stale 1건 | 무시 (옵션: 1회성 cleanup) |
+| 캐시 | 자동 hash 무효화 | 무시 (CDN 만 인프라 측에서 처리) |
+
+**마이그레이션 코드 위치 / 제거 시점**: 위 옵션 6.6-(b) 채택 시에만 의미 있음. 채택 시 → `src/main.tsx` 1줄 추가 → cutover 후 4~8주(=평균 활성 사용자 1회 방문 주기) 뒤 § 10.3 사후 PR 에서 제거. 그 외 마이그레이션 코드는 **추가하지 않음**.
 
 ## 7. docs/redesign/ 정리
 (작성 예정)
