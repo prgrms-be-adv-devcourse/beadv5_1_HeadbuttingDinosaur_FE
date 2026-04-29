@@ -23,6 +23,8 @@ const PATTERNS: Record<RouteKey, string[]> = {
   cart:   ['kw', '', '', 'fn', '', 'str', '', 'kw', '', '', 'fn', '', '', 'str', '', 'cmt', '', 'kw', '', 'fn', '', '', '', '', '', ''],
   mypage: ['kw', 'fn', '', '', 'str', '', '', 'kw', '', '', 'fn', '', 'str', '', '', 'cmt', '', 'kw', 'fn', '', 'str', ''],
   login:  ['kw', '', '', 'fn', '', 'str', '', '', 'cmt', '', 'kw', 'fn', '', '', 'str', '', '', ''],
+  seller: ['kw', '', 'fn', '', 'str', '', 'kw', '', 'fn', '', '', 'cmt', '', 'kw', 'fn', '', 'str', '', '', '', 'cmt'],
+  admin:  ['kw', 'fn', '', 'str', '', '', 'kw', '', '', 'fn', 'str', '', 'cmt', '', 'kw', '', '', 'fn', 'str', '', ''],
 };
 
 const LINE_COUNT = 80;

@@ -13,6 +13,7 @@ export function TicketsTab() {
   const rawPage = Number(sp.get('page') ?? '1');
   const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
   const state = useTickets(page);
+  const refetch = state.refetch;
 
   const onPageChange = (next: number) => {
     setSp(
@@ -42,7 +43,7 @@ export function TicketsTab() {
             validCount={data.validCount}
             usedCount={data.usedCount}
           />
-          <TicketGrid tickets={data.tickets} />
+          <TicketGrid tickets={data.tickets} onRefunded={refetch} />
           {data.totalPages > 1 && (
             <TicketsPager
               page={page}

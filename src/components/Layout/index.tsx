@@ -60,6 +60,9 @@ const TABS: TabDef[] = [
   { key: 'login', label: '로그인', icon: 'terminal' },
 ];
 
+const SELLER_TAB: TabDef = { key: 'seller', label: '판매자 센터', icon: 'wallet' };
+const ADMIN_TAB: TabDef = { key: 'admin', label: '관리자 패널', icon: 'settings' };
+
 const SIDEBAR_FETCH_SIZE = 50;
 const UPCOMING_LIMIT = 4;
 
@@ -74,7 +77,7 @@ function formatEventPrice(price: number): string {
 function LayoutInner({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, role } = useAuth();
   const { resolvedTheme } = useTheme();
   const { count: cartCount } = useCartCount();
   const chrome = useChrome();
@@ -177,7 +180,15 @@ function LayoutInner({ children }: LayoutProps) {
           upcoming={upcoming}
           onNavigate={onNavigate}
         />
-        <TabBar tabs={TABS} activeKey={currentRoute} onSelect={onNavigate} />
+        <TabBar
+          tabs={[
+            ...TABS,
+            ...(role === 'SELLER' || role === 'ADMIN' ? [SELLER_TAB] : []),
+            ...(role === 'ADMIN' ? [ADMIN_TAB] : []),
+          ]}
+          activeKey={currentRoute}
+          onSelect={onNavigate}
+        />
         <main className="ide-editor" id="ide-editor" tabIndex={-1}>
           {children ?? <Outlet />}
         </main>

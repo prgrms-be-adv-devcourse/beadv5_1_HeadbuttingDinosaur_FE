@@ -31,6 +31,7 @@ export function OrdersSkeleton({ rows = 8 }: OrdersSkeletonProps) {
               <td className="order-cell order-cell-date">
                 <span className="orders-skeleton-bar orders-skeleton-bar-md" />
               </td>
+              <td className="order-cell order-cell-action" />
             </tr>
           ))}
         </tbody>

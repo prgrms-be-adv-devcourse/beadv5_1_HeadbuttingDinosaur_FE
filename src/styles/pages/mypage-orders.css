@@ -60,6 +60,11 @@
   color: var(--text-3);
   white-space: nowrap;
 }
+.order-cell-action {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
 
 /* ── Pager (§6.3.5) ────────────────────────────────────────────── */
 .orders-pager {

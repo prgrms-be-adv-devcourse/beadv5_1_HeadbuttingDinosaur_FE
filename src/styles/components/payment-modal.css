@@ -193,6 +193,35 @@
   color: var(--danger);
 }
 
+/* ── 환불 사유 입력 ──────────────────────────────────── */
+.refund-dialog-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font);
+}
+.refund-dialog-reason > span {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.refund-dialog-reason textarea {
+  width: 100%;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 72px;
+}
+.refund-dialog-reason textarea:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
 /* ── 잔액 부족 경고 박스 ─────────────────────────────── */
 .payment-modal-warning {
   padding: 10px 14px;

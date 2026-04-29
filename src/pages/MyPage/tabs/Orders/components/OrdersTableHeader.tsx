@@ -1,4 +1,4 @@
-import { ORDER_COLUMNS } from '../columns';
+import { ORDER_ACTION_COLUMN_LABEL, ORDER_COLUMNS } from '../columns';
 
 export function OrdersTableHeader() {
   return (
@@ -14,6 +14,9 @@ export function OrdersTableHeader() {
             {col.label}
           </th>
         ))}
+        <th scope="col" className="orders-th orders-th-action" style={{ textAlign: 'right' }}>
+          {ORDER_ACTION_COLUMN_LABEL}
+        </th>
       </tr>
     </thead>
   );

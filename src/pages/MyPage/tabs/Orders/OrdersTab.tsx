@@ -12,6 +12,7 @@ export function OrdersTab() {
   const rawPage = Number(sp.get('page') ?? '1');
   const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
   const state = useOrders(page);
+  const refetch = state.refetch;
 
   const onPageChange = (next: number) => {
     setSp((prev) => {
@@ -33,7 +34,7 @@ export function OrdersTab() {
     >
       {(data) => (
         <>
-          <OrdersTable rows={data.rows} />
+          <OrdersTable rows={data.rows} onRefunded={refetch} />
           {data.totalPages > 1 && (
             <OrdersPager
               page={page}

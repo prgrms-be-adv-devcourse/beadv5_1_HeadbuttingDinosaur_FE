@@ -17,6 +17,8 @@ export function routeFromPath(pathname: string): RouteKey {
   }
   if (pathname === '/cart' || pathname.startsWith('/cart/')) return 'cart';
   if (pathname === '/mypage' || pathname.startsWith('/mypage/')) return 'mypage';
+  if (pathname === '/seller' || pathname.startsWith('/seller/')) return 'seller';
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
   if (pathname === '/login') return 'login';
   return 'home';
 }
@@ -43,6 +45,10 @@ export function pathFromRoute(key: RouteKey, params?: NavParams): string {
       return '/cart';
     case 'mypage':
       return '/mypage';
+    case 'seller':
+      return '/seller';
+    case 'admin':
+      return '/admin';
     case 'login':
       return '/login';
   }

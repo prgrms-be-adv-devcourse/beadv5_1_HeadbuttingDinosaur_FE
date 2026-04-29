@@ -3,13 +3,14 @@ import { TicketCard } from './TicketCard';
 
 interface TicketGridProps {
   tickets: TicketVM[];
+  onRefunded?: () => void;
 }
 
-export function TicketGrid({ tickets }: TicketGridProps) {
+export function TicketGrid({ tickets, onRefunded }: TicketGridProps) {
   return (
     <div className="ticket-grid">
       {tickets.map((ticket) => (
-        <TicketCard key={ticket.ticketId} ticket={ticket} />
+        <TicketCard key={ticket.ticketId} ticket={ticket} onRefunded={onRefunded} />
       ))}
     </div>
   );

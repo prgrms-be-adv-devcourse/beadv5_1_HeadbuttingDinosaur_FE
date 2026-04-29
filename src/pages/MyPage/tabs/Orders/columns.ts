@@ -12,3 +12,5 @@ export const ORDER_COLUMNS: readonly OrderColumn[] = [
   { key: 'statusLabel', label: '상태', align: 'left' },
   { key: 'dateLabel', label: '주문일시', align: 'left' },
 ] as const;
+
+export const ORDER_ACTION_COLUMN_LABEL = '액션';
