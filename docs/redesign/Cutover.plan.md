@@ -247,7 +247,129 @@ git grep -nE "components/Payment(Success|Fail)['\"]" src/
 위 결과가 § 3.1 / § 3.2 의 "삭제 대상" 외 위치를 가리키면 **삭제를 보류**하고 § 9 의사결정 항목으로 이관.
 
 ## 4. 이동 / rename 대상 (v2 → 메인)
-(작성 예정)
+
+§ 3 의 삭제가 끝난 자리(또는 충돌하지 않는 위치)로 v2 폴더를 통째로 옮긴다.
+경로 alias 는 `@/* → ./src/*` (tsconfig.json + vite.config.ts) 한 가지뿐이므로 alias 자체 변경은 불필요.
+
+### 4.1 이동 대상 일람
+
+| 현재 위치 | 이동 후 위치 | 처리 방식 | 비고 |
+|-----------|--------------|-----------|------|
+| `src/pages-v2/` | `src/pages/` | 폴더 통째로 (§ 3.1 의 v1 페이지 삭제 후) | 충돌: § 3.1 미삭제 v1 페이지(`Signup.tsx`, `OAuthCallback.tsx`, `WalletCharge*.tsx`, `SellerApply.tsx`, `NotFound.tsx`, `admin/`, `seller/`)는 그대로 같은 디렉토리에 공존 |
+| `src/components-v2/` | `src/components/` | 폴더 통째로 (§ 3.2 의 v1 컴포넌트 삭제 후) | **충돌 2건**: `Layout`, `PaymentModal` (§ 4.3) |
+| `src/styles-v2/` | `src/styles/` | 머지 (§ 4.4) | v1 `globals.css` 와 v2 `global.css` 충돌, 토큰/컴포넌트/페이지 css 다수 신규 |
+| `src/types-v2/` | `src/types/` | 폴더 통째로 | 현재 `src/types/` 폴더 없음(INVENTORY § 3) → 충돌 없음 |
+| `src/router-v2/` | `src/router/` | 폴더 통째로 (또는 § 5 에서 헬퍼 제거하며 인라인 흡수) | 사용처 1건(`src/App.tsx:8`) |
+
+`src/lib-v2/` 는 **존재하지 않음** → 처리 불필요. 기존 `src/lib/` 는 v1/v2 공유로 유지.
+
+### 4.2 이동 방법 — `git mv` 권장
+
+| 옵션 | 장점 | 단점 |
+|------|------|------|
+| **`git mv` (권장)** | 파일 히스토리 보존 (`git log --follow`), blame 추적 가능, 리뷰 시 rename 으로 인식되어 diff 가 깔끔 | 충돌 파일은 사전 삭제 필요 |
+| `cp` + `rm` | 단순함 | 히스토리 단절. blame / log --follow 가 끊김 → 비권장 |
+
+권장 절차 (cutover PR 본체):
+
+```bash
+# 1) § 3 의 삭제부터 (이미 머지 직전 검증 완료된 상태에서)
+git rm src/pages/EventList.tsx src/pages/EventDetail.tsx \
+       src/pages/Cart.tsx src/pages/MyPage.tsx src/pages/Login.tsx
+git rm src/components/EventCard.tsx src/components/EventMap.tsx \
+       src/components/Pagination.tsx src/components/Modal.tsx \
+       src/components/TicketDetailModal.tsx src/components/PaymentModal.tsx
+# (충돌 컴포넌트 Layout / PaymentModal 처리는 § 4.3 결정에 따름)
+
+# 2) v2 → 메인으로 git mv (디렉토리 단위)
+git mv src/pages-v2/EventList   src/pages/EventList
+git mv src/pages-v2/EventDetail src/pages/EventDetail
+git mv src/pages-v2/Cart        src/pages/Cart
+git mv src/pages-v2/MyPage      src/pages/MyPage
+git mv src/pages-v2/Login       src/pages/Login
+git mv src/pages-v2/Landing     src/pages/Landing
+git mv src/pages-v2/PaymentCallback src/pages/PaymentCallback
+git mv src/pages-v2/_shared     src/pages/_shared
+git mv src/pages-v2/_dev        src/pages/_dev      # § 9 결정: dev-only 라면 제외 검토
+rmdir src/pages-v2
+
+git mv src/components-v2/<each>  src/components/<each>   # § 4.3 충돌 처리 후
+rmdir src/components-v2
+
+git mv src/types-v2  src/types
+git mv src/router-v2 src/router  # § 5 에서 헬퍼 제거와 함께 처리할 수도 있음
+```
+
+대안 — **`git mv src/pages-v2/* src/pages/`** 로 한 번에 옮기는 셸 글롭은 동작하지만 충돌 파일이 있을 때 진단이 어려우므로 디렉토리 단위로 분리 권장.
+
+### 4.3 충돌 컴포넌트 (`Layout`, `PaymentModal`) 처리
+
+`comm` 결과로 v1/v2 동명 컴포넌트는 정확히 **2건**:
+
+| 이름 | v1 파일 | v2 위치 | 처리 방침 |
+|------|---------|---------|-----------|
+| `Layout` | `src/components/Layout.tsx` (단일 파일) | `src/components-v2/Layout/` (폴더) | **§ 9 결정 필요**. v1 Layout 은 `src/App.tsx:4` 가 잔존 v1 라우트 래핑에 사용. v2 Layout 으로 통일하려면 v1 잔존 페이지(signup, oauth, wallet 결과 등)도 v2 Layout 으로 동시 전환 필요 |
+| `PaymentModal` | `src/components/PaymentModal.tsx` | `src/components-v2/PaymentModal/` | § 3.2 에서 v1 삭제 확정 → v1 삭제 후 v2 폴더를 `git mv` 로 같은 자리로 |
+
+**충돌 처리 일반 원칙**:
+1. v1 을 먼저 `git rm` (§ 3 단계)
+2. 같은 PR 안에서 v2 폴더를 `git mv` 로 같은 이름으로 이동
+3. git 은 이를 **삭제 + 추가**가 아니라 **rename** 으로 인식 → blame 은 v2 측 히스토리만 따라감 (v1 측 히스토리는 삭제된 파일로 별도 보존됨)
+
+별도 폴더로 공존시키는 안(`components/v1/`, `components/v2/`)은 cutover 의 목적(코드 단일화)에 어긋나므로 채택하지 않음.
+
+### 4.4 styles 머지 (§ 3.3 와 연계)
+
+v1 `src/styles/globals.css` 1개 ↔ v2 `src/styles-v2/{tokens.css, global.css, index.css, accent.ts, components/*.css(16), pages/*.css(10)}`.
+
+| 항목 | 처리 |
+|------|------|
+| v1 `globals.css` | v2 가 의존하는 reset / 폰트 / 전역 변수가 있는지 grep 후, 필요한 부분만 `src/styles/global.css` 로 흡수, 나머지 삭제 |
+| v2 `tokens.css`, `global.css`, `index.css` | `src/styles/` 로 그대로 이동 |
+| v2 `components/`, `pages/` 하위 | 폴더 채로 이동 |
+| v2 `accent.ts` | TS 파일이므로 위치 정책 결정(§ 9). `src/styles/` 안에 TS 가 들어가도 되는지, 아니면 `src/lib/` 또는 `src/utils/` 로 분리할지 |
+| 이름 충돌 | v1 `globals.css` ↔ v2 `global.css` (s 유무) → 단복수 통일하면서 한쪽으로 합치기 |
+
+### 4.5 import 경로 변경 — 현재 그랩 결과
+
+이동 후 변경해야 할 import 경로 통계 (cutover 직전 시점, `git grep` 기준):
+
+| 패턴 | import 라인 수 | 영향 받은 파일 수 | 변경 형태 |
+|------|----------------|--------------------|-----------|
+| `pages-v2` | 12 | 17 | `@/pages-v2/X` → `@/pages/X` <br> `./pages-v2/X` → `./pages/X` (App.tsx 의 `lazy(...)` 다수) |
+| `components-v2` | 64 | 52 | `@/components-v2/X` → `@/components/X` |
+| `styles-v2` | 5 | 13 | `@/styles-v2/...` → `@/styles/...` <br> CSS `import` 도 동일 |
+| `types-v2` | 5 | 5 | `@/types-v2/X` → `@/types/X` |
+| `router-v2` | 1 | 1 | `./router-v2` → `./router` (App.tsx) |
+| **합계** | **87** | **88** (중복 제외 시 더 적음) | — |
+
+import 라인 수 vs 파일 수 차이: 한 파일에서 같은 v2 디렉토리를 여러 번 import 하는 경우(예: `@/components-v2/Button` + `@/components-v2/Card` 한 파일에서) 때문. 라인 단위로 치환해야 누락 없음.
+
+### 4.6 자동화 — `sed` 1줄로 충분
+
+alias 가 `@/*` 한 가지뿐이고 v2 접미사가 디렉토리명 끝에 붙는 단순 패턴이라, **codemod 없이 `sed` 로 치환 가능**.
+
+```bash
+# dry-run: 매칭 라인 출력
+git grep -lE "(pages-v2|components-v2|styles-v2|types-v2|router-v2)" -- 'src/**/*.{ts,tsx,css}' \
+  | xargs -I{} grep -nE "(pages-v2|components-v2|styles-v2|types-v2|router-v2)" {}
+
+# 실제 치환 (BSD/GNU sed 호환을 위해 -i.bak 후 .bak 정리)
+git grep -lE "(pages-v2|components-v2|styles-v2|types-v2|router-v2)" -- 'src/**/*.{ts,tsx,css}' \
+  | xargs sed -i.bak -E 's@(pages|components|styles|types|router)-v2@\1@g'
+find src -name '*.bak' -delete
+
+# 검증: v2 접미사가 코드에서 0건이어야 함
+git grep -nE "(pages|components|styles|types|router)-v2" src/ && echo "FAIL: v2 잔존" || echo "OK"
+```
+
+**주의 / 함정**:
+- 위 정규식은 단어 경계 없이 치환하므로 `pages-v2-something` 같은 문자열도 잡힘 → 실제 치환 전에 `grep -nE` 결과를 한 번 눈으로 검토
+- 문자열 리터럴 / 주석 안의 `pages-v2` 도 함께 바뀜 (예: § 3 의 코드 주석에서 v1 경로 인용) — 의도와 다른 변경이 없는지 PR diff 검토 필수
+- CSS 안의 `@import url("../styles-v2/...")` 같은 케이스도 같은 sed 한 줄로 함께 바뀜
+- `components-v2/Layout` 처럼 **충돌 컴포넌트** import 는 sed 치환 후 v1 자리에 놓이므로, § 4.3 의 v1 삭제가 반드시 선행되어야 함
+
+자동화 스크립트는 cutover PR 의 **첫 커밋**에서 한 번에 적용해 diff 를 분리하면 리뷰가 쉬움 (rename diff + import 치환 diff 가 섞이지 않게).
 
 ## 5. 수정 대상 (라우터 / 토글 / import)
 (작성 예정)
