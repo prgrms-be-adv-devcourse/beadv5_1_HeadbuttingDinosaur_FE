@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
+
+/* ==========================================================================
+   DevTicket v2 — Global styles
+   Loads after tokens.css. Defaults that apply to every v2 page.
+   IDE-only globals (mono body font, body overflow lock) live in
+   src/styles/components/ide-chrome.css.
+   ========================================================================== */
+
+/* ── Reset ───────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+ul, ol { list-style: none; }
+img    { max-width: 100%; display: block; }
+a      { color: inherit; text-decoration: none; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  outline: none;
+}
+
+/* ── html / body ─────────────────────────────────────── */
+html { font-size: 16px; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';  /* Geist OT features (옵션) */
+}
+
+/* ── Selection ───────────────────────────────────────── */
+::selection {
+  background: var(--brand-light);
+  color: var(--brand);
+}
+
+/* ── Scrollbar (global; IDE shell uses its own scoped 10px bar) ── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
+
+/* ── Utilities ───────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Skip to main content" affordance: visually hidden until focused. Used by
+ * Layout's first child to let keyboard users bypass the chrome. */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 2000;
+  padding: 6px 10px;
+  background: var(--brand);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 12px;
+  border-radius: 4px;
+  clip-path: inset(50%);
+  clip: rect(0, 0, 0, 0);
+}
+.skip-link:focus {
+  clip-path: none;
+  clip: auto;
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ── Keyframes (shared across pages) ─────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Color-scheme hint (browser form controls / scrollbars) ── */
+:root               { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }

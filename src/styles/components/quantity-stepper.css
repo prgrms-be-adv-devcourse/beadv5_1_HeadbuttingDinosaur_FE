@@ -1,0 +1,65 @@
+/* quantity-stepper.css
+   Source: docs/archive/v2-cutover/prototype EventDetail.jsx qtyBtn (md) and
+   Cart.jsx qtyBtnSm (sm). State spec per shared-components.plan.md
+   §4.13 — at-min/at-max disable the boundary button automatically;
+   focus-visible ring is new in v2 (mirrors Button/Card pattern). */
+
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.qty-stepper-sm { gap: 8px; }
+.qty-stepper-md { gap: 12px; }
+
+/* ── Button (square, identical for - and +) ───────── */
+.qty-stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--editor-bg);
+  border: 1px solid var(--border-2);
+  color: var(--text-2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.qty-stepper-sm .qty-stepper-btn { width: 28px; height: 28px; }
+.qty-stepper-md .qty-stepper-btn { width: 34px; height: 34px; }
+
+.qty-stepper-btn:hover:not(:disabled) {
+  border-color: var(--text-2);
+  color: var(--text);
+}
+.qty-stepper-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.qty-stepper-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Value (numeric label between buttons) ────────── */
+.qty-stepper-value {
+  font-family: var(--font);
+  text-align: center;
+  color: var(--text);
+}
+
+.qty-stepper-sm .qty-stepper-value {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 20px;
+}
+.qty-stepper-md .qty-stepper-value {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 28px;
+}
+
+/* ── State: disabled (whole stepper) ──────────────── */
+.qty-stepper.is-disabled .qty-stepper-value {
+  opacity: 0.5;
+}

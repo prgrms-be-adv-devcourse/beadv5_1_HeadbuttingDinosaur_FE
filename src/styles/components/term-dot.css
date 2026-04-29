@@ -1,0 +1,16 @@
+/* term-dot.css
+   Source: docs/archive/v2-cutover/prototype/Layout.jsx inline 6×6 dots
+   (Sidebar session row, StatusBar user row) and the dot inside
+   Eyebrow/StatusChip — extracted as a standalone tone-driven dot
+   per shared-components.plan.md §4.10. Width/height come from the
+   size prop via inline style (free integer per §3.0 token spec). */
+
+.term-dot {
+  display: inline-block;
+  border-radius: 50%;
+  flex: none;
+}
+
+.term-dot-term-green { background: var(--term-green); }
+.term-dot-brand      { background: var(--brand); }
+.term-dot-danger     { background: var(--danger); }
