@@ -12,7 +12,7 @@ interface TicketCardProps {
 
 export function TicketCard({ ticket, onRefunded }: TicketCardProps) {
   const [open, setOpen] = useState(false);
-  const canRefund = ticket.status === 'VALID';
+  const canRefund = ticket.status === 'ISSUED';
 
   return (
     <Card variant="solid" padding="none" className="ticket-card">

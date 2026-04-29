@@ -1,7 +1,8 @@
 export type TicketStatus =
-  | 'VALID'
+  | 'ISSUED'
   | 'USED'
   | 'CANCELLED'
+  | 'REFUNDED'
   | 'EXPIRED'
   | 'UNKNOWN';
 

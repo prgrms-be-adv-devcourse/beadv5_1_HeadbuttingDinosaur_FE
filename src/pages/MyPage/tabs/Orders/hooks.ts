@@ -33,7 +33,7 @@ export function useOrders(page: number): UseOrdersReturn {
       .then((res) => {
         if (cancelled) return;
         const list = unwrapApiData(res.data);
-        const rows = list.content.map(toOrderRowVM);
+        const rows = list.orders.map(toOrderRowVM);
         setState({
           status: 'ready',
           data: {

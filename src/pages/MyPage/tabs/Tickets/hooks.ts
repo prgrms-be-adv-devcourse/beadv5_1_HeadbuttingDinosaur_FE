@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getTickets } from '@/api/tickets.api';
+import { unwrapApiData } from '@/api/client';
 import type { FetchState } from '../../shared/TabFetchState';
 import { toTicketVM } from './adapters';
 import type { TicketVM } from './types';
@@ -32,14 +33,15 @@ export function useTickets(page: number): UseTicketsReturn {
     getTickets({ page: page - 1, size: PAGE_SIZE })
       .then((res) => {
         if (cancelled) return;
-        const tickets = res.data.tickets.map(toTicketVM);
+        const list = unwrapApiData(res.data);
+        const tickets = list.tickets.map(toTicketVM);
         setState({
           status: 'ready',
           data: {
             tickets,
-            total: res.data.totalElements,
-            totalPages: res.data.totalPages,
-            validCount: tickets.filter((t) => t.status === 'VALID').length,
+            total: list.totalElements,
+            totalPages: list.totalPages,
+            validCount: tickets.filter((t) => t.status === 'ISSUED').length,
             usedCount: tickets.filter((t) => t.status === 'USED').length,
           },
         });
