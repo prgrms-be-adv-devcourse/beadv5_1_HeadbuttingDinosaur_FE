@@ -44,6 +44,10 @@ import type {
 import { toEventListPage } from '@/pages/EventList/adapters';
 import type { EventListPage, EventVM } from '@/pages/EventList/types';
 import {
+  CATEGORY_LABEL_TO_ENUM,
+  type EventCategoryLabel,
+} from '@/pages/_shared/category';
+import {
   CATEGORY_DEFINITIONS,
   sortByDateAsc,
   toCategoryTileVM,
@@ -197,11 +201,14 @@ const categoriesCache = new Map<
 let categoriesInFlight: Promise<CategoryTileVM[]> | null = null;
 
 const fetchCategoryCounts = async (): Promise<CategoryTileVM[]> => {
-  // 6 병렬 + Promise.allSettled — 한 카테고리 실패해도 나머지는 살림 (§6.3).
+  // 백엔드 EventCategory enum 키로 변환해서 호출. 5 병렬 + Promise.allSettled —
+  // 한 카테고리 실패해도 나머지는 살림.
   const results = await Promise.allSettled(
-    CATEGORY_DEFINITIONS.map((def) =>
-      filterEvents({ category: def.cat, page: 0, size: 1 }),
-    ),
+    CATEGORY_DEFINITIONS.map((def) => {
+      const enumKey =
+        CATEGORY_LABEL_TO_ENUM[def.cat as EventCategoryLabel] ?? def.cat;
+      return filterEvents({ category: enumKey, page: 0, size: 1 });
+    }),
   );
   return CATEGORY_DEFINITIONS.map((def, i) => {
     const r = results[i];

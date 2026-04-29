@@ -1,5 +1,6 @@
 import type { EventDetailResponse, TechStackItem } from '@/api/types';
 import { toStatus, toDateTimeLabels, isFree, isLowStock } from '@/pages/_shared/eventFormat';
+import { toCategoryLabel } from '@/pages/_shared/category';
 import type { EventStatus } from '@/types/event';
 import type { EventDetailVM } from './types';
 
@@ -20,7 +21,7 @@ export const toEventDetailVM = (api: EventDetailResponse): EventDetailVM => {
   return {
     eventId: api.eventId,
     title: api.title,
-    category: api.category,
+    category: toCategoryLabel(api.category),
     techStacks: toTechStackNames(api.techStacks),
     description: api.description,
     location: api.location,

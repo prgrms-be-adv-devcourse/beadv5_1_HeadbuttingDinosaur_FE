@@ -5,11 +5,8 @@ import { getWalletBalance } from '../api/wallet.api'
 import { unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
 
-declare global {
-  interface Window {
-    TossPayments: (clientKey: string) => any
-  }
-}
+// `window.TossPayments` 의 타입 선언은 `src/components/PaymentModal/tossSdk.ts`
+// 에서 단일 정의. 여기서는 그 선언을 그대로 사용.
 
 type Method = 'WALLET' | 'PG' | 'WALLET_PG'
 
@@ -69,6 +66,9 @@ export default function Payment() {
           method: payment.paymentMethod,
         }))
 
+        if (!window.TossPayments) {
+          throw new Error('TossPayments SDK 가 로드되지 않았습니다.')
+        }
         const tossPayments = window.TossPayments('test_ck_GjLJoQ1aVZplbR1KB0MW8w6KYe2R')
         await tossPayments.requestPayment('카드', {
           amount: pgAmount,

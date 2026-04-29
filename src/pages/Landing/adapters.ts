@@ -86,13 +86,13 @@ export interface CategoryDefinition {
   accent: AccentToken;
 }
 
+// 백엔드 EventCategory enum 의 5개 카테고리에 맞춤 (소모임/컨퍼런스/해커톤/스터디/프로젝트).
 export const CATEGORY_DEFINITIONS: readonly CategoryDefinition[] = [
   { cat: '컨퍼런스', icon: 'CF', accent: 'indigo'  },
-  { cat: '밋업',     icon: 'MT', accent: 'sky'     },
+  { cat: '소모임',   icon: 'MT', accent: 'sky'     },
   { cat: '해커톤',   icon: 'HT', accent: 'emerald' },
   { cat: '스터디',   icon: 'ST', accent: 'amber'   },
-  { cat: '세미나',   icon: 'SM', accent: 'violet'  },
-  { cat: '워크샵',   icon: 'WS', accent: 'pink'    },
+  { cat: '프로젝트', icon: 'PJ', accent: 'violet'  },
 ] as const;
 
 /**

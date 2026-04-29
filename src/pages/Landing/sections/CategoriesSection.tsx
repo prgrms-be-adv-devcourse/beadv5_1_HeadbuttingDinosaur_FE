@@ -55,7 +55,7 @@ export function CategoriesSection({ query }: CategoriesSectionProps) {
 
       {isLoading && (
         <div className="categories-section__grid">
-          {Array.from({ length: 6 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <CategoryTileSkeleton key={i} />
           ))}
         </div>

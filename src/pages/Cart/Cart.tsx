@@ -35,6 +35,8 @@ export interface CartProps {
   onRemove: (itemId: string) => void;
   onCheckout: () => void;
   onBrowse: () => void;
+  onClearAll: () => void;
+  clearing?: boolean;
   checkoutState: CheckoutState;
   pendingItemIds?: Set<string>;
   /** PR 4 — Cart.plan.md § 10.3 추천 카드. 컨테이너 (`useRecommendedEvents`)
@@ -69,6 +71,8 @@ export function Cart({
   onRemove,
   onCheckout,
   onBrowse,
+  onClearAll,
+  clearing = false,
   checkoutState,
   pendingItemIds,
   recommended,
@@ -123,7 +127,11 @@ export function Cart({
 
   return (
     <PageShell>
-      <CartHeader itemCount={cart.items.length} />
+      <CartHeader
+        itemCount={cart.items.length}
+        onClearAll={onClearAll}
+        clearing={clearing}
+      />
       <div className="cart-grid">
         <CartItemList
           items={cart.items}
