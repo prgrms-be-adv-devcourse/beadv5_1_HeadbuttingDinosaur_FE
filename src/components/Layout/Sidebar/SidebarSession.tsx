@@ -1,4 +1,5 @@
 import type { SessionUser } from '../types';
+import { useChrome } from '../LayoutChromeContext';
 
 /**
  * Source: docs/archive/v2-cutover/layout.plan.md §3-9.
@@ -6,9 +7,8 @@ import type { SessionUser } from '../types';
  * Session row is always expanded (no toggle) — gating logged-out rendering is
  * the parent's responsibility, so user is always non-null here.
  *
- * Markup follows §6-6: section as <h2>, single-item <ul role="list"> with the
- * online dot decorative (aria-hidden) and the trailing "온라인" tag styled via
- * .side-meta.
+ * The online state is conveyed by the green .side-dot, so the trailing slot
+ * doubles as a logout affordance instead of a redundant "온라인" label.
  */
 export interface SidebarSessionProps {
   user: SessionUser;
@@ -17,14 +17,22 @@ export interface SidebarSessionProps {
 
 export function SidebarSession({ user, className }: SidebarSessionProps) {
   const groupCls = className ? `side-group ${className}` : 'side-group';
+  const { logout } = useChrome();
   return (
     <>
       <h2 className="side-header">세션</h2>
       <ul className={groupCls} role="list">
         <li className="side-item side-item--mini">
-          <span className="side-dot" aria-hidden="true" />
+          <span className="side-dot" aria-hidden="true" title="온라인" />
           <span>{user.nickname}</span>
-          <span className="side-meta">온라인</span>
+          <button
+            type="button"
+            className="side-meta side-meta--button"
+            onClick={logout}
+            aria-label={`${user.nickname} 로그아웃`}
+          >
+            로그아웃
+          </button>
         </li>
       </ul>
     </>
