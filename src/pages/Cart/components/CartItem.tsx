@@ -1,14 +1,8 @@
 /**
  * 장바구니 한 줄.
  *
- * 좌측 72×72 accent 박스 / 가운데 제목 + 수량 컨트롤 + 삭제 / 우측 합계.
- * 프로토타입 Cart.jsx:34-56 의 인라인 스타일을 BEM + 공용 컴포넌트로 분해.
- *
- * `pending`은 본 PR(R1) 한정으로 수량 mutation / 삭제 mutation 양쪽을 단일
- * 플래그로 묶음 — § 5에서 두 흐름을 분리한 `pendingItemIds` 가드는 PR 2.
- *
- * 📅 날짜 라인 미렌더: `CartItemVM`에 `dateLabel` 보강 필드가 없음 (§ 1
- * "보강 필드는 § 3·§ 9에서 결정 후 추가"). PR 2 이후 보강 전략 결정 시 추가.
+ * 좌측 미디어 / 가운데 제목 + 수량 컨트롤 + 삭제 / 우측 합계.
+ * `pending` 동안엔 수량/삭제 버튼이 disabled.
  */
 
 import { AccentMediaBox } from '@/components/AccentMediaBox';
@@ -47,6 +41,9 @@ export function CartItem({
       />
       <div className="cart-item__main">
         <div className="cart-item__title">{item.eventTitle}</div>
+        <div className="cart-item__meta">
+          {item.unitPrice.toLocaleString()}원 / 1매
+        </div>
         <div className="cart-item__controls">
           <QuantityStepper
             value={item.quantity}

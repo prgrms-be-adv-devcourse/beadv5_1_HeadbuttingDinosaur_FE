@@ -54,19 +54,15 @@ export const toCartVM = (res: CartResponse): CartVM => {
 };
 
 /**
- * `updateCartItemQuantity` 응답(`{ cartItemId, quantity }`)을 직전 `CartVM` 에 부분 머지.
- *
- * - 매칭 키: 응답 `cartItemId` 가 `number` (api/types.ts), VM 측은 `string`.
- *   → `String()` 으로 강제 변환 후 비교 (백엔드 타입 정정 시 본 함수만 단순화).
- * - 일치하는 row 가 없으면 prev 그대로 (낙관적 업데이트가 이미 사라진 row 에 대한 응답일 때 안전 동작).
- * - 라인 합/합계 재계산: `lineTotal`, `subtotal`, `total` 모두 새 quantity 기준으로 다시 산출.
+ * `updateCartItemQuantity` 응답을 직전 `CartVM` 에 부분 머지.
+ * 응답 `cartItemId` 는 백엔드가 `String.valueOf(id)` 로 보내므로 string.
+ * 일치 row 가 없으면 prev 그대로 (낙관적 업데이트가 이미 사라진 row 안전).
  */
 export const mergeQuantityUpdate = (
   prev: CartVM,
   res: CartItemQuantityResponse,
 ): CartVM => {
-  const targetId = String(res.cartItemId);
-  const idx = prev.items.findIndex((i) => i.cartItemId === targetId);
+  const idx = prev.items.findIndex((i) => i.cartItemId === res.cartItemId);
   if (idx === -1) return prev;
 
   const target = prev.items[idx];

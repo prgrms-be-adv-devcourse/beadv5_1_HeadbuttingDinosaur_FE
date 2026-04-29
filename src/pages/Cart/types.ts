@@ -30,10 +30,7 @@ export interface CartVM {
   total: number;
 }
 
-/**
- * 페이지 진입 페치 상태. mutation 인플라이트(`pendingItemIds`)와
- * 결제 진행(`checkoutState`)는 별도 페이지 로컬 상태로 다룬다 (§ 3, § 5).
- */
+/** 페이지 진입 페치 상태. 결제 진행(`checkoutState`)은 별도 로컬 상태. */
 export type CartQuery =
   | { status: 'loading'; previous?: CartVM }
   | { status: 'success'; data: CartVM; fetchedAt: number }

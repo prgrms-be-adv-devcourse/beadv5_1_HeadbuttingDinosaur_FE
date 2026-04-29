@@ -69,8 +69,9 @@ const ROUTE_TAB_DEFS: Record<CloseableRouteKey, TabDef> = {
   cart: { key: 'cart', label: '장바구니', icon: 'cart', route: 'cart', closeable: true },
   mypage: { key: 'mypage', label: '마이페이지', icon: 'user', route: 'mypage', closeable: true },
   login: { key: 'login', label: '로그인', icon: 'terminal', route: 'login', closeable: true },
-  seller: { key: 'seller', label: '판매자 센터', icon: 'wallet', route: 'seller', closeable: true },
-  admin: { key: 'admin', label: '관리자 패널', icon: 'settings', route: 'admin', closeable: true },
+  // seller/admin 은 권한 보유자에게는 항상 핀 — 닫을 수 없음.
+  seller: { key: 'seller', label: '판매자 센터', icon: 'wallet', route: 'seller', closeable: false },
+  admin: { key: 'admin', label: '관리자 패널', icon: 'settings', route: 'admin', closeable: false },
 };
 
 /** Hard cap on dynamic detail tabs; oldest is evicted FIFO when exceeded. */
@@ -170,6 +171,17 @@ function LayoutInner({ children }: LayoutProps) {
     setOpenRouteTabs((prev) => (prev.includes(key) ? prev : [...prev, key]));
   }, [currentRoute]);
 
+  // 권한 보유자에게는 seller/admin 탭을 항상 핀으로 노출. 권한이 사라지면
+  // (로그아웃/강등) `routeTabs` 의 role 필터가 자동으로 숨김.
+  useEffect(() => {
+    setOpenRouteTabs((prev) => {
+      const next = new Set(prev);
+      if (role === 'SELLER' || role === 'ADMIN') next.add('seller');
+      if (role === 'ADMIN') next.add('admin');
+      return next.size === prev.length ? prev : Array.from(next);
+    });
+  }, [role]);
+
   const onNavigate: NavigateFn = (key, params) => {
     const resolvedParams =
       key === 'detail' && !params?.id && lastDetailIdRef.current
@@ -245,6 +257,7 @@ function LayoutInner({ children }: LayoutProps) {
     }
 
     if (tab.route === 'home') return;
+    if (tab.closeable === false) return;
     const closingKey = tab.route as CloseableRouteKey;
     if (activeTabKey === tab.key) {
       navigate(pathFromRoute('home'));
