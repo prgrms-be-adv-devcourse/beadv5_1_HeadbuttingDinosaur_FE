@@ -654,6 +654,9 @@ export function SellerEventEdit() {
     getSellerEventDetail(id)
       .then((res) => {
         const d = res.data.data;
+        // datetime-local input 은 'YYYY-MM-DDTHH:mm' 16자만 허용 — ISO 끝의 :ss/Z/.fff 잘라냄.
+        const toLocalInput = (iso?: string): string =>
+          iso ? iso.slice(0, 16) : "";
         setInitial({
           title: d.title,
           description: d.description,
@@ -662,11 +665,11 @@ export function SellerEventEdit() {
           price: String(d.price),
           totalQuantity: String(d.totalQuantity),
           maxQuantityPerUser: String(d.maxQuantityPerUser),
-          eventDateTime: d.eventDateTime.slice(0, 16),
-          saleStartAt: "",
-          saleEndAt: "",
+          eventDateTime: toLocalInput(d.eventDateTime),
+          saleStartAt: toLocalInput(d.saleStartAt),
+          saleEndAt: toLocalInput(d.saleEndAt),
           location: d.location,
-          imageUrls: [],
+          imageUrls: d.imageUrls ?? (d.thumbnailUrl ? [d.thumbnailUrl] : []),
         });
       })
       .catch(() => toast("이벤트 로드 실패", "error"));

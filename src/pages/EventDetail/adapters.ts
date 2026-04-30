@@ -15,8 +15,19 @@ const toTechStackNames = (items: TechStackItem[]): string[] =>
 const deriveCanBuy = (status: EventStatus, remaining: number): boolean =>
   status === 'ON_SALE' && remaining > 0;
 
+const isFutureIso = (iso?: string): boolean => {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) && t > Date.now();
+};
+
 export const toEventDetailVM = (api: EventDetailResponse): EventDetailVM => {
-  const status = toStatus(api.status);
+  const rawStatus = toStatus(api.status);
+  // 상태 enum 이 ON_SALE 이어도 saleStartAt 이 미래면 판매 예정으로 표기.
+  const isScheduled =
+    rawStatus === 'SCHEDULED' ||
+    (rawStatus === 'ON_SALE' && isFutureIso(api.saleStartAt));
+  const status: EventStatus = isScheduled ? 'SCHEDULED' : rawStatus;
   const { dateLabel, timeLabel } = toDateTimeLabels(api.eventDateTime);
   return {
     eventId: api.eventId,
@@ -35,8 +46,12 @@ export const toEventDetailVM = (api: EventDetailResponse): EventDetailVM => {
     timeLabel,
     isFree: isFree(api.price),
     isLowStock: isLowStock(api.remainingQuantity),
-    isSoldOut: api.remainingQuantity === 0,
-    canBuy: deriveCanBuy(status, api.remainingQuantity),
+    isSoldOut: api.remainingQuantity === 0 && !isScheduled,
+    canBuy: !isScheduled && deriveCanBuy(rawStatus, api.remainingQuantity),
+    isScheduled,
+    saleStartAt: api.saleStartAt,
+    saleEndAt: api.saleEndAt,
+    maxQuantityPerUser: api.maxQuantityPerUser,
     thumbnailUrl: api.thumbnailUrl,
   };
 };

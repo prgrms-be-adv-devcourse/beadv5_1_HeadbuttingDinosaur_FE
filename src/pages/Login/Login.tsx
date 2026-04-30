@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Card, Button, Input } from '@/components';
 import type { LoginFieldErrors, LoginFormState } from './hooks';
 
@@ -84,6 +84,8 @@ function LoginForm({
   onChangePassword,
   onSubmit,
 }: LoginFormBlockProps) {
+  // 토글은 폼 로컬 상태 — 로그인 실패로 errors.form 이 갱신돼도 영향 없음.
+  const [showPw, setShowPw] = useState(false);
   return (
     <form className="login-form" onSubmit={onSubmit} noValidate>
       {errors.form && (
@@ -103,13 +105,25 @@ function LoginForm({
       />
       <Input
         label="비밀번호"
-        type="password"
+        type={showPw ? 'text' : 'password'}
         autoComplete="current-password"
         placeholder="비밀번호 입력"
         value={password}
         onChange={e => onChangePassword(e.target.value)}
         error={errors.password}
         disabled={loading}
+        hintEnd={
+          <button
+            type="button"
+            className="login-pw-toggle"
+            onClick={() => setShowPw((v) => !v)}
+            disabled={loading}
+            aria-pressed={showPw}
+            aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+          >
+            {showPw ? '숨기기' : '보기'}
+          </button>
+        }
       />
       <Button
         type="submit"

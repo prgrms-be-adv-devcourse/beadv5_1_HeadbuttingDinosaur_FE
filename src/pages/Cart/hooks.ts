@@ -125,6 +125,22 @@ const applyRemove = (prev: CartVM, cartItemId: string): CartVM => {
 const isStatus = (err: unknown, status: number): boolean =>
   axios.isAxiosError(err) && err.response?.status === status;
 
+const extractErrorMessage = (err: unknown): string | null => {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data;
+  if (typeof data === 'object' && data !== null && 'message' in data) {
+    const msg = (data as { message?: unknown }).message;
+    return typeof msg === 'string' && msg.trim().length > 0 ? msg : null;
+  }
+  return null;
+};
+
+const isPerUserLimitMessage = (msg: string): boolean =>
+  msg.includes('1인당') ||
+  msg.includes('최대') ||
+  msg.includes('초과') ||
+  msg.toLowerCase().includes('max');
+
 export interface UseCartMutationsReturn {
   pendingItemIds: Set<string>;
   setQuantityDelta: (cartItemId: string, delta: 1 | -1) => Promise<void>;
@@ -154,12 +170,18 @@ export function useCartMutations(cart: UseCartReturn): UseCartMutationsReturn {
 
   const handleError = useCallback(
     (err: unknown, fallbackMsg: string) => {
+      const serverMsg = extractErrorMessage(err);
+      // 백엔드가 "1인당 최대 ~ 장까지 ..." 같은 메시지를 내려주면 그대로 노출.
+      if (serverMsg && isPerUserLimitMessage(serverMsg)) {
+        toast(serverMsg, 'error');
+        return;
+      }
       if (isStatus(err, 409)) {
         cart.refetch();
         toast('재고 상태가 변경되었습니다. 장바구니를 다시 불러옵니다.', 'error');
         return;
       }
-      toast(fallbackMsg, 'error');
+      toast(serverMsg ?? fallbackMsg, 'error');
     },
     [cart, toast],
   );

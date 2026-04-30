@@ -143,3 +143,22 @@
   pointer-events: none;
   opacity: 0.6;
 }
+
+/* ── Password show/hide toggle ─────────────────────────────────── */
+.login-pw-toggle {
+  background: none;
+  border: none;
+  padding: 0 6px;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.login-pw-toggle:hover:not(:disabled) {
+  color: var(--brand);
+}
+.login-pw-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
