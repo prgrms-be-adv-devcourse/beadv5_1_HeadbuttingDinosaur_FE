@@ -7,7 +7,7 @@ import { POSITION_LABELS, POSITION_OPTIONS } from '../constants/profile'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 
-const GOOGLE_OAUTH_URL = import.meta.env.VITE_GOOGLE_OAUTH_URL ?? 'http://localhost:8080/oauth2/authorization/google'
+const GOOGLE_OAUTH_URL = import.meta.env.VITE_GOOGLE_OAUTH_URL ?? '/oauth2/authorization/google'
 
 interface TechStackItem {
   techStackId: number
