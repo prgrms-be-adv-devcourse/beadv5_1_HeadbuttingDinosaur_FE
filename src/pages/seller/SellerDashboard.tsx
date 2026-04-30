@@ -9,7 +9,7 @@ import { useToast } from '../../contexts/ToastContext'
 const REASON_MAX = 500
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  DRAFT:          { label: '초안',    cls: 'badge-gray' },
+  DRAFT:          { label: '판매 예정',    cls: 'badge-gray' },
   ON_SALE:        { label: '판매중',  cls: 'badge-green' },
   SOLD_OUT:       { label: '매진',    cls: 'badge-red' },
   SALE_ENDED:     { label: '종료',    cls: 'badge-gray' },
