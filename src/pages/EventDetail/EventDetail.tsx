@@ -116,7 +116,7 @@ export function EventDetail({ eventId }: EventDetailProps) {
     <PageShell title={vm.title}>
       <div className="ed-grid">
         <div className="ed-main">
-          <HeroBanner accent={accentColor} />
+          <HeroBanner accent={accentColor} thumbnailUrl={vm.thumbnailUrl} title={vm.title} />
           <EventHeader vm={vm} accent={accentColor} />
           <InfoCard vm={vm} />
           {vm.location && <EventMap location={vm.location} />}

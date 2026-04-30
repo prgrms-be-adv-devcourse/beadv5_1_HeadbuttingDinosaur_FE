@@ -50,7 +50,7 @@ export function OrderRow({ row, onRefunded }: OrderRowProps) {
         <td className="order-cell order-cell-action">
           {canRefund && (
             <Button variant="ghost" size="sm" onClick={() => setRefundOpen(true)}>
-              환불
+              전체 환불
             </Button>
           )}
           <RefundDialog
