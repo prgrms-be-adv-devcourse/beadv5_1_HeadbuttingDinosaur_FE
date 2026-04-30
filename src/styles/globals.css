@@ -164,9 +164,12 @@ img { max-width: 100%; display: block; }
 .btn-danger {
   background: var(--danger-bg);
   color: var(--danger-text);
-  border: 1px solid #FECACA;
+  border: 1px solid var(--danger);
 }
-.btn-danger:hover { background: #FEE2E2; }
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
 .btn-lg { height: 46px; padding: 0 24px; font-size: 15px; border-radius: var(--r-lg); }
 .btn-sm { height: 30px; padding: 0 12px; font-size: 13px; }
 .btn-full { width: 100%; justify-content: center; }
@@ -472,6 +475,17 @@ tr:hover td { background: var(--surface-2); }
 
 [data-theme="dark"] .btn-secondary:hover {
   background: var(--surface-3);
+}
+
+/* Ghost 버튼은 다크에서 --text-3 (#9D9D9D) 만 쓰면 헬퍼 톤이라 너무 흐림.
+ * --text-2 로 올려 가독성 확보 + 호버 시 --text 로 강조. */
+[data-theme="dark"] .btn-ghost {
+  color: var(--text-2);
+  border-color: var(--border-2);
+}
+[data-theme="dark"] .btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 [data-theme="dark"] th {

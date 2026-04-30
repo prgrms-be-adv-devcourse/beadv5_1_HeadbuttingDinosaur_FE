@@ -67,10 +67,59 @@ export const toEventListPage = (res: EventListResponse): EventListPage => ({
   hasNext: res.page < res.totalPages - 1,
 });
 
-export type FilterRequest =
-  | { kind: 'list'; params: EventListRequest }
-  | { kind: 'search'; params: EventSearchRequest }
-  | { kind: 'filter'; params: EventFilterRequest };
+/* 백엔드가 keyword + category 동시 적용을 무시하는 경우를 대비한 클라이언트
+ * safety net. 활성 필터가 모두 적용된 결과만 노출하도록 items 만 좁힘 —
+ * totalElements / page 는 서버 값 유지. */
+export const applyClientSideFilters = (
+  page: EventListPage,
+  filters: EventListFilters,
+): EventListPage => {
+  const hasCategory =
+    filters.category !== DEFAULT_CATEGORY && filters.category !== '';
+  const hasKeyword = filters.keyword.trim() !== '';
+  if (!hasCategory && !hasKeyword) return page;
+  const kw = filters.keyword.trim().toLowerCase();
+  const items = page.items.filter((e) => {
+    if (hasCategory && e.category !== filters.category) return false;
+    if (hasKeyword && !e.title.toLowerCase().includes(kw)) return false;
+    return true;
+  });
+  return { ...page, items };
+};
+
+/* 종료/취소된 이벤트를 후순위로 — 활성(ON_SALE/SOLD_OUT/SCHEDULED)이 먼저,
+ * 그 안에서는 서버가 정렬한 순서를 유지하기 위해 stable sort. */
+const STATUS_PRIORITY: Record<string, number> = {
+  ON_SALE: 0,
+  SOLD_OUT: 1,
+  SCHEDULED: 2,
+  SALE_ENDED: 3,
+  ENDED: 3,
+  CANCELLED: 4,
+};
+
+export const sortByActiveFirst = (page: EventListPage): EventListPage => {
+  const items = page.items
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.e.status] ?? 9;
+      const pb = STATUS_PRIORITY[b.e.status] ?? 9;
+      if (pa !== pb) return pa - pb;
+      return a.i - b.i;
+    })
+    .map((x) => x.e);
+  return { ...page, items };
+};
+
+/* 백엔드 `/events` 엔드포인트는 keyword/category/techStacks 를 함께 받아도
+ * 정상 처리하므로 (혼합 미지원이면 단일 응답 fallback) 프론트는 항상 모든
+ * 활성 필터를 한 요청에 합쳐 보낸다. 키워드 검색 후 카테고리 필터가 미적용
+ * 되던 버그(`search` 분기에서 category 가 누락되던 케이스)를 해소. */
+export type CombinedRequest = EventListRequest &
+  Partial<Pick<EventSearchRequest, 'keyword'>> &
+  Partial<Pick<EventFilterRequest, 'category' | 'techStacks'>>;
+
+export type FilterRequest = { kind: 'combined'; params: CombinedRequest };
 
 export const toFilterRequest = (
   filters: EventListFilters,
@@ -78,22 +127,17 @@ export const toFilterRequest = (
   size: number = DEFAULT_PAGE_SIZE,
 ): FilterRequest => {
   const { keyword, category, stack, page } = filters;
-  if (keyword.trim() !== '') {
-    return { kind: 'search', params: { keyword: keyword.trim(), page, size } };
-  }
+  const params: CombinedRequest = { page, size };
+  const trimmed = keyword.trim();
+  if (trimmed !== '') params.keyword = trimmed;
   const hasCategory = category !== DEFAULT_CATEGORY && category !== '';
-  const stackId = stack ? stackNameToId.get(stack) : undefined;
-  if (hasCategory || stackId !== undefined) {
-    const params: EventFilterRequest = { page, size };
-    if (hasCategory) {
-      // 백엔드 EventCategory enum 키 (영문) 로 변환. 미매핑이면 그대로 보내고 백엔드 검증에 맡김.
-      params.category =
-        CATEGORY_LABEL_TO_ENUM[category as EventCategoryLabel] ?? category;
-    }
-    if (stackId !== undefined) params.techStacks = [stackId];
-    return { kind: 'filter', params };
+  if (hasCategory) {
+    params.category =
+      CATEGORY_LABEL_TO_ENUM[category as EventCategoryLabel] ?? category;
   }
-  return { kind: 'list', params: { page, size } };
+  const stackId = stack ? stackNameToId.get(stack) : undefined;
+  if (stackId !== undefined) params.techStacks = [stackId];
+  return { kind: 'combined', params };
 };
 
 export const serializeFilters = (f: EventListFilters): string =>

@@ -5,7 +5,9 @@ import type { EventListResponse } from '@/api/types';
 import type { EventListFilters, EventListPage, EventsQuery } from './types';
 import {
   DEFAULT_CATEGORY,
+  applyClientSideFilters,
   serializeFilters,
+  sortByActiveFirst,
   toEventListPage,
   toFilterRequest,
 } from './adapters';
@@ -83,7 +85,13 @@ const fetchEvents = async (
     params: req.params,
     signal,
   });
-  return toEventListPage(unwrapApiData(res.data));
+  // 서버가 keyword + category 혼합 적용을 무시할 수 있어 클라이언트에서도 한 번 더 좁힘.
+  // 종료/취소 이벤트는 후순위로 정렬해 활성 이벤트가 먼저 노출되도록 한다.
+  const filtered = applyClientSideFilters(
+    toEventListPage(unwrapApiData(res.data)),
+    filters,
+  );
+  return sortByActiveFirst(filtered);
 };
 
 export type UseEventsReturn = EventsQuery & { refetch: () => void };

@@ -130,3 +130,42 @@
 .tickets-skeleton-bar-sm { width: 60px; height: 18px; }
 .tickets-skeleton-bar-lg { width: 80%; }
 .tickets-skeleton-bar-md { width: 50%; }
+
+/* ── Status filter tabs ────────────────────────────────────────── */
+.tickets-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 14px;
+}
+.tickets-filter__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-1, var(--border));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tickets-filter__tab:hover {
+  color: var(--text-1);
+  border-color: var(--brand);
+}
+.tickets-filter__tab.is-active {
+  background: var(--brand-light, var(--surface));
+  color: var(--brand);
+  border-color: var(--brand);
+}
+.tickets-filter__count {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.tickets-filter__tab.is-active .tickets-filter__count {
+  color: var(--brand);
+}
