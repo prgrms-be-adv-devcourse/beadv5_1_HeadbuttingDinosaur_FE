@@ -1,7 +1,7 @@
 // ── AdminEvents ────────────────────────────────────────────────────────────────
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAdminEvents, forcecancelEvent, getSellerApplications, processSellerApplication, runSettlementProcess, getAdminSettlements, cancelSettlement, paySettlement } from '../../api/admin.api'
+import { getAdminEvents, forcecancelEvent, getSellerApplications, processSellerApplication, getAdminSettlements, cancelSettlement, paySettlement } from '../../api/admin.api'
 import type { AdminEventItem, SellerApplicationListItem, AdminSettlementItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -338,7 +338,6 @@ export function AdminSettlements() {
   const navigate = useNavigate()
   const [settlements, setSettlements] = useState<AdminSettlementItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [running, setRunning] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
@@ -387,27 +386,11 @@ export function AdminSettlements() {
     finally { setActionLoading(null) }
   }
 
-  const handleRun = async () => {
-    if (!confirm('정산 프로세스를 실행할까요? 이 작업은 되돌릴 수 없습니다.')) return
-    setRunning(true)
-    try {
-      await runSettlementProcess()
-      toast('정산 프로세스가 실행되었습니다', 'success')
-      fetchSettlements()
-    } catch { toast('실행 실패', 'error') }
-    finally { setRunning(false) }
-  }
-
   return (
     <div style={{ padding: '32px 36px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>정산서 관리</h1>
-          <p style={{ fontSize: 14, color: 'var(--text-3)' }}>총 {totalElements.toLocaleString()}건</p>
-        </div>
-        <button className="btn btn-primary" onClick={handleRun} disabled={running}>
-          {running ? '실행 중...' : '⚡ 정산 프로세스 실행'}
-        </button>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>정산서 관리</h1>
+        <p style={{ fontSize: 14, color: 'var(--text-3)' }}>총 {totalElements.toLocaleString()}건</p>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>

@@ -446,18 +446,10 @@ export function useFeaturedEvents(): UseFeaturedEventsReturn {
         if (cancelled) return;
         setState({ status: 'success', data, fetchedAt: Date.now() });
       })
-      .catch((error) => {
+      .catch(() => {
+        // AI 추천 + 폴백 모두 실패 → 빈 리스트로 흡수 (에러 UI 노출 안 함).
         if (cancelled) return;
-        setState((prev) => ({
-          status: 'error',
-          error,
-          previous:
-        'data' in prev
-          ? prev.data
-          : 'previous' in prev
-            ? prev.previous
-            : undefined,
-        }));
+        setState({ status: 'success', data: [], fetchedAt: Date.now() });
       });
 
     return () => {
