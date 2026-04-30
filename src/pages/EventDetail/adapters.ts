@@ -23,6 +23,9 @@ const isFutureIso = (iso?: string): boolean => {
 
 export const toEventDetailVM = (api: EventDetailResponse): EventDetailVM => {
   const rawStatus = toStatus(api.status);
+  // 백엔드 EventDetailResponse 는 단일 thumbnailUrl 이 아니라 sortOrder 정렬된
+  // imageUrls 만 내려주므로 첫 장을 썸네일로 사용.
+  const thumbnailUrl = api.imageUrls?.[0];
   // 상태 enum 이 ON_SALE 이어도 saleStartAt 이 미래면 판매 예정으로 표기.
   const isScheduled =
     rawStatus === 'SCHEDULED' ||
@@ -52,7 +55,7 @@ export const toEventDetailVM = (api: EventDetailResponse): EventDetailVM => {
     saleStartAt: api.saleStartAt,
     saleEndAt: api.saleEndAt,
     maxQuantityPerUser: api.maxQuantityPerUser,
-    thumbnailUrl: api.thumbnailUrl,
+    thumbnailUrl,
   };
 };
 
