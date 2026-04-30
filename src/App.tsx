@@ -48,6 +48,7 @@ const AdminApplications = lazy(() => import('./pages/admin/AdminApplications'))
 const AdminSettlements       = lazy(() => import('./pages/admin/AdminSettlements'))
 const AdminSettlementDetail  = lazy(() => import('./pages/admin/AdminSettlementDetail'))
 const AdminTechStacks        = lazy(() => import('./pages/admin/AdminTechStacks'))
+const AdminRevenue           = lazy(() => import('./pages/admin/AdminRevenue'))
 
 // ── 가드 ──────────────────────────────────────────────────────────
 function RequireSeller({ children }: { children: React.ReactNode }) {
@@ -112,6 +113,7 @@ export default function App() {
           <Route path="/admin/settlements"                  element={<AdminSettlements />} />
           <Route path="/admin/settlements/:settlementId"  element={<AdminSettlementDetail />} />
           <Route path="/admin/techstacks"                 element={<AdminTechStacks />} />
+          <Route path="/admin/revenue"                   element={<AdminRevenue />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

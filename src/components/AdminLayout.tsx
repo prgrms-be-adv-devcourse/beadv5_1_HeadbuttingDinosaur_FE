@@ -9,6 +9,7 @@ const NAV = [
   { to: '/admin/techstacks',    label: '기술 스택',      icon: '🧩' },
   { to: '/admin/applications',  label: '판매자 심사',    icon: '📋' },
   { to: '/admin/settlements',   label: '정산 관리',      icon: '₩' },
+  { to: '/admin/revenue',       label: '월별 수익',      icon: '📊' },
 ]
 
 export default function AdminLayout() {
