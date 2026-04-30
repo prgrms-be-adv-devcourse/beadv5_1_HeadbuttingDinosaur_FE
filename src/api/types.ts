@@ -280,6 +280,10 @@ export interface SellerEventStopResponse {
   status: string;
 }
 
+export interface SellerEventCancelRequest {
+  reason: string;
+}
+
 export interface ParticipantItem {
   ticketId: string
   orderId: string
