@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 
 import { confirmPayment, failPayment } from '@/api/payments.api';
+import { extractErrorMessage } from '@/api/client';
 
 import type {
   ConfirmQuery,
@@ -50,13 +51,8 @@ const readPaymentContext = (): SessionPaymentContext | null => {
 const clearPaymentContext = () =>
   sessionStorage.removeItem(PAYMENT_CONTEXT_KEY);
 
-const errorMessageOf = (e: unknown): string => {
-  const fallback = '결제 승인 처리에 실패했습니다.';
-  if (typeof e !== 'object' || e === null) return fallback;
-  const data = (e as { response?: { data?: { message?: string } } }).response
-    ?.data;
-  return data?.message ?? fallback;
-};
+const errorMessageOf = (e: unknown): string =>
+  extractErrorMessage(e) ?? '결제 승인 처리에 실패했습니다.';
 
 // ── usePaymentConfirm ────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import axios from 'axios';
 import { Button, Card, Input } from '@/components';
 import { withdrawWallet } from '@/api/wallet.api';
+import { extractErrorMessage } from '@/api/client';
 import { useToast } from '@/contexts/ToastContext';
 
 const MIN_WITHDRAW = 1_000;
@@ -36,14 +36,7 @@ export function WithdrawPanel({ balance, onCancel, onSuccess }: WithdrawPanelPro
       toast('출금 요청이 완료되었습니다', 'success');
       onSuccess();
     } catch (err: unknown) {
-      const message =
-        axios.isAxiosError(err) &&
-        typeof err.response?.data === 'object' &&
-        err.response?.data !== null &&
-        'message' in (err.response.data as Record<string, unknown>)
-          ? String((err.response.data as { message?: string }).message ?? '')
-          : '';
-      toast(message || '출금 처리에 실패했습니다', 'error');
+      toast(extractErrorMessage(err) ?? '출금 처리에 실패했습니다', 'error');
     } finally {
       setSubmitting(false);
     }

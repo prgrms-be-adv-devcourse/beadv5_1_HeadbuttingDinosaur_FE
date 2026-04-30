@@ -6,6 +6,7 @@ import {
   reindexAdminTechStacks,
   updateAdminTechStack,
 } from '../../api/admin.api'
+import { extractErrorMessage } from '../../api/client'
 import type { AdminTechStackItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -25,8 +26,8 @@ export default function AdminTechStacks() {
     try {
       const res = await getAdminTechStacks()
       setTechStacks((res.data ?? []).slice().sort((a, b) => a.id - b.id))
-    } catch {
-      toast('기술 스택을 불러오지 못했습니다', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '기술 스택을 불러오지 못했습니다', 'error')
     } finally {
       setLoading(false)
     }
@@ -47,8 +48,8 @@ export default function AdminTechStacks() {
       setNewName('')
       toast('기술 스택이 생성되었습니다', 'success')
       fetchTechStacks()
-    } catch {
-      toast('생성에 실패했습니다', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '생성에 실패했습니다', 'error')
     } finally {
       setCreating(false)
     }
@@ -77,8 +78,8 @@ export default function AdminTechStacks() {
       toast('기술 스택이 수정되었습니다', 'success')
       cancelEdit()
       fetchTechStacks()
-    } catch {
-      toast('수정에 실패했습니다', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '수정에 실패했습니다', 'error')
     } finally {
       setActionId(null)
     }
@@ -92,8 +93,8 @@ export default function AdminTechStacks() {
       toast('기술 스택이 삭제되었습니다', 'success')
       if (editingId === id) cancelEdit()
       fetchTechStacks()
-    } catch {
-      toast('삭제에 실패했습니다', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '삭제에 실패했습니다', 'error')
     } finally {
       setActionId(null)
     }
@@ -107,8 +108,8 @@ export default function AdminTechStacks() {
       await reindexAdminTechStacks()
       toast('기술 스택 재색인을 요청했습니다', 'success')
       fetchTechStacks()
-    } catch {
-      toast('재색인 요청에 실패했습니다', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '재색인 요청에 실패했습니다', 'error')
     } finally {
       setReindexing(false)
     }

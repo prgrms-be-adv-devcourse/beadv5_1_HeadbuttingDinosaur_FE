@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { confirmWalletCharge } from '../api/wallet.api'
+import { extractErrorMessage } from '../api/client'
 
 export default function WalletChargeSuccess() {
   const [searchParams] = useSearchParams()
@@ -29,9 +30,11 @@ export default function WalletChargeSuccess() {
         sessionStorage.removeItem('wallet_charge_context')
         setStatus('success')
         setTimeout(() => navigate('/mypage?tab=wallet', { replace: true }), 1500)
-      } catch (e: any) {
+      } catch (e: unknown) {
         setStatus('error')
-        const msg = e?.response?.data?.message ?? e?.message ?? '충전 승인 처리에 실패했습니다.'
+        const msg =
+          extractErrorMessage(e) ??
+          (e instanceof Error ? e.message : '충전 승인 처리에 실패했습니다.')
         setErrorMsg(msg)
         sessionStorage.removeItem('wallet_charge_context')
       }

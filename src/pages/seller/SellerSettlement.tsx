@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getSellerSettlementByMonth, getSellerSettlementPreview } from '../../api/seller.api'
+import { extractErrorMessage } from '../../api/client'
 import type { SettlementMonthResponse } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -70,7 +71,12 @@ export default function SellerSettlement() {
 
     req
       .then(r => setData(r.data))
-      .catch(() => toast('정산 데이터를 불러오지 못했습니다', 'error'))
+      .catch((err) =>
+        toast(
+          extractErrorMessage(err) ?? '정산 데이터를 불러오지 못했습니다',
+          'error',
+        ),
+      )
       .finally(() => setLoading(false))
   }, [selectedIdx])
 

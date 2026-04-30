@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getSellerApplications, processSellerApplication } from '../../api/admin.api'
+import { extractErrorMessage } from '../../api/client'
 import type { SellerApplicationListResponse } from '../../api/types'
 
 export default function AdminApplications() {
@@ -9,7 +10,7 @@ export default function AdminApplications() {
   const fetchApplications = () => {
     getSellerApplications()
     .then(r => setApplications(r.data))
-    .catch(() => alert('로드 실패'))
+    .catch((err) => alert(extractErrorMessage(err) ?? '로드 실패'))
     .finally(() => setLoading(false))
   }
 
@@ -21,7 +22,7 @@ export default function AdminApplications() {
       await processSellerApplication(applicationId, decision)
       alert('처리 완료')
       fetchApplications()
-    } catch { alert('처리 실패') }
+    } catch (err) { alert(extractErrorMessage(err) ?? '처리 실패') }
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" /></div>
