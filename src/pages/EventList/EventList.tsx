@@ -14,6 +14,7 @@ import {
   type UseEventsReturn,
   useEventListFilters,
   useEvents,
+  useTechStacks,
 } from './hooks';
 
 import { EVENT_CATEGORY_LABELS } from '@/pages/_shared/category';
@@ -32,13 +33,19 @@ function getDisplayPage(query: UseEventsReturn) {
 export default function EventList() {
   const navigate = useNavigate();
   const { filters, setFilters } = useEventListFilters();
-  const stackNameToId = useMemo(() => new Map<string, number>(), []);
-  const query = useEvents(filters, stackNameToId);
+  const techStacks = useTechStacks();
+  const stackNames = useMemo(
+    () => techStacks.items.map((s) => s.name),
+    [techStacks.items],
+  );
+  const query = useEvents(filters, techStacks.byName);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const displayPage = getDisplayPage(query);
   const hasActiveFilters =
-    filters.keyword.trim() !== '' || filters.category !== DEFAULT_CATEGORY;
+    filters.keyword.trim() !== '' ||
+    filters.category !== DEFAULT_CATEGORY ||
+    filters.stack !== '';
 
   const onResetFilters = () => {
     setFilters({ keyword: '', category: DEFAULT_CATEGORY, stack: '', page: 0 });
@@ -65,6 +72,9 @@ export default function EventList() {
           category={filters.category}
           onCategoryChange={(next) => setFilters({ category: next })}
           categories={CATEGORIES}
+          stack={filters.stack}
+          onStackChange={(next) => setFilters({ stack: next })}
+          stacks={stackNames}
           searchInputRef={searchInputRef}
         />
         <ResultHeader
