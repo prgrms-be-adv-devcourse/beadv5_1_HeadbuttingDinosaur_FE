@@ -19,6 +19,10 @@ export interface EventDetailVM {
   isLowStock: boolean;
   isSoldOut: boolean;
   canBuy: boolean;
+  isScheduled: boolean;
+  saleStartAt?: string;
+  saleEndAt?: string;
+  maxQuantityPerUser?: number;
   thumbnailUrl?: string;
 }
 

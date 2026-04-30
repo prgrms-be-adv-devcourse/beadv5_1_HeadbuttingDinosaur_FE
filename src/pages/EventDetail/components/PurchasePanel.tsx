@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
@@ -8,17 +9,54 @@ import { QuantityStepper } from '@/components/QuantityStepper';
 import { usePurchaseActions } from '../hooks';
 import type { EventDetailVM } from '../types';
 import { PriceSummary } from './PriceSummary';
+import { SaleCountdown } from './SaleCountdown';
 
 export interface PurchasePanelProps {
   vm: EventDetailVM;
 }
 
+const unavailableLabel = (vm: EventDetailVM): string => {
+  if (vm.isScheduled) return '판매 예정 이벤트입니다';
+  if (vm.status === 'CANCELLED') return '취소된 이벤트입니다';
+  if (vm.status === 'ENDED') return '종료된 이벤트입니다';
+  if (vm.status === 'SALE_ENDED') return '판매가 종료된 이벤트입니다';
+  if (vm.status === 'SOLD_OUT' || vm.isSoldOut) return '매진된 이벤트입니다';
+  return '구매할 수 없는 이벤트입니다';
+};
+
 export function PurchasePanel({ vm }: PurchasePanelProps) {
+  const { toast } = useToast();
   const [qty, setQty] = useState(1);
   const { busy, addToCart, buyNow } = usePurchaseActions(vm.eventId);
 
   const showQuantity = !vm.isFree && vm.canBuy;
   const isBusy = busy !== null;
+  const showCountdown = vm.isScheduled && Boolean(vm.saleStartAt);
+  const perUserMax = vm.maxQuantityPerUser;
+  const effectiveMax =
+    perUserMax !== undefined
+      ? Math.min(vm.remainingQuantity, perUserMax)
+      : vm.remainingQuantity;
+
+  const handleQtyChange = (next: number) => {
+    if (perUserMax !== undefined && next > perUserMax) {
+      toast(
+        `1인당 최대 ${perUserMax.toLocaleString()}장까지 구매 가능합니다.`,
+        'error',
+      );
+      setQty(perUserMax);
+      return;
+    }
+    if (next > vm.remainingQuantity) {
+      toast(
+        `잔여 수량을 초과했습니다. 최대 ${vm.remainingQuantity.toLocaleString()}장까지 구매 가능합니다.`,
+        'error',
+      );
+      setQty(vm.remainingQuantity);
+      return;
+    }
+    setQty(next);
+  };
 
   return (
     <div className="ed-purchase-sticky">
@@ -29,14 +67,21 @@ export function PurchasePanel({ vm }: PurchasePanelProps) {
             {vm.isFree ? '무료' : `${vm.price.toLocaleString()}원`}
           </div>
 
+          {showCountdown && (
+            <div className="ed-countdown-wrap">
+              <div className="ed-countdown__label">판매 시작까지</div>
+              <SaleCountdown targetIso={vm.saleStartAt!} />
+            </div>
+          )}
+
           {showQuantity && (
             <div className="ed-quantity">
               <div className="ed-quantity__label">수량</div>
               <QuantityStepper
                 value={qty}
-                onChange={setQty}
+                onChange={handleQtyChange}
                 min={1}
-                max={vm.remainingQuantity}
+                max={effectiveMax}
                 size="md"
                 disabled={isBusy}
               />
@@ -69,7 +114,7 @@ export function PurchasePanel({ vm }: PurchasePanelProps) {
               </>
             ) : (
               <Button variant="ghost" size="lg" full disabled>
-                매진된 이벤트입니다
+                {unavailableLabel(vm)}
               </Button>
             )}
           </div>

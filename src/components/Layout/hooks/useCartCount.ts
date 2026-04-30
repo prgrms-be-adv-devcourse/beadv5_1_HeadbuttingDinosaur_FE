@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getCart } from '@/api/cart.api';
+import { CART_CHANGED_EVENT, getCart } from '@/api/cart.api';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -49,6 +49,17 @@ export function useCartCount(): UseCartCountResult {
     } else {
       setCount(0);
     }
+  }, [isLoggedIn, refresh]);
+
+  // cart.api 가 변경 시 dispatch 하는 'cart:changed' 이벤트 구독 — 페이지 내
+  // 장바구니 mutation(추가/수량 변경/삭제/clear) 후 뱃지가 즉시 갱신.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const handler = () => {
+      void refresh();
+    };
+    window.addEventListener(CART_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(CART_CHANGED_EVENT, handler);
   }, [isLoggedIn, refresh]);
 
   return { count, refresh, isLoading };
