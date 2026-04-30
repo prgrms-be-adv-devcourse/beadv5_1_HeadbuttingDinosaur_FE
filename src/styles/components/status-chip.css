@@ -33,9 +33,17 @@
 .status-chip-free .status-chip-dot { background: var(--brand); }
 .status-chip-end  .status-chip-dot { background: var(--text-4); }
 
-/* tokens.css does not override --danger-bg/--danger-text in dark mode, so
- * sold needs its own dark envelope (mirrors prototype line 531). */
+/* Dark-only chip overrides — emerald for ok, red for sold, slate for end.
+ * Mirrors the dark palette spec (status chip section). */
+[data-theme="dark"] .status-chip-ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #4ADE80;
+}
 [data-theme="dark"] .status-chip-sold {
   background: rgba(239, 68, 68, 0.15);
   color: #F87171;
+}
+[data-theme="dark"] .status-chip-end {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94A3B8;
 }

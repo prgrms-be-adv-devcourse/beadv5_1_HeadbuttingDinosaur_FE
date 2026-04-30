@@ -156,22 +156,21 @@
 
 [data-theme="dark"] {
   /* Common — VS Code Dark+ palette
-     Surfaces use VS Code's neutral grays (no slate/blue cast):
-       editor #1E1E1E, sidebar #252526, hover #2A2D2E, active #37373D.
-     Text follows VS Code's foreground tokens (#CCCCCC family).
-     Borders use #3C3C3C / #474747 (panel.border, contrastBorder).        */
+     Surfaces follow a 4-step depth: 1E1E1E → 252526 → 2D2D30 → 3E3E42.
+     Text follows a 4-step hierarchy: D4D4D4 → B8B8B8 → 858585 → 6A6A6A.
+     Borders 3E3E42 (default) / 505050 (emphasis).                        */
   --bg:          #1E1E1E;
   --surface:     #252526;
   --surface-2:   #2D2D30;
-  --surface-3:   #37373D;
-  --text:        #E5E5E5;
-  --text-1:      #E5E5E5;
-  --text-2:      #CCCCCC;
-  --text-3:      #9D9D9D;
-  --text-4:      #6E7681;
-  --border:      #3C3C3C;
-  --border-1:    #3C3C3C;
-  --border-2:    #474747;
+  --surface-3:   #3E3E42;
+  --text:        #D4D4D4;
+  --text-1:      #D4D4D4;
+  --text-2:      #B8B8B8;
+  --text-3:      #858585;
+  --text-4:      #6A6A6A;
+  --border:      #3E3E42;
+  --border-1:    #3E3E42;
+  --border-2:    #505050;
   --brand:       #0E7DEC;   /* VS Code activity-bar blue */
   --brand-hover: #1F8CEF;
   --brand-light: rgba(14, 125, 236, 0.18);
@@ -212,20 +211,20 @@
   --syn-number:  #B5CEA8;
   --syn-fn:      #DCDCAA;
   --syn-prop:    #9CDCFE;
-  --syn-comment: #6A9955;
-  --syn-punct:   #D4D4D4;
+  --syn-comment: #6B7280;
+  --syn-punct:   #94A3B8;
   --syn-type:    #4EC9B0;
   --syn-tag:     #569CD6;
 
   /* IDE — Chrome */
-  --chrome:      #2D2D30;   /* tab strip / title bar */
-  --chrome-2:    #252526;   /* inactive tab */
+  --chrome:      #252526;   /* tab strip / title bar (= surface) */
+  --chrome-2:    #333333;   /* hover / inactive tab */
   --gutter:      #1E1E1E;
-  --gutter-text: #858585;   /* VS Code editorLineNumber.foreground */
+  --gutter-text: #5A6270;   /* line-number color */
   --editor-bg:   #1E1E1E;
   --editor-line: rgba(255, 255, 255, 0.04);
-  --sidebar-bg:  #252526;   /* sideBar.background */
+  --sidebar-bg:  #1A1A1C;   /* sidebar / JSON card header */
   --status-bg:   #007ACC;
   --status-text: #FFFFFF;
-  --minimap-bg:  #1E1E1E;
+  --minimap-bg:  #161618;
 }

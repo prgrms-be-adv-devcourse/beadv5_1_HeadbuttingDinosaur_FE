@@ -578,10 +578,10 @@ button.side-header {
 }
 
 /* ─── Dark overrides ──────────────────────────────────── */
-/* brand-light 위 텍스트 가독성 보정. VS Code 선택 강조 톤. */
+/* brand-light 위 텍스트 가독성 보정. 라벤더(indigo-200) 톤. */
 [data-theme="dark"] .palette-item:hover,
 [data-theme="dark"] .palette-item.sel {
-  color: #75BEFF;
+  color: #C7D2FE;
 }
 
 /* ─── Responsive ──────────────────────────────────────── */
