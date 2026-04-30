@@ -21,22 +21,11 @@ const isFutureIso = (iso?: string): boolean => {
   return Number.isFinite(t) && t > Date.now();
 };
 
-// TEMP: 썸네일 렌더링 검증용 — 이 eventId 한정으로 list API 가 내려주는 URL 을 강제 적용.
-// 상세 API 가 thumbnailUrl 을 누락한다는 가설 검증 후 제거 예정.
-const __THUMBNAIL_PROBE: Record<string, string> = {
-  '58742949-fc06-4302-ae92-937bdd66d0ee':
-    'https://devticket-team01-s3.s3.ap-northeast-2.amazonaws.com/events/70983cd7-d87e-47be-8168-da0e27fc4659.png',
-};
-
 export const toEventDetailVM = (api: EventDetailResponse): EventDetailVM => {
   const rawStatus = toStatus(api.status);
-  const thumbnailUrl = api.thumbnailUrl ?? __THUMBNAIL_PROBE[api.eventId];
-  // eslint-disable-next-line no-console
-  console.info('[event-detail probe]', {
-    eventId: api.eventId,
-    thumbnailUrlFromApi: api.thumbnailUrl,
-    thumbnailUrlResolved: thumbnailUrl,
-  });
+  // 백엔드 EventDetailResponse 는 단일 thumbnailUrl 이 아니라 sortOrder 정렬된
+  // imageUrls 만 내려주므로 첫 장을 썸네일로 사용.
+  const thumbnailUrl = api.imageUrls?.[0];
   // 상태 enum 이 ON_SALE 이어도 saleStartAt 이 미래면 판매 예정으로 표기.
   const isScheduled =
     rawStatus === 'SCHEDULED' ||
