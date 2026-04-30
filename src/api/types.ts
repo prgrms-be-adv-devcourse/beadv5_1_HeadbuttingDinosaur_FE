@@ -166,6 +166,11 @@ export interface EventDetailResponse {
   sellerNickname: string;
   thumbnailUrl?: string;
   createdAt: string;
+  // 백엔드가 내려주는 경우 한정 (옵셔널). 판매 예정 카운트다운 / 상태 분기에 사용.
+  saleStartAt?: string;
+  saleEndAt?: string;
+  // 1인당 최대 구매 수량 — 백엔드가 내려주면 QuantityStepper / 장바구니 검증에 사용.
+  maxQuantityPerUser?: number;
 }
 
 export interface EventSearchRequest {
@@ -239,9 +244,12 @@ export interface SellerEventDetailResponse {
   remainingQuantity: number;
   maxQuantityPerUser: number;
   eventDateTime: string;
+  saleStartAt?: string;
+  saleEndAt?: string;
   location: string;
   status: string;
   thumbnailUrl?: string;
+  imageUrls?: string[];
   createdAt: string;
 }
 

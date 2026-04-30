@@ -7,13 +7,17 @@ export interface InfoCardProps {
   vm: EventDetailVM;
 }
 
-export function InfoCard({ vm }: InfoCardProps) {
-  const seatValue = vm.isSoldOut ? (
-    <span className="ed-seat-sold">매진되었습니다</span>
-  ) : (
-    `${vm.remainingQuantity.toLocaleString()}석`
-  );
+const seatLabel = (vm: InfoCardProps['vm']) => {
+  if (vm.isScheduled) return <span className="ed-seat-sold">판매 예정</span>;
+  if (vm.status === 'CANCELLED')
+    return <span className="ed-seat-sold">취소되었습니다</span>;
+  if (vm.status === 'ENDED' || vm.status === 'SALE_ENDED')
+    return <span className="ed-seat-sold">판매 종료</span>;
+  if (vm.isSoldOut) return <span className="ed-seat-sold">매진되었습니다</span>;
+  return `${vm.remainingQuantity.toLocaleString()}석`;
+};
 
+export function InfoCard({ vm }: InfoCardProps) {
   return (
     <Card padding="none" className="ed-info-card">
       <InfoRow
@@ -23,7 +27,7 @@ export function InfoCard({ vm }: InfoCardProps) {
       />
       <InfoRow icon="📍" label="장소" value={vm.location} />
       <InfoRow icon="👤" label="주최" value={vm.sellerNickname} />
-      <InfoRow icon="🎫" label="잔여 좌석" value={seatValue} />
+      <InfoRow icon="🎫" label="잔여 좌석" value={seatLabel(vm)} />
     </Card>
   );
 }
