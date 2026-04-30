@@ -19,12 +19,14 @@
 
   /* ── Text ─────────────────────────────────────────── */
   --text:   #0F172A;         /* primary copy, headings (slate-900) */
+  --text-1: #0F172A;         /* alias of --text — explicit primary */
   --text-2: #334155;         /* secondary copy (slate-700) */
   --text-3: #64748B;         /* tertiary / helper (slate-500) */
   --text-4: #94A3B8;         /* placeholder, disabled (slate-400) */
 
   /* ── Borders ──────────────────────────────────────── */
   --border:   #E2E8F0;       /* card, table row, default input */
+  --border-1: #E2E8F0;       /* alias of --border — explicit default */
   --border-2: #CBD5E1;       /* secondary button, strong input */
 
   /* ── Semantic ─────────────────────────────────────── */
@@ -162,11 +164,13 @@
   --surface:     #252526;
   --surface-2:   #2D2D30;
   --surface-3:   #37373D;
-  --text:        #D4D4D4;
+  --text:        #E5E5E5;
+  --text-1:      #E5E5E5;
   --text-2:      #CCCCCC;
   --text-3:      #9D9D9D;
   --text-4:      #6E7681;
   --border:      #3C3C3C;
+  --border-1:    #3C3C3C;
   --border-2:    #474747;
   --brand:       #0E7DEC;   /* VS Code activity-bar blue */
   --brand-hover: #1F8CEF;
