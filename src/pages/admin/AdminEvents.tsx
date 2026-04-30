@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAdminEvents, forcecancelEvent, getSellerApplications, processSellerApplication, getAdminSettlements, cancelSettlement, paySettlement } from '../../api/admin.api'
+import { extractErrorMessage } from '../../api/client'
 import type { AdminEventItem, SellerApplicationListItem, AdminSettlementItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -26,7 +27,7 @@ export function AdminEvents() {
     try {
       const res = await getAdminEvents({ keyword: keyword || undefined, page: 0, size: 50 })
       setEvents(res.data.content)
-    } catch { toast('로드 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '로드 실패', 'error') }
     finally { setLoading(false) }
   }, [keyword])
 
@@ -39,7 +40,7 @@ export function AdminEvents() {
       await forcecancelEvent(eventId)
       toast('관리자 이벤트 취소 및 환불 요청이 접수되었습니다', 'success')
       fetchEvents()
-    } catch { toast('처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '처리 실패', 'error') }
     finally { setActionLoading(null) }
   }
 
@@ -126,7 +127,7 @@ export function AdminApplications() {
     try {
       const res = await getSellerApplications()
       setApps(res.data.data.content)
-    } catch { toast('로드 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '로드 실패', 'error') }
     finally { setLoading(false) }
   }
 
@@ -140,7 +141,7 @@ export function AdminApplications() {
       await processSellerApplication(id, approve)
       toast(`${label} 처리되었습니다`, 'success')
       fetchApps()
-    } catch { toast('처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '처리 실패', 'error') }
     finally { setActionLoading(null) }
   }
 
@@ -258,7 +259,7 @@ export function AdminSettlements() {
       setSettlements(res.data.content)
       setTotalPages(res.data.totalPages)
       setTotalElements(res.data.totalElements)
-    } catch { toast('로드 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '로드 실패', 'error') }
     finally { setLoading(false) }
   }, [yearMonth, page])
 
@@ -277,7 +278,7 @@ export function AdminSettlements() {
       await cancelSettlement(settlementId)
       toast('정산서가 취소되었습니다', 'success')
       fetchSettlements()
-    } catch { toast('취소 처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '취소 처리 실패', 'error') }
     finally { setActionLoading(null) }
   }
 
@@ -289,7 +290,7 @@ export function AdminSettlements() {
       await paySettlement(settlementId)
       toast('정산금 지급이 완료되었습니다', 'success')
       fetchSettlements()
-    } catch { toast('지급 처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '지급 처리 실패', 'error') }
     finally { setActionLoading(null) }
   }
 

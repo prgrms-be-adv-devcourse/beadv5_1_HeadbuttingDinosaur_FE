@@ -4,6 +4,7 @@ import type { EventStatus } from '@/types/event';
 import type { EventDetailVM } from '../types';
 
 const STATUS_DISPLAY: Record<EventStatus, { variant: StatusVariant; label: string }> = {
+  SCHEDULED: { variant: 'ok', label: '판매 예정' },
   ON_SALE: { variant: 'ok', label: '판매중' },
   SOLD_OUT: { variant: 'sold', label: '매진' },
   SALE_ENDED: { variant: 'end', label: '판매 종료' },

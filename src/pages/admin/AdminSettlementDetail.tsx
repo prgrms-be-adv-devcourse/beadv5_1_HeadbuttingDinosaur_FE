@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getAdminSettlementDetail } from '../../api/admin.api'
+import { extractErrorMessage } from '../../api/client'
 import type { AdminSettlementDetailResponse } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -30,7 +31,7 @@ export default function AdminSettlementDetail() {
     setLoading(true)
     getAdminSettlementDetail(settlementId)
       .then(res => setDetail(res.data))
-      .catch(() => toast('로드 실패', 'error'))
+      .catch((err) => toast(extractErrorMessage(err) ?? '로드 실패', 'error'))
       .finally(() => setLoading(false))
   }, [settlementId])
 

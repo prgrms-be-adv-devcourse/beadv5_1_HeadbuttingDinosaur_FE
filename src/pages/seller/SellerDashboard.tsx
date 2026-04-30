@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getSellerEvents, stopSellerEvent } from '../../api/events.api'
 import { getSellerEventRefundsPage } from '../../api/refunds.api'
+import { extractErrorMessage } from '../../api/client'
 import type { SellerEventItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -29,8 +30,8 @@ export default function SellerDashboard() {
     try {
       const res = await getSellerEvents({ page: 0, size: 50 })
       setAllEvents(res.data.data.content)
-    } catch {
-      toast('이벤트 통계 로드 실패', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '이벤트 통계 로드 실패', 'error')
     }
   }, [toast])
 
@@ -43,8 +44,8 @@ export default function SellerDashboard() {
         size: 50,
       })
       setTabEvents(res.data.data.content)
-    } catch {
-      toast('이벤트 로드 실패', 'error')
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '이벤트 로드 실패', 'error')
     } finally {
       setLoading(false)
     }
@@ -75,7 +76,7 @@ export default function SellerDashboard() {
       // 통계와 현재 탭 목록 모두 갱신.
       void fetchAllEvents()
       void fetchTabEvents(activeTab)
-    } catch { toast('처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '처리 실패', 'error') }
   }
 
   // Quick stats — 상단 박스는 항상 전체 기준.

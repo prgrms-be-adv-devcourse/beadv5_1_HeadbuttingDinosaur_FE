@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAdminDashboard } from '../../api/admin.api'
+import { extractErrorMessage } from '../../api/client'
 import type { AdminDashboardResponse } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -12,7 +13,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     getAdminDashboard()
       .then(r => setStats(r.data.data))
-      .catch(() => toast('로드 실패', 'error'))
+      .catch((err) => toast(extractErrorMessage(err) ?? '로드 실패', 'error'))
       .finally(() => setLoading(false))
   }, [])
 

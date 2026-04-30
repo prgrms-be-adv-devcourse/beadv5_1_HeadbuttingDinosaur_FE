@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { readyPayment } from '../api/payments.api'
 import { getWalletBalance } from '../api/wallet.api'
-import { unwrapApiData } from '../api/client'
+import { extractErrorMessage, unwrapApiData } from '../api/client'
 import { useToast } from '../contexts/ToastContext'
 
 // `window.TossPayments` 의 타입 선언은 `src/components/PaymentModal/tossSdk.ts`
@@ -79,7 +79,7 @@ export default function Payment() {
         })
       }
     } catch (e: unknown) {
-      toast('결제 처리 중 오류가 발생했습니다', 'error')
+      toast(extractErrorMessage(e) ?? '결제 처리 중 오류가 발생했습니다', 'error')
     } finally {
       setLoading(false)
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createProfile, getTechStacks } from '../api/auth.api'
+import { extractErrorMessage } from '../api/client'
 import { extractTechStacks } from '../api/techStacks'
 import { POSITION_LABELS, POSITION_OPTIONS } from '../constants/profile'
 import { useAuth } from '../contexts/AuthContext'
@@ -33,8 +34,12 @@ export default function SocialProfileSetup() {
         if (stacks.length === 0) throw new Error('NO_TECH_STACKS')
         setTechStacks(stacks)
       })
-      .catch(() => {
-        toast('기술 스택 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'error')
+      .catch((err) => {
+        toast(
+          extractErrorMessage(err) ??
+            '기술 스택 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+          'error',
+        )
       })
   }, [navigate, toast])
 
@@ -80,8 +85,11 @@ export default function SocialProfileSetup() {
           }).filter(Boolean),
         },
       })
-    } catch {
-      toast('프로필 저장에 실패했습니다. 다시 시도해주세요.', 'error')
+    } catch (err) {
+      toast(
+        extractErrorMessage(err) ?? '프로필 저장에 실패했습니다. 다시 시도해주세요.',
+        'error',
+      )
     } finally {
       setLoading(false)
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getSellerEventDetail, getSellerEventSummary, getSellerEventParticipants } from '../../api/events.api'
+import { extractErrorMessage } from '../../api/client'
 import type { SellerEventDetailResponse, SellerEventSummaryResponse, ParticipantItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -24,7 +25,7 @@ export default function SellerEventDetail() {
       setEvent(ev.data.data)
       setSummary(sum.data.data)
       setParticipants(part.data.content)
-    }).catch(() => toast('로드 실패', 'error'))
+    }).catch((err) => toast(extractErrorMessage(err) ?? '로드 실패', 'error'))
     .finally(() => setLoading(false))
   }, [id])
 
