@@ -21,6 +21,7 @@ import {
 } from '@/api/cart.api';
 import {
   apiClient,
+  extractErrorMessage,
   idempotencyConfig,
   unwrapApiData,
   type ApiResponse,
@@ -124,16 +125,6 @@ const applyRemove = (prev: CartVM, cartItemId: string): CartVM => {
 
 const isStatus = (err: unknown, status: number): boolean =>
   axios.isAxiosError(err) && err.response?.status === status;
-
-const extractErrorMessage = (err: unknown): string | null => {
-  if (!axios.isAxiosError(err)) return null;
-  const data = err.response?.data;
-  if (typeof data === 'object' && data !== null && 'message' in data) {
-    const msg = (data as { message?: unknown }).message;
-    return typeof msg === 'string' && msg.trim().length > 0 ? msg : null;
-  }
-  return null;
-};
 
 const isPerUserLimitMessage = (msg: string): boolean =>
   msg.includes('1인당') ||

@@ -45,10 +45,10 @@
 }
 
 /* Brand-on-translucent reads poorly on dark; lighten foreground.
- * VS Code uses a sky-tinted blue for active selections. */
+ * Lavender (indigo-300) per dark palette spec. */
 [data-theme="dark"] .chip.is-active,
 [data-theme="dark"] .chip.is-active:hover {
-  color: #75BEFF;
+  color: #A5B4FC;
 }
 
 .chip-count {

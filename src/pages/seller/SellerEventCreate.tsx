@@ -7,6 +7,7 @@ import {
   uploadEventImage,
 } from "../../api/events.api";
 import { getTechStacks } from "../../api/auth.api";
+import { extractErrorMessage } from "../../api/client";
 import { extractTechStacks } from "../../api/techStacks";
 import { useToast } from "../../contexts/ToastContext";
 
@@ -672,7 +673,7 @@ export function SellerEventEdit() {
           imageUrls: d.imageUrls ?? (d.thumbnailUrl ? [d.thumbnailUrl] : []),
         });
       })
-      .catch(() => toast("이벤트 로드 실패", "error"));
+      .catch((err) => toast(extractErrorMessage(err) ?? "이벤트 로드 실패", "error"));
   }, [id]);
 
   const handleSubmit = async (form: EventForm) => {

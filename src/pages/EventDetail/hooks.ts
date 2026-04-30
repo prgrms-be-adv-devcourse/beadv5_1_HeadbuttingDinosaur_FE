@@ -3,7 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { addCartItem } from '@/api/cart.api';
-import { apiClient, unwrapApiData, type ApiResponse } from '@/api/client';
+import {
+  apiClient,
+  extractErrorMessage,
+  unwrapApiData,
+  type ApiResponse,
+} from '@/api/client';
 import type { EventDetailResponse } from '@/api/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -242,8 +247,12 @@ export function usePurchaseActions(eventId: string): UsePurchaseActionsReturn {
       try {
         await addCartItem({ eventId, quantity });
         toast('장바구니에 담았습니다', 'success');
-      } catch {
-        toast('장바구니 담기에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      } catch (err) {
+        const serverMsg = extractErrorMessage(err);
+        toast(
+          serverMsg ?? '장바구니 담기에 실패했습니다. 잠시 후 다시 시도해주세요.',
+          'error',
+        );
       } finally {
         setBusy(null);
       }
@@ -262,8 +271,12 @@ export function usePurchaseActions(eventId: string): UsePurchaseActionsReturn {
       try {
         await addCartItem({ eventId, quantity });
         navigate('/cart');
-      } catch {
-        toast('오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      } catch (err) {
+        const serverMsg = extractErrorMessage(err);
+        toast(
+          serverMsg ?? '오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          'error',
+        );
         setBusy(null);
       }
     },

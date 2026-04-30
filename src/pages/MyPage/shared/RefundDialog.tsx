@@ -1,11 +1,11 @@
 import { useEffect, useId, useState } from 'react';
-import axios from 'axios';
 import { Button } from '@/components/Button';
 import {
   getRefundInfo,
   refundOrder,
   refundTicketByPg,
 } from '@/api/refunds.api';
+import { extractErrorMessage } from '@/api/client';
 import type { RefundInfoResponse } from '@/api/types';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -82,14 +82,10 @@ export function RefundDialog({ open, target, onClose, onSuccess }: RefundDialogP
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const message =
-        axios.isAxiosError(err) &&
-        typeof err.response?.data === 'object' &&
-        err.response?.data !== null &&
-        'message' in (err.response.data as Record<string, unknown>)
-          ? String((err.response.data as { message?: string }).message ?? '')
-          : '';
-      toast(message || '환불 처리 중 오류가 발생했습니다.', 'error');
+      toast(
+        extractErrorMessage(err) ?? '환불 처리 중 오류가 발생했습니다.',
+        'error',
+      );
     } finally {
       setSubmitting(false);
     }

@@ -15,6 +15,7 @@ import {
   updateProfile,
   withdrawUser,
 } from '@/api/auth.api';
+import { extractErrorMessage } from '@/api/client';
 import { extractTechStacks } from '@/api/techStacks';
 import type { TechStackItem } from '@/api/types';
 import { Button, Card, Chip, Input } from '@/components';
@@ -54,7 +55,12 @@ export function SettingsTab() {
   useEffect(() => {
     getTechStacks()
       .then((res) => setTechStackOptions(extractTechStacks(res.data)))
-      .catch(() => toast('기술 스택 목록을 불러오지 못했습니다.', 'error'));
+      .catch((err) =>
+        toast(
+          extractErrorMessage(err) ?? '기술 스택 목록을 불러오지 못했습니다.',
+          'error',
+        ),
+      );
   }, [toast]);
 
   const toggleStack = (id: number) => {
@@ -74,8 +80,8 @@ export function SettingsTab() {
       });
       await refresh();
       toast('프로필이 수정되었습니다.', 'success');
-    } catch {
-      toast('프로필 수정에 실패했습니다.', 'error');
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '프로필 수정에 실패했습니다.', 'error');
     } finally {
       setSavingProfile(false);
     }
@@ -100,8 +106,12 @@ export function SettingsTab() {
       });
       toast('비밀번호가 변경되었습니다.', 'success');
       setPw({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch {
-      toast('비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인하세요.', 'error');
+    } catch (err) {
+      toast(
+        extractErrorMessage(err) ??
+          '비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인하세요.',
+        'error',
+      );
     } finally {
       setSavingPw(false);
     }
@@ -114,8 +124,8 @@ export function SettingsTab() {
       toast('탈퇴되었습니다.', 'success');
       logout();
       navigate('/login');
-    } catch {
-      toast('탈퇴에 실패했습니다.', 'error');
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '탈퇴에 실패했습니다.', 'error');
     }
   };
 

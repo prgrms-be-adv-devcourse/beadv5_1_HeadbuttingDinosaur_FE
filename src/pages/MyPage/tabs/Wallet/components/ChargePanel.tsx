@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import axios from 'axios';
 import { Button, Card, Input } from '@/components';
 import { startWalletCharge } from '@/api/wallet.api';
+import { extractErrorMessage } from '@/api/client';
 import { requestTossCardPayment } from '@/components/PaymentModal/tossSdk';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -42,14 +42,11 @@ export function ChargePanel({ onCancel }: ChargePanelProps) {
       chargeId = data.chargeId;
       chargedAmount = data.amount;
     } catch (err: unknown) {
-      const message =
-        axios.isAxiosError(err) &&
-        typeof err.response?.data === 'object' &&
-        err.response?.data !== null &&
-        'message' in (err.response.data as Record<string, unknown>)
-          ? String((err.response.data as { message?: string }).message ?? '')
-          : '';
-      toast(message || '충전 요청 실패. 잠시 후 다시 시도해주세요.', 'error');
+      toast(
+        extractErrorMessage(err) ??
+          '충전 요청 실패. 잠시 후 다시 시도해주세요.',
+        'error',
+      );
       setSubmitting(false);
       return;
     }

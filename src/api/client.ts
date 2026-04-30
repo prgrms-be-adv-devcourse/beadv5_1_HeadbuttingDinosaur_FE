@@ -140,6 +140,21 @@ export interface ApiResponse<T> {
 }
 
 /**
+ * 서버 에러 응답의 `message` 필드를 안전하게 추출합니다.
+ * axios 에러가 아니거나 `message`가 비어 있으면 null.
+ * 호출부는 보통 `serverMsg ?? fallbackMsg` 형태로 토스트에 노출합니다.
+ */
+export function extractErrorMessage(err: unknown): string | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data = err.response?.data;
+  if (typeof data === 'object' && data !== null && 'message' in data) {
+    const msg = (data as { message?: unknown }).message;
+    return typeof msg === 'string' && msg.trim().length > 0 ? msg : null;
+  }
+  return null;
+}
+
+/**
  * 백엔드 응답이 `{ code, message, data }` 래퍼이거나 raw payload일 수 있어
  * 두 케이스를 모두 안전하게 언랩합니다.
  */

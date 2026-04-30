@@ -15,6 +15,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { addCartItem } from '@/api/cart.api';
+import { extractErrorMessage } from '@/api/client';
 import { PaymentModal } from '@/components/PaymentModal';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -59,8 +60,8 @@ export default function CartPage() {
         await addCartItem({ eventId, quantity: 1 });
         toast('장바구니에 담았습니다.', 'success');
         cart.refetch();
-      } catch {
-        toast('장바구니에 담지 못했습니다.', 'error');
+      } catch (err) {
+        toast(extractErrorMessage(err) ?? '장바구니에 담지 못했습니다.', 'error');
       } finally {
         const after = new Set(pendingRecRef.current);
         after.delete(eventId);

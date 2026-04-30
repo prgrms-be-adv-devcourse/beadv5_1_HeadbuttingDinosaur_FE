@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { applyForSeller, getSellerApplicationStatus } from '../api/auth.api'
+import { extractErrorMessage } from '../api/client'
 import type { SellerApplicationStatusResponse } from '../api/types'
 import { useToast } from '../contexts/ToastContext'
 
@@ -37,7 +38,9 @@ export default function SellerApply() {
       toast('판매자 신청이 완료되었습니다!', 'success')
       const res = await getSellerApplicationStatus()
       setAppStatus(res.data.data)
-    } catch { toast('신청 실패. 다시 시도해주세요.', 'error') }
+    } catch (err) {
+      toast(extractErrorMessage(err) ?? '신청 실패. 다시 시도해주세요.', 'error')
+    }
     finally { setSubmitting(false) }
   }
 

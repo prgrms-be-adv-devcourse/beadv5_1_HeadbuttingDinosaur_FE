@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getAdminUsers, updateUserStatus, updateUserRole } from '../../api/admin.api'
+import { extractErrorMessage } from '../../api/client'
 import type { UserListItem } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -28,7 +29,7 @@ export default function AdminUsers() {
     try {
       const res = await getAdminUsers({ keyword: keyword || undefined, role: roleFilter || undefined, page: 0, size: 50 })
       setUsers(res.data.content)
-    } catch { toast('로드 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '로드 실패', 'error') }
     finally { setLoading(false) }
   }, [keyword, roleFilter])
 
@@ -43,7 +44,7 @@ export default function AdminUsers() {
       await updateUserStatus(user.userId, { status: newStatus })
       toast(`${label} 처리되었습니다`, 'success')
       fetchUsers()
-    } catch { toast('처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '처리 실패', 'error') }
     finally { setActionLoading(null) }
   }
 
@@ -54,7 +55,7 @@ export default function AdminUsers() {
       await updateUserRole(user.userId, { role: newRole })
       toast('권한이 변경되었습니다', 'success')
       fetchUsers()
-    } catch { toast('처리 실패', 'error') }
+    } catch (err) { toast(extractErrorMessage(err) ?? '처리 실패', 'error') }
     finally { setActionLoading(null) }
   }
 
