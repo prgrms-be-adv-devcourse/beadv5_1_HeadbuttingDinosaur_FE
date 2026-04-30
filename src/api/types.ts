@@ -280,6 +280,10 @@ export interface SellerEventStopResponse {
   status: string;
 }
 
+export interface SellerEventCancelRequest {
+  reason: string;
+}
+
 export interface ParticipantItem {
   ticketId: string
   orderId: string
@@ -778,6 +782,10 @@ export interface AdminEventListResponse {
 export interface EventCancelResponse {
   eventId: string;
   status: string;
+}
+
+export interface EventForceCancelRequest {
+  reason: string;
 }
 
 export interface UserSearchCondition {
