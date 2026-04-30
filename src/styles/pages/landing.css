@@ -89,6 +89,23 @@
   }
 }
 
+/* Dark: GitHub-Dark tones for the terminal box (separate from editor surface).
+   Spec'd as 0D1117/30363D bg+border, 161B22 header, C9D1D9 body, 8B949E out. */
+[data-theme="dark"] .typed-terminal {
+  background: #0D1117;
+  border-color: #30363D;
+}
+[data-theme="dark"] .typed-terminal-bar {
+  background: #161B22;
+  border-bottom-color: #30363D;
+}
+[data-theme="dark"] .typed-terminal-cmd {
+  color: #C9D1D9;
+}
+[data-theme="dark"] .typed-terminal-out {
+  color: #8B949E;
+}
+
 /* ----- Hero section --------------------------------------------------------
    2-col grid (carry-over from prototype/Landing.jsx L182). Right column 은
    TypedTerminal slot 만 가지므로 추가 스타일 불필요.
