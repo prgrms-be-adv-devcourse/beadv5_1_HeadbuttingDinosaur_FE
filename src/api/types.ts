@@ -420,6 +420,8 @@ export interface OrderDetailItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  // 백엔드가 내려주면 티켓 단위 환불 버튼 노출 — 미내려줘도 주문 단위 환불 fallback.
+  ticketIds?: string[];
 }
 export interface OrderDetailResponse {
   orderId: string;
