@@ -6,7 +6,7 @@ import { unwrapApiData } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 const GOOGLE_OAUTH_URL =
-  import.meta.env.VITE_GOOGLE_OAUTH_URL ?? 'http://localhost:8080/oauth2/authorization/google';
+  import.meta.env.VITE_GOOGLE_OAUTH_URL ?? '/oauth2/authorization/google';
 
 const SIGNUP_HREF = '/signup';
 
