@@ -30,6 +30,7 @@ export default function AdminDashboard() {
     { to: '/admin/techstacks',   label: '기술 스택',     icon: '🧩', desc: '기술 스택 생성·수정·삭제' },
     { to: '/admin/applications', label: '판매자 심사',   icon: '📋', desc: '신청 승인·반려' },
     { to: '/admin/settlements',  label: '정산 실행',     icon: '⚡', desc: '정산 프로세스 실행·조회' },
+    { to: '/admin/revenue',      label: '월별 수익',     icon: '📊', desc: '월별 플랫폼 수수료 수익 조회' },
   ]
 
   return (

@@ -12,6 +12,13 @@ import type {
   AdminTechStackItem,
 } from './types';
 
+export interface AdminMonthlyRevenueResponse {
+  yearMonth: string;
+  periodStartAt: string;
+  periodEndAt: string;
+  totalFeeAmount: number;
+}
+
 // ── 대시보드 ───────────────────────────────────────────────────────────────────
 export const getAdminDashboard = () =>
   apiClient.get<ApiResponse<AdminDashboardResponse>>('/admin/dashboard');
@@ -49,6 +56,9 @@ export const runSettlementProcess = () =>
 
 export const getAdminSettlements = (params?: AdminSettlementSearchRequest) =>
   apiClient.get<AdminSettlementListResponse>('/admin/settlements', { params });
+
+export const getAdminMonthlyRevenue = (yearMonth: string) =>
+  apiClient.get<ApiResponse<AdminMonthlyRevenueResponse>>(`/admin/settlements/revenues/${yearMonth}`);
 
 export const getAdminSettlementDetail = (settlementId: string) =>
   apiClient.get<AdminSettlementDetailResponse>(`/admin/settlements/${settlementId}`);
