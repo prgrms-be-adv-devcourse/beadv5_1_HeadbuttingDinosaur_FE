@@ -9,8 +9,14 @@ export interface SearchAndFiltersProps {
   category: string;
   onCategoryChange: (next: string) => void;
   categories: readonly string[];
+  stack: string;
+  onStackChange: (next: string) => void;
+  stacks: readonly string[];
   searchInputRef?: RefObject<HTMLInputElement>;
 }
+
+const STACK_ALL = '';
+const STACK_ALL_LABEL = '전체';
 
 export function SearchAndFilters({
   keyword,
@@ -18,6 +24,9 @@ export function SearchAndFilters({
   category,
   onCategoryChange,
   categories,
+  stack,
+  onStackChange,
+  stacks,
   searchInputRef,
 }: SearchAndFiltersProps) {
   return (
@@ -56,6 +65,29 @@ export function SearchAndFilters({
           ))}
         </div>
       </div>
+
+      {stacks.length > 0 && (
+        <div className="el-filter-group">
+          <div className="el-filter-label">기술 스택</div>
+          <div className="el-filter-chips">
+            <Chip
+              active={stack === STACK_ALL}
+              onClick={() => onStackChange(STACK_ALL)}
+            >
+              {STACK_ALL_LABEL}
+            </Chip>
+            {stacks.map((s) => (
+              <Chip
+                key={s}
+                active={stack === s}
+                onClick={() => onStackChange(stack === s ? STACK_ALL : s)}
+              >
+                {s}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
