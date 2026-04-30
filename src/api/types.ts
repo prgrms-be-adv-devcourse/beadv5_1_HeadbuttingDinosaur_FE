@@ -164,7 +164,8 @@ export interface EventDetailResponse {
   location: string;
   status: string;
   sellerNickname: string;
-  thumbnailUrl?: string;
+  // 백엔드는 단일 thumbnailUrl 대신 sortOrder 정렬된 imageUrls 만 내려준다 (§EventDetailResponse.from).
+  imageUrls?: string[];
   createdAt: string;
   // 백엔드가 내려주는 경우 한정 (옵셔널). 판매 예정 카운트다운 / 상태 분기에 사용.
   saleStartAt?: string;
