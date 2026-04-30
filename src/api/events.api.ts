@@ -15,6 +15,7 @@ import type {
   SellerEventUpdateRequest,
   SellerEventUpdateResponse,
   SellerEventStopResponse,
+  SellerEventCancelRequest,
   SellerEventSummaryResponse,
   SellerEventParticipantListRequest,
   SellerEventParticipantListResponse,
@@ -61,9 +62,13 @@ export const updateSellerEvent = (
     body,
   );
 
-export const stopSellerEvent = (eventId: string) =>
-  apiClient.patch<ApiResponse<SellerEventStopResponse>>(
+export const stopSellerEvent = (
+  eventId: string,
+  body: SellerEventCancelRequest,
+) =>
+  apiClient.post<ApiResponse<SellerEventStopResponse>>(
     `/seller/events/${eventId}/cancel`,
+    body,
   );
 
 export const getSellerEventSummary = (eventId: string) =>
