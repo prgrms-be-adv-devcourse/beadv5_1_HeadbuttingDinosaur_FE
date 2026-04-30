@@ -4,9 +4,7 @@ import type { ActivityItem, NavigateFn, RouteKey } from './types';
 /**
  * Source: docs/archive/v2-cutover/layout.plan.md §3-5 + §6-6 a11y markup.
  *
- * Items list is a component-internal constant per §3-5. The settings button
- * is rendered separately after the spacer; it is intentionally not wired —
- * §3-5 leaves its click target undecided.
+ * Items list is a component-internal constant per §3-5.
  *
  * Auth gating per §4-2: cart/mypage clicks while logged-out route to login;
  * the cart badge only shows for logged-in users with at least one item.
@@ -86,9 +84,6 @@ export function ActivityBar({
         );
       })}
       <div className="act-spacer" />
-      <button type="button" className="act-btn" aria-label="설정">
-        <Icon name="settings" size={18} />
-      </button>
     </nav>
   );
 }
