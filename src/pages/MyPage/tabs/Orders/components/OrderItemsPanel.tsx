@@ -65,7 +65,7 @@ export function OrderItemsPanel({
       .then((res) => {
         if (cancelled) return;
         const detail = unwrapApiData(res.data);
-        setState({ status: 'ready', items: detail.items ?? [] });
+        setState({ status: 'ready', items: detail.orderItems ?? [] });
       })
       .catch(() => {
         if (cancelled) return;
@@ -89,34 +89,35 @@ export function OrderItemsPanel({
   return (
     <ul className="order-items-list">
       {state.items.flatMap((item) => {
-        const ticketIds = item.ticketIds ?? [];
-        if (ticketIds.length > 0) {
-          // 1주문 내 동일 이벤트 quantity 만큼 티켓이 있을 때 — 티켓별 환불.
-          return ticketIds.map((ticketId) => (
-            <li
-              key={ticketId}
-              className="order-items-list__row"
-            >
-              <div className="order-items-list__title">{item.eventTitle}</div>
-              <div className="order-items-list__meta">
-                티켓 {ticketId.slice(0, 8)} · {formatKrw(item.unitPrice)}
-              </div>
-              <div className="order-items-list__action">
-                <TicketRefundButton
-                  ticketId={ticketId}
-                  eventTitle={item.eventTitle}
-                  canRefund={canRefund}
-                  onRefunded={onRefunded}
-                />
-              </div>
-            </li>
-          ));
+        const tickets = item.tickets ?? [];
+        if (tickets.length > 0) {
+          return tickets.map((ticket) => {
+            const isRefunded = ticket.status === 'REFUNDED';
+            const ticketRefundable = canRefund && ticket.status === 'ISSUED';
+            return (
+              <li key={ticket.ticketId} className="order-items-list__row">
+                <div className="order-items-list__title">{item.eventTitle}</div>
+                <div className="order-items-list__meta">
+                  티켓 {ticket.ticketId.slice(0, 8)} · {formatKrw(item.price)}
+                  {isRefunded ? ' · 환불됨' : ''}
+                </div>
+                <div className="order-items-list__action">
+                  <TicketRefundButton
+                    ticketId={ticket.ticketId}
+                    eventTitle={item.eventTitle}
+                    canRefund={ticketRefundable}
+                    onRefunded={onRefunded}
+                  />
+                </div>
+              </li>
+            );
+          });
         }
         return [
           <li key={item.eventId} className="order-items-list__row">
             <div className="order-items-list__title">{item.eventTitle}</div>
             <div className="order-items-list__meta">
-              {item.quantity}매 · {formatKrw(item.totalPrice)}
+              {item.quantity}매 · {formatKrw(item.price * item.quantity)}
             </div>
             <div className="order-items-list__action" />
           </li>,

@@ -33,8 +33,13 @@ export function SettingsTab() {
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [position, setPosition] = useState(user?.position ?? '');
   const [techStackOptions, setTechStackOptions] = useState<TechStackItem[]>([]);
-  const [selectedStackIds, setSelectedStackIds] = useState<number[]>(
-    () => (user?.techStacks ?? []).map((s) => s.techStackId),
+  // /users/me 응답의 techStacks 항목은 서버가 { id, name } 으로 내려줌
+  // (마스터 목록과 동일). extractTechStacks 가 id/techStackId 둘 다
+  // 흡수하므로 그대로 재사용해 정규화한다.
+  const [selectedStackIds, setSelectedStackIds] = useState<number[]>(() =>
+    extractTechStacks({ techStacks: user?.techStacks ?? [] }).map(
+      (s) => s.techStackId,
+    ),
   );
 
   const [pw, setPw] = useState({
@@ -49,7 +54,11 @@ export function SettingsTab() {
   useEffect(() => {
     setNickname(user?.nickname ?? '');
     setPosition(user?.position ?? '');
-    setSelectedStackIds((user?.techStacks ?? []).map((s) => s.techStackId));
+    setSelectedStackIds(
+      extractTechStacks({ techStacks: user?.techStacks ?? [] }).map(
+        (s) => s.techStackId,
+      ),
+    );
   }, [user]);
 
   useEffect(() => {
