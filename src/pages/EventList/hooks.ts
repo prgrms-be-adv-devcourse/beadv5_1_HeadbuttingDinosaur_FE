@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiClient, unwrapApiData, type ApiResponse } from '@/api/client';
-import type { EventListResponse } from '@/api/types';
+import { getTechStacks } from '@/api/auth.api';
+import { extractTechStacks } from '@/api/techStacks';
+import type { EventListResponse, TechStackItem } from '@/api/types';
 import type { EventListFilters, EventListPage, EventsQuery } from './types';
 import {
   DEFAULT_CATEGORY,
@@ -100,7 +102,14 @@ export function useEvents(
   filters: EventListFilters,
   stackNameToId: Map<string, number>,
 ): UseEventsReturn {
-  const key = serializeFilters(filters);
+  // stack 필터가 활성일 때는 stackNameToId 가 채워졌는지에 따라 fetch 결과가
+  // 달라지므로 (마스터 미로딩 시 techStacks 파라미터 없이 요청), 마스터 사이즈를
+  // 캐시 키에 포함시켜 마스터 도착 후 재페치되도록 한다.
+  const stackKeyFragment =
+    filters.stack !== ''
+      ? `|smap=${stackNameToId.size > 0 ? stackNameToId.get(filters.stack) ?? 'miss' : 'pending'}`
+      : '';
+  const key = serializeFilters(filters) + stackKeyFragment;
   const [state, setState] = useState<EventsQuery>(() => {
     const hit = cache.get(key);
     return hit
@@ -151,4 +160,61 @@ export function useEvents(
   }, [key]);
 
   return { ...state, refetch };
+}
+
+/* ── 기술 스택 마스터 ──────────────────────────────────────────────
+ * 모듈 캐시 + in-flight 공유 — 같은 페이지 내 여러 컴포넌트가 호출해도 1회만 페치.
+ * 응답 셰이프가 v1/v2 사이에 흔들렸던 이력 때문에 extractTechStacks 로 정규화. */
+let techStacksCache: TechStackItem[] | null = null;
+let techStacksInFlight: Promise<TechStackItem[]> | null = null;
+
+export interface UseTechStacksReturn {
+  items: TechStackItem[];
+  byName: Map<string, number>;
+  isLoading: boolean;
+}
+
+const fetchTechStacks = async (): Promise<TechStackItem[]> => {
+  const res = await getTechStacks();
+  return extractTechStacks(res.data);
+};
+
+export function useTechStacks(): UseTechStacksReturn {
+  const [items, setItems] = useState<TechStackItem[]>(
+    () => techStacksCache ?? [],
+  );
+  const [isLoading, setIsLoading] = useState(
+    () => techStacksCache === null,
+  );
+
+  useEffect(() => {
+    if (techStacksCache !== null) return;
+    let cancelled = false;
+    setIsLoading(true);
+    const promise =
+      techStacksInFlight ?? (techStacksInFlight = fetchTechStacks());
+    promise
+      .then((list) => {
+        techStacksCache = list;
+        techStacksInFlight = null;
+        if (cancelled) return;
+        setItems(list);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        techStacksInFlight = null;
+        if (cancelled) return;
+        // 실패는 빈 배열 — 칩이 안 그려질 뿐 검색/카테고리는 정상 동작.
+        setItems([]);
+        setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const byName = new Map<string, number>(
+    items.map((s) => [s.name, s.techStackId]),
+  );
+  return { items, byName, isLoading };
 }
