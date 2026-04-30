@@ -13,6 +13,9 @@ function statusChip(vm: EventVM) {
   if (vm.status === 'SOLD_OUT') {
     return <StatusChip variant="sold">매진</StatusChip>;
   }
+  if (vm.status === 'SCHEDULED') {
+    return <StatusChip variant="ok">판매 예정</StatusChip>;
+  }
   if (vm.status === 'ON_SALE') {
     return vm.isFree ? (
       <StatusChip variant="free">무료</StatusChip>
