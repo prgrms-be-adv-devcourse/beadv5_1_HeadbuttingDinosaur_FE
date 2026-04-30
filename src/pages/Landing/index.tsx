@@ -19,6 +19,8 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useChrome } from '@/components/Layout/LayoutChromeContext';
+
 import { Landing } from './Landing';
 import {
   useFeaturedEvents,
@@ -28,6 +30,7 @@ import {
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { openPalette } = useChrome();
   const statsQuery = useLandingStats();
   const categoriesQuery = useLandingCategories();
   const featuredQuery = useFeaturedEvents();
@@ -39,6 +42,7 @@ export default function LandingPage() {
   return (
     <Landing
       onBrowseEvents={goEvents}
+      onOpenPalette={openPalette}
       onStart={goEvents}
       statsQuery={statsQuery}
       categoriesQuery={categoriesQuery}

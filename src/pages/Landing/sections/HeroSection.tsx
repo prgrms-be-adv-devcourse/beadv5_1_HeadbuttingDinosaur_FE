@@ -33,7 +33,7 @@ export interface HeroSectionProps {
   loop?: boolean;
 }
 
-const META_NOTES = ['// 키보드 친화적', '// 수수료 없음', '// 즉시 환불'];
+const META_NOTES = ['// 키보드 친화적', '// 즉시 환불'];
 
 export function HeroSection({
   onBrowseEvents,

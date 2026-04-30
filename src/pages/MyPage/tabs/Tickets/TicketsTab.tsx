@@ -33,7 +33,7 @@ export function TicketsTab() {
       skeleton={<TicketsSkeleton count={6} />}
       empty={{
         when: (data) => data.tickets.length === 0,
-        render: <EmptyTickets onBrowse={() => navigate('/')} />,
+        render: <EmptyTickets onBrowse={() => navigate('/events')} />,
       }}
     >
       {(data) => (

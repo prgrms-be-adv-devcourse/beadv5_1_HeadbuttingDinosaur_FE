@@ -29,7 +29,7 @@ export function OrdersTab() {
       skeleton={<OrdersSkeleton rows={8} />}
       empty={{
         when: (data) => data.rows.length === 0,
-        render: <EmptyOrders onBrowse={() => navigate('/')} />,
+        render: <EmptyOrders onBrowse={() => navigate('/events')} />,
       }}
     >
       {(data) => (

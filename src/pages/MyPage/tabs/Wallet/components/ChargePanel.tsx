@@ -7,6 +7,8 @@ import { useToast } from '@/contexts/ToastContext';
 
 const QUICK_AMOUNTS = [10_000, 30_000, 50_000];
 const MIN_CHARGE = 1_000;
+const MAX_CHARGE = 50_000;
+const DAILY_LIMIT = 1_000_000;
 
 interface ChargePanelProps {
   onCancel: () => void;
@@ -19,11 +21,15 @@ export function ChargePanel({ onCancel }: ChargePanelProps) {
 
   const parsed = Number(amountText.replace(/[^\d]/g, ''));
   const amount = Number.isFinite(parsed) ? parsed : 0;
-  const valid = amount >= MIN_CHARGE;
+  const valid = amount >= MIN_CHARGE && amount <= MAX_CHARGE;
 
   const handleSubmit = async () => {
-    if (!valid) {
+    if (amount < MIN_CHARGE) {
       toast(`최소 ${MIN_CHARGE.toLocaleString()}원 이상 충전 가능합니다`, 'error');
+      return;
+    }
+    if (amount > MAX_CHARGE) {
+      toast(`1회 최대 ${MAX_CHARGE.toLocaleString()}원까지 충전 가능합니다`, 'error');
       return;
     }
     setSubmitting(true);
@@ -97,6 +103,12 @@ export function ChargePanel({ onCancel }: ChargePanelProps) {
           disabled={submitting}
         />
       </div>
+      <ul className="wallet-action-notice">
+        <li>1회 충전 금액: {MIN_CHARGE.toLocaleString()}원 ~ {MAX_CHARGE.toLocaleString()}원</li>
+        <li>일일 충전 한도: {DAILY_LIMIT.toLocaleString()}원</li>
+        <li>예치금 환불 수수료: 없음</li>
+        <li>예치금 유효기간: 무제한</li>
+      </ul>
       <div className="wallet-action-footer">
         <Button variant="ghost" size="md" onClick={onCancel} disabled={submitting}>
           취소
