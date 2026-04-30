@@ -71,6 +71,8 @@ jobs:
             -t "$IMAGE_SHA" \
             -t "$IMAGE_LATEST" \
             --build-arg VITE_KAKAO_MAP_KEY=${{ secrets.VITE_KAKAO_MAP_KEY }} \
+            --build-arg VITE_GOOGLE_OAUTH_URL=${{ secrets.VITE_GOOGLE_OAUTH_URL }} \
+            --build-arg VITE_API_BASE_URL==${{ secrets.VITE_API_BASE_URL }} \
             "${DIR_NAME}"
 
           docker push "$IMAGE_SHA"
