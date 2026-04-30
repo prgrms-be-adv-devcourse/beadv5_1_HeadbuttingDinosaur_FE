@@ -41,6 +41,8 @@ export const toEventVM = (api: EventItem): EventVM => {
     isLowStock: isLowStock(api.remainingQuantity),
     dateLabel,
     timeLabel,
+    viewCount: api.viewCount,
+    purchaseCount: api.purchaseCount,
   };
 };
 

@@ -26,11 +26,19 @@ function statusChip(vm: EventVM) {
   return <StatusChip variant="end">판매 종료</StatusChip>;
 }
 
+function formatCount(n: number): string {
+  if (n >= 10_000) return `${(n / 10_000).toFixed(n >= 100_000 ? 0 : 1)}만`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
+  return n.toLocaleString();
+}
+
 export function EventCard({ event, onOpen }: EventCardProps) {
   const accentColor = accent(event.eventId);
   const sold = event.status === 'SOLD_OUT';
   const stacks = event.techStacks.slice(0, STACK_LIMIT);
   const extraStacks = event.techStacks.length - stacks.length;
+  const hasMetrics =
+    event.viewCount !== undefined || event.purchaseCount !== undefined;
 
   return (
     <article
@@ -65,6 +73,28 @@ export function EventCard({ event, onOpen }: EventCardProps) {
             </span>
           </div>
         </div>
+        {hasMetrics && (
+          <div className="el-card__metrics" aria-label="이벤트 지표">
+            {event.viewCount !== undefined && (
+              <span
+                className="el-card__metric"
+                title={`조회수 ${event.viewCount.toLocaleString()}회`}
+              >
+                <span aria-hidden="true">👁</span>
+                <span>{formatCount(event.viewCount)}</span>
+              </span>
+            )}
+            {event.purchaseCount !== undefined && (
+              <span
+                className="el-card__metric"
+                title={`구매 ${event.purchaseCount.toLocaleString()}건`}
+              >
+                <span aria-hidden="true">🎟</span>
+                <span>{formatCount(event.purchaseCount)}</span>
+              </span>
+            )}
+          </div>
+        )}
         {stacks.length > 0 && (
           <div className="el-card__stacks">
             {stacks.map((s) => (
