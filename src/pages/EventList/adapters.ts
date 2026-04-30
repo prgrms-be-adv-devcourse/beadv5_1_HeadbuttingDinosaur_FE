@@ -67,22 +67,20 @@ export const toEventListPage = (res: EventListResponse): EventListPage => ({
   hasNext: res.page < res.totalPages - 1,
 });
 
-/* 백엔드가 keyword + category + techStacks 동시 적용을 무시하는 경우를 대비한
- * 클라이언트 safety net. 활성 필터가 모두 적용된 결과만 노출하도록 items 만 좁힘 —
- * totalElements / page 는 서버 값 유지. */
+/* keyword 검색은 ES 결과를 그대로 신뢰한다 (제목/스택 외 토큰까지 매칭하므로
+ * 클라이언트의 단순 includes 매칭으로 좁히면 정상 결과를 떨어뜨림).
+ * 카테고리/스택은 백엔드가 keyword 와 동시 적용을 무시하는 케이스를 대비한
+ * safety net 으로 유지 — totalElements / page 는 서버 값 그대로. */
 export const applyClientSideFilters = (
   page: EventListPage,
   filters: EventListFilters,
 ): EventListPage => {
   const hasCategory =
     filters.category !== DEFAULT_CATEGORY && filters.category !== '';
-  const hasKeyword = filters.keyword.trim() !== '';
   const hasStack = filters.stack !== '';
-  if (!hasCategory && !hasKeyword && !hasStack) return page;
-  const kw = filters.keyword.trim().toLowerCase();
+  if (!hasCategory && !hasStack) return page;
   const items = page.items.filter((e) => {
     if (hasCategory && e.category !== filters.category) return false;
-    if (hasKeyword && !e.title.toLowerCase().includes(kw)) return false;
     if (hasStack && !e.techStacks.includes(filters.stack)) return false;
     return true;
   });
