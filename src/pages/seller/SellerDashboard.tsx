@@ -133,10 +133,12 @@ export default function SellerDashboard() {
   }
 
   // Quick stats — 상단 박스는 항상 전체 기준.
-  // 매출/판매수는 실제로 티켓이 판매된 모든 상태(ON_SALE/SOLD_OUT/SALE_ENDED)를
-  // 합산해야 한다. 이전 버전은 'ENDED'(존재하지 않는 상태)와 ON_SALE 만 포함해
-  // SOLD_OUT/SALE_ENDED 매출이 통째로 누락됐다. CANCELLED 는 환불 대상이라 제외.
-  const REVENUE_STATUSES = new Set(['ON_SALE', 'SOLD_OUT', 'SALE_ENDED'])
+  // 매출/판매수는 티켓이 판매된 상태 모두 합산.
+  //  - CANCELLED(판매 중지): 신규 판매만 차단됐고 기존 구매자는 그대로 → 매출 합산.
+  //  - FORCE_CANCELLED(강제 취소): 전량 환불 대상 → 매출에서 제외.
+  // 이전 버전은 두 종료 상태가 합쳐진 'CANCELLED' 한 가지였고 그걸 통째로 빼고 있어,
+  // BE 가 두 액션을 분리한 후엔 판매 중지 이벤트 매출이 누락되는 버그가 있었다.
+  const REVENUE_STATUSES = new Set(['ON_SALE', 'SOLD_OUT', 'SALE_ENDED', 'CANCELLED'])
   const revenueEvents = allEvents.filter(e => REVENUE_STATUSES.has(e.status))
   const totalRevenue = revenueEvents
     .reduce((acc, e) => acc + (e.totalQuantity - e.remainingQuantity) * e.price, 0)
@@ -232,15 +234,38 @@ export default function SellerDashboard() {
                       {event.price === 0 ? <span style={{ color: 'var(--success)' }}>무료</span> : `${event.price.toLocaleString()}원`}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontWeight: 600 }}>{sold}</span>
-                      <span style={{ color: 'var(--text-3)' }}> / {event.remainingQuantity}</span>
-                      <div style={{ height: 4, background: 'var(--surface-2)', borderRadius: 99, marginTop: 4, minWidth: 60 }}>
-                        <div style={{
-                          height: '100%', borderRadius: 99,
-                          background: 'var(--brand)',
-                          width: `${Math.min(100, (sold / event.totalQuantity) * 100)}%`,
-                        }} />
-                      </div>
+                      {event.status === 'FORCE_CANCELLED' ? (
+                        // 전량 환불 처리됐으므로 sold 숫자는 더 이상 유효 매출이 아님 — 취소선 + 안내.
+                        <>
+                          <span style={{ color: 'var(--text-3)', textDecoration: 'line-through', fontSize: 13 }}>
+                            {sold} / {event.remainingQuantity}
+                          </span>
+                          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>
+                            전량 환불 처리
+                          </div>
+                        </>
+                      ) : event.status === 'CANCELLED' ? (
+                        // 신규 판매만 차단 — 기존 sold 는 유효. 진행 바 숨기고 라벨 추가.
+                        <>
+                          <span style={{ fontWeight: 600 }}>{sold}</span>
+                          <span style={{ color: 'var(--text-3)' }}> / {event.remainingQuantity}</span>
+                          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
+                            신규 판매 중단 · 기존 구매 유효
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 600 }}>{sold}</span>
+                          <span style={{ color: 'var(--text-3)' }}> / {event.remainingQuantity}</span>
+                          <div style={{ height: 4, background: 'var(--surface-2)', borderRadius: 99, marginTop: 4, minWidth: 60 }}>
+                            <div style={{
+                              height: '100%', borderRadius: 99,
+                              background: 'var(--brand)',
+                              width: `${Math.min(100, (sold / event.totalQuantity) * 100)}%`,
+                            }} />
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
