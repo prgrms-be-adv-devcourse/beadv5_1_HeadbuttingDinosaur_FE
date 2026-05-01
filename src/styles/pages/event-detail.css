@@ -141,6 +141,70 @@
   margin: 0;
 }
 
+/* RefundPolicy — 행사일 기준 환불 단계 안내 */
+.ed-refund-policy {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+.ed-refund-policy__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ed-refund-policy__icon {
+  font-size: 18px;
+}
+.ed-refund-policy__title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.ed-refund-policy__list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ed-refund-policy__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-family: var(--font);
+  font-size: 14px;
+}
+.ed-refund-policy__row.is-current {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+}
+.ed-refund-policy__label {
+  color: var(--text-2);
+}
+.ed-refund-policy__rate {
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.ed-refund-policy__row.is-current .ed-refund-policy__rate {
+  color: var(--brand);
+}
+.ed-refund-policy__note {
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text-3);
+  line-height: 1.6;
+  margin: 0;
+}
+
 /* PriceSummary (§2 PriceSummary) — 합계 한 줄. price=0 / 매진 시 component 가 null 반환 */
 .ed-price-summary {
   display: flex;
