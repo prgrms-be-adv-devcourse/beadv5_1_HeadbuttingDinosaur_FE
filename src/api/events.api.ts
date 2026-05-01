@@ -14,8 +14,8 @@ import type {
   SellerEventDetailResponse,
   SellerEventUpdateRequest,
   SellerEventUpdateResponse,
-  SellerEventStopResponse,
-  SellerEventCancelRequest,
+  SellerEventForceCancelResponse,
+  SellerEventForceCancelRequest,
   SellerEventSummaryResponse,
   SellerEventParticipantListRequest,
   SellerEventParticipantListResponse,
@@ -62,14 +62,23 @@ export const updateSellerEvent = (
     body,
   );
 
-export const stopSellerEvent = (
+/**
+ * Action A — 이벤트 강제 취소 (환불 동반).
+ * 이벤트 상태가 FORCE_CANCELLED 로 전이되며, 결제 완료 구매자에게 환불 fan-out 이 시작된다.
+ * 신규 판매만 막고 기존 구매자에게 영향을 주지 않으려면 updateSellerEvent({ status: 'CANCELLED' })
+ * (= Action B 판매 중지) 를 사용하라.
+ */
+export const forceCancelSellerEvent = (
   eventId: string,
-  body: SellerEventCancelRequest,
+  body: SellerEventForceCancelRequest,
 ) =>
-  apiClient.post<ApiResponse<SellerEventStopResponse>>(
+  apiClient.post<ApiResponse<SellerEventForceCancelResponse>>(
     `/seller/events/${eventId}/cancel`,
     body,
   );
+
+/** @deprecated forceCancelSellerEvent 로 이전 — 이름이 의도(환불 동반)와 달라 혼선 유발. */
+export const stopSellerEvent = forceCancelSellerEvent;
 
 export const getSellerEventSummary = (eventId: string) =>
   apiClient.get<ApiResponse<SellerEventSummaryResponse>>(
