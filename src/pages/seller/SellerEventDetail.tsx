@@ -55,7 +55,11 @@ export default function SellerEventDetail() {
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>{event.title}</h1>
         </div>
-        <Link to={`/seller/events/${id}/edit`} className="btn btn-secondary">수정하기</Link>
+        {event.status === 'FORCE_CANCELLED' ? (
+          <button className="btn btn-secondary" disabled title="강제 취소된 이벤트는 수정할 수 없습니다">수정하기</button>
+        ) : (
+          <Link to={`/seller/events/${id}/edit`} className="btn btn-secondary">수정하기</Link>
+        )}
       </div>
 
       {/* Stats */}
