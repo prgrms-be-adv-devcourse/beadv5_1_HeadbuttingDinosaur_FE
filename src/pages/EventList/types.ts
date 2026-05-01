@@ -14,6 +14,8 @@ export interface EventVM {
   isLowStock: boolean;
   dateLabel: string;
   timeLabel: string;
+  viewCount?: number;
+  purchaseCount?: number;
 }
 
 export interface EventListFilters {

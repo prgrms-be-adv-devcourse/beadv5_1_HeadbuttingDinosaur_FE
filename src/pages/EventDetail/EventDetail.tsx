@@ -16,6 +16,7 @@ import { InfoCard } from './components/InfoCard';
 import { NotFoundCard } from './components/NotFoundCard';
 import { PurchasePanel } from './components/PurchasePanel';
 import { RecommendedSection } from './components/RecommendedSection';
+import { RefundPolicy } from './components/RefundPolicy';
 import { useEventDetail, useRecommendedEvents } from './hooks';
 
 export interface EventDetailProps {
@@ -121,6 +122,7 @@ export function EventDetail({ eventId }: EventDetailProps) {
           <InfoCard vm={vm} />
           {vm.location && <EventMap location={vm.location} />}
           <EventDescription description={vm.description} />
+          <RefundPolicy eventDateTime={vm.eventDateTime} />
         </div>
         <PurchasePanel vm={vm} />
       </div>

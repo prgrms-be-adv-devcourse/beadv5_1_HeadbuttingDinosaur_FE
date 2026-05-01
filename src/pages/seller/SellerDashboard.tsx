@@ -108,10 +108,16 @@ export default function SellerDashboard() {
   }
 
   // Quick stats — 상단 박스는 항상 전체 기준.
-  const totalRevenue = allEvents.filter(e => e.status === 'ON_SALE' || e.status === 'ENDED')
+  // 매출/판매수는 실제로 티켓이 판매된 모든 상태(ON_SALE/SOLD_OUT/SALE_ENDED)를
+  // 합산해야 한다. 이전 버전은 'ENDED'(존재하지 않는 상태)와 ON_SALE 만 포함해
+  // SOLD_OUT/SALE_ENDED 매출이 통째로 누락됐다. CANCELLED 는 환불 대상이라 제외.
+  const REVENUE_STATUSES = new Set(['ON_SALE', 'SOLD_OUT', 'SALE_ENDED'])
+  const revenueEvents = allEvents.filter(e => REVENUE_STATUSES.has(e.status))
+  const totalRevenue = revenueEvents
     .reduce((acc, e) => acc + (e.totalQuantity - e.remainingQuantity) * e.price, 0)
   const onSaleCount = allEvents.filter(e => e.status === 'ON_SALE').length
-  const totalSold = allEvents.reduce((acc, e) => acc + (e.totalQuantity - e.remainingQuantity), 0)
+  const totalSold = revenueEvents
+    .reduce((acc, e) => acc + (e.totalQuantity - e.remainingQuantity), 0)
   const events = tabEvents
 
   return (
