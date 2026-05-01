@@ -115,6 +115,9 @@ export function HeroSection({
           restartDelayMs={restartDelayMs}
           loop={loop}
         />
+        <p className="hero-section__terminal-caption" aria-hidden="true">
+          // 데모 화면 — 실제 명령어는 동작하지 않습니다
+        </p>
       </div>
     </section>
   );

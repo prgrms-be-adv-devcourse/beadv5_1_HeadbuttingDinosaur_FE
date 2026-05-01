@@ -36,7 +36,14 @@ export default function SellerEventDetail() {
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 100 }}><div className="spinner" /></div>
   if (!event) return null
 
-  const soldRate = summary ? Math.round((summary.soldQuantity / summary.totalQuantity) * 100) : 0
+  // 환불 완료된 수량(cancelledQuantity)을 빼서 실제 순판매 기준으로 표시.
+  // 강제 취소·부분 환불된 이벤트도 동일 계산식으로 일관되게 0 또는 net 값이 잡힌다.
+  const totalQty   = summary?.totalQuantity ?? 0
+  const cancelled  = summary?.cancelledQuantity ?? 0
+  const netSold    = Math.max(0, (summary?.soldQuantity ?? 0) - cancelled)
+  const netRemain  = Math.max(0, totalQty - netSold)
+  const netRevenue = netSold * (summary?.price ?? 0)
+  const soldRate   = totalQty > 0 ? Math.round((netSold / totalQty) * 100) : 0
 
   return (
     <div style={{ padding: '32px 36px' }}>
@@ -48,7 +55,11 @@ export default function SellerEventDetail() {
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>{event.title}</h1>
         </div>
-        <Link to={`/seller/events/${id}/edit`} className="btn btn-secondary">수정하기</Link>
+        {event.status === 'FORCE_CANCELLED' ? (
+          <button className="btn btn-secondary" disabled title="강제 취소된 이벤트는 수정할 수 없습니다">수정하기</button>
+        ) : (
+          <Link to={`/seller/events/${id}/edit`} className="btn btn-secondary">수정하기</Link>
+        )}
       </div>
 
       {/* Stats */}
@@ -56,19 +67,29 @@ export default function SellerEventDetail() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
           <div className="stat-card">
             <div className="stat-label">총 수량</div>
-            <div className="stat-value">{summary.totalQuantity}</div>
+            <div className="stat-value">{totalQty}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">판매 수량</div>
-            <div className="stat-value" style={{ color: 'var(--brand)' }}>{summary.soldQuantity}</div>
+            <div className="stat-value" style={{ color: 'var(--brand)' }}>{netSold}</div>
+            {cancelled > 0 && (
+              <div className="stat-sub" style={{ color: 'var(--danger)' }}>
+                환불 {cancelled}건 차감
+              </div>
+            )}
           </div>
           <div className="stat-card">
             <div className="stat-label">잔여 수량</div>
-            <div className="stat-value">{summary.remainingQuantity}</div>
+            <div className="stat-value">{netRemain}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">예상 매출</div>
-            {Math.floor(summary.totalSalesAmount * 0.95).toLocaleString()}원
+            <div className="stat-value">{Math.floor(netRevenue * 0.95).toLocaleString()}원</div>
+            {cancelled > 0 && (
+              <div className="stat-sub" style={{ color: 'var(--text-3)' }}>
+                수수료 5% 차감 후
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -89,8 +110,8 @@ export default function SellerEventDetail() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: 'var(--text-3)' }}>
             <span>0</span>
-            <span>{summary.soldQuantity} / {summary.totalQuantity}장 판매</span>
-            <span>{summary.totalQuantity}</span>
+            <span>{netSold} / {totalQty}장 판매{cancelled > 0 ? ` · 환불 ${cancelled}건` : ''}</span>
+            <span>{totalQty}</span>
           </div>
         </div>
       )}

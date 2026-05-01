@@ -9,11 +9,13 @@ import { useToast } from '../../contexts/ToastContext'
 const REASON_MAX = 500
 
 const EVENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  DRAFT:     { label: '판매 예정',    cls: 'badge-gray' },
-  ON_SALE:   { label: '판매중',  cls: 'badge-green' },
-  SOLD_OUT:  { label: '매진',    cls: 'badge-red' },
-  ENDED:     { label: '종료',    cls: 'badge-gray' },
-  CANCELLED: { label: '취소됨',  cls: 'badge-gray' },
+  DRAFT:           { label: '판매 예정',    cls: 'badge-gray' },
+  ON_SALE:         { label: '판매중',       cls: 'badge-green' },
+  SOLD_OUT:        { label: '매진',         cls: 'badge-red' },
+  SALE_ENDED:      { label: '종료',         cls: 'badge-gray' },
+  ENDED:           { label: '종료',         cls: 'badge-gray' },
+  CANCELLED:       { label: '판매 중지됨',  cls: 'badge-gray' },
+  FORCE_CANCELLED: { label: '강제 취소됨',  cls: 'badge-red' },
 }
 
 export function AdminEvents() {
@@ -97,13 +99,16 @@ export function AdminEvents() {
                 <th>판매자</th>
                 <th>상태</th>
                 <th>일시</th>
-                <th style={{ textAlign: 'right' }}>총/잔여</th>
+                <th style={{ textAlign: 'right' }}>판매량/총수량</th>
                 <th>관리</th>
               </tr>
             </thead>
             <tbody>
               {events.map(event => {
                 const status = EVENT_STATUS_MAP[event.status] ?? { label: event.status, cls: 'badge-gray' }
+                const isForceCancelled = event.status === 'FORCE_CANCELLED'
+                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 판매량=0 / 총수량은 그대로 노출(초기 상태).
+                const sold = isForceCancelled ? 0 : event.totalQuantity - event.remainingQuantity
                 return (
                   <tr key={event.eventId}>
                     <td>
@@ -115,7 +120,7 @@ export function AdminEvents() {
                       {new Date(event.eventDateTime).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                     </td>
                     <td style={{ textAlign: 'right', fontSize: 13 }}>
-                      {event.totalQuantity} / <span style={{ color: event.remainingQuantity === 0 ? 'var(--danger)' : 'inherit' }}>{event.remainingQuantity}</span>
+                      <span style={{ fontWeight: 600 }}>{sold}</span> / <span style={{ color: 'var(--text-3)' }}>{event.totalQuantity}</span>
                     </td>
                     <td>
                       {event.status === 'ON_SALE' && (
