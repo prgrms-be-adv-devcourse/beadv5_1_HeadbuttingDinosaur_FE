@@ -99,7 +99,7 @@ export function AdminEvents() {
                 <th>판매자</th>
                 <th>상태</th>
                 <th>일시</th>
-                <th style={{ textAlign: 'right' }}>총/잔여</th>
+                <th style={{ textAlign: 'right' }}>판매량/총수량</th>
                 <th>관리</th>
               </tr>
             </thead>
@@ -107,8 +107,8 @@ export function AdminEvents() {
               {events.map(event => {
                 const status = EVENT_STATUS_MAP[event.status] ?? { label: event.status, cls: 'badge-gray' }
                 const isForceCancelled = event.status === 'FORCE_CANCELLED'
-                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 잔여=0 으로 통일 표시.
-                const displayRemaining = isForceCancelled ? 0 : event.remainingQuantity
+                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 판매량=0 / 총수량은 그대로 노출(초기 상태).
+                const sold = isForceCancelled ? 0 : event.totalQuantity - event.remainingQuantity
                 return (
                   <tr key={event.eventId}>
                     <td>
@@ -120,7 +120,7 @@ export function AdminEvents() {
                       {new Date(event.eventDateTime).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                     </td>
                     <td style={{ textAlign: 'right', fontSize: 13 }}>
-                      {event.totalQuantity} / <span style={{ color: displayRemaining === 0 ? 'var(--danger)' : 'inherit' }}>{displayRemaining}</span>
+                      <span style={{ fontWeight: 600 }}>{sold}</span> / <span style={{ color: 'var(--text-3)' }}>{event.totalQuantity}</span>
                     </td>
                     <td>
                       {event.status === 'ON_SALE' && (
