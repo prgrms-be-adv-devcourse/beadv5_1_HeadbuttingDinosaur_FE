@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getSellerEvents, stopSellerEvent } from '../../api/events.api'
+import { forceCancelSellerEvent, getSellerEvents, updateSellerEvent } from '../../api/events.api'
 import { getSellerEventRefundsPage } from '../../api/refunds.api'
 import { extractErrorMessage } from '../../api/client'
 import type { SellerEventItem } from '../../api/types'
@@ -8,16 +8,26 @@ import { useToast } from '../../contexts/ToastContext'
 
 const REASON_MAX = 500
 
+// 셀러 종료 액션은 두 가지 — 의도가 다르니 라벨/배지를 분리해 보여준다.
+//  - CANCELLED       (Action B 판매 중지): 신규 판매만 차단. 기존 구매자 환불 X.
+//  - FORCE_CANCELLED (Action A 강제 취소): 이벤트 종료 + 기존 구매자 환불 진행.
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  DRAFT:          { label: '판매 예정',    cls: 'badge-gray' },
-  ON_SALE:        { label: '판매중',  cls: 'badge-green' },
-  SOLD_OUT:       { label: '매진',    cls: 'badge-red' },
-  SALE_ENDED:     { label: '종료',    cls: 'badge-gray' },
-  CANCELLED:      { label: '취소됨',  cls: 'badge-gray' },
+  DRAFT:            { label: '판매 예정',    cls: 'badge-gray' },
+  ON_SALE:          { label: '판매중',      cls: 'badge-green' },
+  SOLD_OUT:         { label: '매진',        cls: 'badge-red' },
+  SALE_ENDED:       { label: '종료',        cls: 'badge-gray' },
+  CANCELLED:        { label: '판매 중지됨',  cls: 'badge-gray' },
+  FORCE_CANCELLED:  { label: '강제 취소됨',  cls: 'badge-red' },
 }
 
-const STATUS_TABS = ['전체', 'ON_SALE', 'SALE_ENDED', 'CANCELLED']
-const TAB_LABELS: Record<string, string> = { '전체': '전체', ON_SALE: '판매중', SALE_ENDED: '종료', CANCELLED: '취소됨' }
+const STATUS_TABS = ['전체', 'ON_SALE', 'SALE_ENDED', 'CANCELLED', 'FORCE_CANCELLED']
+const TAB_LABELS: Record<string, string> = {
+  '전체': '전체',
+  ON_SALE: '판매중',
+  SALE_ENDED: '종료',
+  CANCELLED: '판매 중지',
+  FORCE_CANCELLED: '강제 취소',
+}
 
 export default function SellerDashboard() {
   const { toast } = useToast()
@@ -28,7 +38,10 @@ export default function SellerDashboard() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('전체')
 
-  const [cancelTarget, setCancelTarget] = useState<{ eventId: string; title: string } | null>(null)
+  // 'STOP_SALE'    — Action B 판매 중지 (환불 X). updateSellerEvent({ status: 'CANCELLED' }).
+  // 'FORCE_CANCEL' — Action A 강제 취소 (환불 O). forceCancelSellerEvent(...).
+  type ActionKind = 'STOP_SALE' | 'FORCE_CANCEL'
+  const [actionTarget, setActionTarget] = useState<{ kind: ActionKind; eventId: string; title: string } | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [reasonError, setReasonError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -68,36 +81,48 @@ export default function SellerDashboard() {
     void fetchTabEvents(activeTab)
   }, [activeTab, fetchTabEvents])
 
-  const openCancelModal = (eventId: string, title: string) => {
-    setCancelTarget({ eventId, title })
+  const openActionModal = (kind: ActionKind, eventId: string, title: string) => {
+    setActionTarget({ kind, eventId, title })
     setCancelReason('')
     setReasonError(null)
   }
 
-  const closeCancelModal = () => {
+  const closeActionModal = () => {
     if (actionLoading) return
-    setCancelTarget(null)
+    setActionTarget(null)
     setCancelReason('')
     setReasonError(null)
   }
 
-  const submitCancel = async () => {
-    if (!cancelTarget) return
-    const trimmed = cancelReason.trim()
-    if (trimmed.length === 0) { setReasonError('취소 사유를 입력해 주세요.'); return }
-    if (trimmed.length > REASON_MAX) { setReasonError(`취소 사유는 ${REASON_MAX}자 이내여야 합니다.`); return }
-    setActionLoading(cancelTarget.eventId)
+  const submitAction = async () => {
+    if (!actionTarget) return
+    const { kind, eventId } = actionTarget
+
+    // 강제 취소만 사유 필수 — 판매 중지는 단순 상태 전이라 사유 입력을 받지 않는다.
+    let trimmed = ''
+    if (kind === 'FORCE_CANCEL') {
+      trimmed = cancelReason.trim()
+      if (trimmed.length === 0) { setReasonError('취소 사유를 입력해 주세요.'); return }
+      if (trimmed.length > REASON_MAX) { setReasonError(`취소 사유는 ${REASON_MAX}자 이내여야 합니다.`); return }
+    }
+
+    setActionLoading(eventId)
     try {
-      await stopSellerEvent(cancelTarget.eventId, { reason: trimmed })
-      try {
-        const refundRes = await getSellerEventRefundsPage(cancelTarget.eventId, { page: 0, size: 100 })
-        const refundCount = refundRes.data.totalElements
-        const totalRefundAmount = refundRes.data.content.reduce((sum, item) => sum + item.refundAmount, 0)
-        toast(`이벤트 취소 완료 · 환불 ${refundCount}건 (${totalRefundAmount.toLocaleString()}원)`, 'success')
-      } catch {
-        toast('이벤트 취소 및 환불 처리가 시작되었습니다', 'success')
+      if (kind === 'FORCE_CANCEL') {
+        await forceCancelSellerEvent(eventId, { reason: trimmed })
+        try {
+          const refundRes = await getSellerEventRefundsPage(eventId, { page: 0, size: 100 })
+          const refundCount = refundRes.data.totalElements
+          const totalRefundAmount = refundRes.data.content.reduce((sum, item) => sum + item.refundAmount, 0)
+          toast(`강제 취소 완료 · 환불 ${refundCount}건 (${totalRefundAmount.toLocaleString()}원)`, 'success')
+        } catch {
+          toast('강제 취소 및 환불 처리가 시작되었습니다', 'success')
+        }
+      } else {
+        await updateSellerEvent(eventId, { status: 'CANCELLED' })
+        toast('판매가 중지되었습니다 · 신규 판매만 차단되고 기존 구매자 환불은 진행되지 않습니다', 'success')
       }
-      setCancelTarget(null)
+      setActionTarget(null)
       setCancelReason('')
       setReasonError(null)
       // 통계와 현재 탭 목록 모두 갱신.
@@ -222,13 +247,24 @@ export default function SellerDashboard() {
                         <Link to={`/seller/events/${event.eventId}`} className="btn btn-ghost btn-sm">상세</Link>
                         <Link to={`/seller/events/${event.eventId}/edit`} className="btn btn-secondary btn-sm">수정</Link>
                         {event.status === 'ON_SALE' && (
-                          <button
-                            className="btn btn-danger btn-sm"
-                            disabled={actionLoading === event.eventId}
-                            onClick={() => openCancelModal(event.eventId, event.title)}
-                          >
-                            {actionLoading === event.eventId ? '...' : '이벤트 취소'}
-                          </button>
+                          <>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled={actionLoading === event.eventId}
+                              onClick={() => openActionModal('STOP_SALE', event.eventId, event.title)}
+                              title="신규 판매만 중단합니다. 기존 구매자 환불 X."
+                            >
+                              {actionLoading === event.eventId && actionTarget?.kind === 'STOP_SALE' ? '...' : '판매 중지'}
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              disabled={actionLoading === event.eventId}
+                              onClick={() => openActionModal('FORCE_CANCEL', event.eventId, event.title)}
+                              title="이벤트를 즉시 종료하고 결제 완료 구매자에게 환불을 진행합니다."
+                            >
+                              {actionLoading === event.eventId && actionTarget?.kind === 'FORCE_CANCEL' ? '...' : '강제 취소'}
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -241,70 +277,92 @@ export default function SellerDashboard() {
       )}
 
       <Modal
-        open={cancelTarget !== null}
-        onClose={closeCancelModal}
-        title="이벤트 취소"
+        open={actionTarget !== null}
+        onClose={closeActionModal}
+        title={actionTarget?.kind === 'FORCE_CANCEL' ? '이벤트 강제 취소 (환불 동반)' : '이벤트 판매 중지 (환불 없음)'}
         width={480}
         footer={
           <>
             <button
               className="btn btn-secondary"
-              onClick={closeCancelModal}
+              onClick={closeActionModal}
               disabled={actionLoading !== null}
             >
               닫기
             </button>
             <button
-              className="btn btn-danger"
-              onClick={submitCancel}
+              className={actionTarget?.kind === 'FORCE_CANCEL' ? 'btn btn-danger' : 'btn btn-primary'}
+              onClick={submitAction}
               disabled={actionLoading !== null}
             >
-              {actionLoading ? '처리 중...' : '취소 확정'}
+              {actionLoading
+                ? '처리 중...'
+                : actionTarget?.kind === 'FORCE_CANCEL'
+                  ? '강제 취소 확정'
+                  : '판매 중지 확정'}
             </button>
           </>
         }
       >
-        {cancelTarget && (
+        {actionTarget && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 14, color: 'var(--text-2)' }}>
-              <strong style={{ color: 'var(--text-1)' }}>{cancelTarget.title}</strong> 이벤트를 취소합니다.
-              <br />
-              구매자 환불 프로세스가 함께 진행됩니다.
+              <strong style={{ color: 'var(--text-1)' }}>{actionTarget.title}</strong>
+              {actionTarget.kind === 'FORCE_CANCEL' ? (
+                <>
+                  <br />
+                  이벤트가 <strong style={{ color: 'var(--danger)' }}>즉시 종료</strong>되고,
+                  결제를 완료한 모든 구매자에게 <strong>자동 환불</strong>이 진행됩니다.
+                  <br />
+                  되돌릴 수 없습니다.
+                </>
+              ) : (
+                <>
+                  <br />
+                  <strong>신규 판매만 중단</strong>됩니다. 이미 결제를 완료한 구매자의 티켓·환불에는 <strong>영향이 없습니다</strong>.
+                  <br />
+                  구매자 환불까지 함께 처리하려면 <strong>강제 취소</strong>를 사용하세요.
+                </>
+              )}
             </div>
 
-            <textarea
-              value={cancelReason}
-              onChange={e => {
-                setCancelReason(e.target.value)
-                if (reasonError) setReasonError(null)
-              }}
-              maxLength={REASON_MAX}
-              rows={5}
-              placeholder="취소 사유를 입력해 주세요 (필수, 최대 500자)"
-              disabled={actionLoading !== null}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 'var(--r-md)',
-                border: `1px solid ${reasonError ? 'var(--danger)' : 'var(--border)'}`,
-                fontSize: 14,
-                fontFamily: 'inherit',
-                resize: 'vertical',
-                background: 'var(--surface)',
-                color: 'var(--text-1)',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
+            {actionTarget.kind === 'FORCE_CANCEL' && (
+              <>
+                <textarea
+                  value={cancelReason}
+                  onChange={e => {
+                    setCancelReason(e.target.value)
+                    if (reasonError) setReasonError(null)
+                  }}
+                  maxLength={REASON_MAX}
+                  rows={5}
+                  placeholder="취소 사유를 입력해 주세요 (필수, 최대 500자)"
+                  disabled={actionLoading !== null}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--r-md)',
+                    border: `1px solid ${reasonError ? 'var(--danger)' : 'var(--border)'}`,
+                    fontSize: 14,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    background: 'var(--surface)',
+                    color: 'var(--text-1)',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-              <span style={{ color: reasonError ? 'var(--danger)' : 'var(--text-4)' }}>
-                {reasonError ?? '취소 사유는 환불 안내 및 감사 로그에 기록됩니다.'}
-              </span>
-              <span style={{ color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
-                {cancelReason.length} / {REASON_MAX}
-              </span>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: reasonError ? 'var(--danger)' : 'var(--text-4)' }}>
+                    {reasonError ?? '취소 사유는 환불 안내 및 감사 로그에 기록됩니다.'}
+                  </span>
+                  <span style={{ color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>
+                    {cancelReason.length} / {REASON_MAX}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Modal>
