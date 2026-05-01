@@ -37,13 +37,8 @@ import type {
 const HOSTS_HARDCODED = '24+';
 
 export const toStatsVM = (firstPage: EventListPage): StatVM[] => {
-  const items = firstPage.items;
-  const onSaleCount = items.filter((e) => e.status === 'ON_SALE').length;
-  const remainingSum = items.reduce((acc, e) => acc + e.remainingQuantity, 0);
   return [
     { hint: '// active events',  num: firstPage.totalElements, unit: '개', label: '진행 중인 이벤트' },
-    { hint: '// on sale',        num: onSaleCount,             unit: '매', label: '판매중인 티켓'   },
-    { hint: '// seats left',     num: remainingSum,            unit: '+', label: '전체 잔여 좌석'   },
     { hint: '// communities',    num: HOSTS_HARDCODED,         unit: '팀', label: '참여 커뮤니티'   },
   ];
 };

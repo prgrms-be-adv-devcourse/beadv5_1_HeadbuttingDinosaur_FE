@@ -36,7 +36,7 @@ export function StatsSection({ query }: StatsSectionProps) {
     >
       {isLoading && (
         <div className="stats-section__grid">
-          {Array.from({ length: 4 }, (_, i) => (
+          {Array.from({ length: 2 }, (_, i) => (
             <StatSkeleton key={i} />
           ))}
         </div>

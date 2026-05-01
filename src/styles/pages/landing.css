@@ -122,6 +122,15 @@
 .hero-section__left { min-width: 0; }
 .hero-section__right { min-width: 0; }
 
+.hero-section__terminal-caption {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-4);
+  text-align: right;
+  letter-spacing: 0.02em;
+}
+
 .hero-section__eyebrow {
   display: inline-flex;
   align-items: center;
@@ -208,7 +217,7 @@
 
 .stats-section__grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 
