@@ -658,6 +658,9 @@ export function SellerEventEdit() {
         // datetime-local input 은 'YYYY-MM-DDTHH:mm' 16자만 허용 — ISO 끝의 :ss/Z/.fff 잘라냄.
         const toLocalInput = (iso?: string): string =>
           iso ? iso.slice(0, 16) : "";
+        // 백엔드 응답이 maxQuantityPerUser / maxQuantity 둘 중 어느 키로 내려와도 안전하게 채운다.
+        const detail = d as { maxQuantityPerUser?: number; maxQuantity?: number } & typeof d;
+        const maxQty = detail.maxQuantityPerUser ?? detail.maxQuantity ?? 1;
         setInitial({
           title: d.title,
           description: d.description,
@@ -665,7 +668,7 @@ export function SellerEventEdit() {
           techStacks: d.techStacks.map((t: any) => t.name),
           price: String(d.price),
           totalQuantity: String(d.totalQuantity),
-          maxQuantityPerUser: String(d.maxQuantityPerUser),
+          maxQuantityPerUser: String(maxQty),
           eventDateTime: toLocalInput(d.eventDateTime),
           saleStartAt: toLocalInput(d.saleStartAt),
           saleEndAt: toLocalInput(d.saleEndAt),

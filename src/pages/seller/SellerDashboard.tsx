@@ -215,7 +215,10 @@ export default function SellerDashboard() {
             <tbody>
               {events.map(event => {
                 const status = STATUS_MAP[event.status] ?? { label: event.status, cls: 'badge-gray' }
-                const sold = event.totalQuantity - event.remainingQuantity
+                const isForceCancelled = event.status === 'FORCE_CANCELLED'
+                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 잔여=0/판매=총수량 으로 통일 표시.
+                const sold = isForceCancelled ? event.totalQuantity : event.totalQuantity - event.remainingQuantity
+                const remaining = isForceCancelled ? 0 : event.remainingQuantity
                 return (
                   <tr key={event.eventId}>
                     <td>
@@ -233,7 +236,7 @@ export default function SellerDashboard() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <span style={{ fontWeight: 600 }}>{sold}</span>
-                      <span style={{ color: 'var(--text-3)' }}> / {event.remainingQuantity}</span>
+                      <span style={{ color: 'var(--text-3)' }}> / {remaining}</span>
                       <div style={{ height: 4, background: 'var(--surface-2)', borderRadius: 99, marginTop: 4, minWidth: 60 }}>
                         <div style={{
                           height: '100%', borderRadius: 99,
@@ -245,7 +248,11 @@ export default function SellerDashboard() {
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         <Link to={`/seller/events/${event.eventId}`} className="btn btn-ghost btn-sm">상세</Link>
-                        <Link to={`/seller/events/${event.eventId}/edit`} className="btn btn-secondary btn-sm">수정</Link>
+                        {isForceCancelled ? (
+                          <button className="btn btn-secondary btn-sm" disabled title="강제 취소된 이벤트는 수정할 수 없습니다">수정</button>
+                        ) : (
+                          <Link to={`/seller/events/${event.eventId}/edit`} className="btn btn-secondary btn-sm">수정</Link>
+                        )}
                         {event.status === 'ON_SALE' && (
                           <>
                             <button
