@@ -107,8 +107,8 @@ export function AdminEvents() {
               {events.map(event => {
                 const status = EVENT_STATUS_MAP[event.status] ?? { label: event.status, cls: 'badge-gray' }
                 const isForceCancelled = event.status === 'FORCE_CANCELLED'
-                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 잔여=0 으로 통일 표시.
-                const displayRemaining = isForceCancelled ? 0 : event.remainingQuantity
+                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 잔여=총수량(원복) 으로 통일 표시.
+                const displayRemaining = isForceCancelled ? event.totalQuantity : event.remainingQuantity
                 return (
                   <tr key={event.eventId}>
                     <td>

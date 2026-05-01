@@ -208,7 +208,7 @@ export default function SellerDashboard() {
                 <th>상태</th>
                 <th>일시</th>
                 <th>가격</th>
-                <th style={{ textAlign: 'right' }}>판매/잔여</th>
+                <th style={{ textAlign: 'right' }}>판매량/재고량</th>
                 <th></th>
               </tr>
             </thead>
@@ -216,9 +216,9 @@ export default function SellerDashboard() {
               {events.map(event => {
                 const status = STATUS_MAP[event.status] ?? { label: event.status, cls: 'badge-gray' }
                 const isForceCancelled = event.status === 'FORCE_CANCELLED'
-                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 잔여=0/판매=총수량 으로 통일 표시.
-                const sold = isForceCancelled ? event.totalQuantity : event.totalQuantity - event.remainingQuantity
-                const remaining = isForceCancelled ? 0 : event.remainingQuantity
+                // 강제 취소 건은 결제 완료 구매분 전부 환불되므로 판매=0/잔여=총수량 으로 통일 표시.
+                const sold = isForceCancelled ? 0 : event.totalQuantity - event.remainingQuantity
+                const remaining = isForceCancelled ? event.totalQuantity : event.remainingQuantity
                 return (
                   <tr key={event.eventId}>
                     <td>
