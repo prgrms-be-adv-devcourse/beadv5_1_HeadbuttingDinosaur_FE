@@ -279,14 +279,20 @@ export interface SellerEventUpdateResponse {
   updatedAt: string;
 }
 
-export interface SellerEventStopResponse {
+// Action A — 강제 취소(환불 동반). 응답 status 는 FORCE_CANCELLED.
+export interface SellerEventForceCancelResponse {
   eventId: string;
   status: string;
 }
 
-export interface SellerEventCancelRequest {
+export interface SellerEventForceCancelRequest {
   reason: string;
 }
+
+/** @deprecated SellerEventForceCancelResponse 로 이전 (이름이 의도와 달라 혼선 유발). */
+export type SellerEventStopResponse = SellerEventForceCancelResponse;
+/** @deprecated SellerEventForceCancelRequest 로 이전. */
+export type SellerEventCancelRequest = SellerEventForceCancelRequest;
 
 export interface ParticipantItem {
   ticketId: string
