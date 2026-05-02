@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getSellerSettlementByMonth, getSellerSettlementPreview } from '../../api/seller.api'
-import { getSellerEventDetail } from '../../api/events.api'
 import { extractErrorMessage } from '../../api/client'
 import type { SettlementMonthResponse } from '../../api/types'
 import { useToast } from '../../contexts/ToastContext'
@@ -52,9 +51,6 @@ export default function SellerSettlement() {
   const [selectedIdx, setSelectedIdx] = useState(tabs.length - 1)
   const [data, setData] = useState<SettlementMonthResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  // TODO(BE): /seller/settlements 응답 SettlementEventItem 에 eventTitle 포함 요청.
-  // 현재는 eventId 만 내려오므로 항목별 상세 조회로 보강한다 (N+1).
-  const [eventTitles, setEventTitles] = useState<Record<string, string>>({})
 
   const selected = tabs[selectedIdx]
 
@@ -68,28 +64,13 @@ export default function SellerSettlement() {
   useEffect(() => {
     setLoading(true)
     setData(null)
-    setEventTitles({})
 
     const req = selected.isPreview
       ? getSellerSettlementPreview()
       : getSellerSettlementByMonth(selected.key)
 
     req
-      .then(async r => {
-        setData(r.data)
-        const ids = r.data.settlementItems.map(i => i.eventId)
-        if (ids.length === 0) return
-        const results = await Promise.allSettled(
-          ids.map(id => getSellerEventDetail(id)),
-        )
-        const map: Record<string, string> = {}
-        results.forEach((res, idx) => {
-          if (res.status === 'fulfilled') {
-            map[ids[idx]] = res.value.data.data.title
-          }
-        })
-        setEventTitles(map)
-      })
+      .then(r => setData(r.data))
       .catch((err) =>
         toast(
           extractErrorMessage(err) ?? '정산 데이터를 불러오지 못했습니다',
@@ -253,7 +234,9 @@ export default function SellerSettlement() {
                   {data.settlementItems.map(item => (
                     <tr key={item.eventId}>
                       <td style={{ fontWeight: 500 }}>
-                        {eventTitles[item.eventId] ?? item.eventTitle ?? item.eventId}
+                        {item.eventTitle && item.eventTitle !== 'Unknown'
+                          ? item.eventTitle
+                          : item.eventId}
                       </td>
                       <td style={{ textAlign: 'right' }}>{item.salesAmount.toLocaleString()}원</td>
                       <td style={{ textAlign: 'right', color: 'var(--danger)' }}>
